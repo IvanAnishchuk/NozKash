@@ -1,7 +1,8 @@
 import pytest
 from eth_keys import keys
 from eth_utils import keccak
-from py_ecc.bn128 import G1, G2, curve_order, is_on_curve
+# IMPORT b and b2 (The curve equation constants) instead of the G1/G2 generators!
+from py_ecc.bn128 import curve_order, is_on_curve, b, b2
 
 # Import your newly named library
 import ghost_library as gl
@@ -29,8 +30,8 @@ def test_mint_keypair_generation():
     assert isinstance(sk_mint, int)
     assert 0 < sk_mint < curve_order
     
-    # Public key must be a mathematically valid point on the G2 curve
-    assert is_on_curve(pk_mint, G2)
+    # Public key must be a mathematically valid point on the G2 curve (using constant b2)
+    assert is_on_curve(pk_mint, b2)
 
 def test_token_derivation_is_deterministic(setup_data):
     """Proves that passing the same seed and index yields the exact same secrets."""
@@ -54,17 +55,17 @@ def test_full_protocol_lifecycle(setup_data):
     secrets = gl.derive_token_secrets(master_seed, token_index)
     Y, B = gl.blind_token(secrets["spend_address_bytes"], secrets["r"])
     
-    # Y and B must both be valid points on G1
-    assert is_on_curve(Y, G1)
-    assert is_on_curve(B, G1)
+    # Y and B must both be valid points on G1 (using constant b)
+    assert is_on_curve(Y, b)
+    assert is_on_curve(B, b)
     
     # 3. Mint Signs
     S_prime = gl.mint_blind_sign(B, sk_mint)
-    assert is_on_curve(S_prime, G1)
+    assert is_on_curve(S_prime, b)
     
     # 4. Client Unblinds & Proof
     S = gl.unblind_signature(S_prime, secrets["r"])
-    assert is_on_curve(S, G1)
+    assert is_on_curve(S, b)
     
     proof = gl.generate_redemption_proof(secrets["spend_priv"], destination)
     

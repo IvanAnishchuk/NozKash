@@ -1,0 +1,82 @@
+user@g94 ~/src/ghostsomething $ uv run ghost_tip_test.py 
+👻 GHOST-TIP PROTOCOL: FULL LIFECYCLE TEST (.ENV ENABLED) 👻
+
+[0] Loading Mint Configuration from .env...
+    ✅ Mint Keys loaded securely.
+    PK_mint (X_real) : 28fa1d49a2f593daf05e352c3035655acd4f36791611acb059fd0693a9182996
+    PK_mint (X_imag) : 20151b545373b39ec147c998167e72c2284ee11e3b82e5f539c7361b9aaa7c13
+    PK_mint (Y_real) : cb8535c4e3eb14c98e64c98c7d2381ba1d6da0f1850dd2685eda5a40e48615d
+    PK_mint (Y_imag) : 1eb565ef231d53a5fb13481bece8b71ef7fbdba14f277bb40459b69d180b517
+
+[1] Deriving Token Secrets (User's Wallet)...
+    Token Index   : 42
+    Spend Address : 0x9355eb29da61d3a94343bf76e6458b6032c8c2e6 (This is the Token Secret!)
+    Blinding 'r'  : 9975352312114225588461889601612248069121371598217675252585165987882766246602
+
+[2] Client Blinding the Token...
+    Y (Hash-to-Curve) (X) : 1c6bb1f2196db102951c52ac7a37fc669bee684e589b759704cbb2669bcf3b8b
+    Y (Hash-to-Curve) (Y) : 2cec5ea37b7af3714b49bab8e5e481fce4566e0103b0d018fca50480daff2341
+    B (Blinded Point) (X) : 2199699490514eba0a2b2d86646b9f5301d0ad7b12315169b880cb4b10be8257
+    B (Blinded Point) (Y) : d52d3a55b22f9e020e437e40f54ce93a6bc42b67706b1220022b23bd16abb11
+    Blinded Point B mapped to G1. Sent to Smart Contract.
+
+[3] Mint blindly signing the point...
+    S' (Blind Sig) (X) : 29d627ce6e5061ed7f2a25ee5d110facceddf1c774b44e361d5a670f4f92eab5
+    S' (Blind Sig) (Y) : 63f2b652f68c359e79c57ffc1ae330955dc8c84d7e19c4c48aef9349b6c2cc4
+    Blinded Signature S' generated. Broadcasted to Chain.
+
+[4] Client unblinding the signature...
+    S (Unblinded Sig) (X) : 937017581b5a126f39c4fd65a21331b25af3e39dd8c22fb938f3f9d092e7f3b
+    S (Unblinded Sig) (Y) : 1173c27673d294a2f4a7d4c79f36873a60f7c285af31b62d9c2f2daa090f2718
+    Valid, unblinded eCash Token obtained: (SpendAddress, S)
+
+[5] Generating Redemption Proof for Smart Contract...
+    Destination      : 0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7
+    ECDSA Signature  : 0x503ecc985d24d99831584ce93ec5f5d7bc736cdb9206c2b557a6da7954f244556fed309fa6b4b149a87ffd21642dfd949aac004fc40be24a02ce949980c36b4c (plus recovery bit: 1)
+
+[6] EVM Verification (Redemption Transaction)...
+    [Contract] Signature mathematically bound to: 0x9355eb29da61d3a94343bf76e6458b6032c8c2e6
+    ✅ MEV Protection Verified!
+    ✅ BLS Pairing Verified! Mathematical proof is flawless.
+
+🎉 TRANSACTION SUCCESS: 0.01 Sepolia ETH Transferred! 🎉
+user@g94 ~/src/ghostsomething $ npx tsx test.ts
+👻 TS CLIENT: FULL LIFECYCLE TEST (.ENV ENABLED) 👻
+
+[0] Loading Mint Configuration from .env...
+    ✅ Mint Keys loaded securely.
+    PK_mint (X) : 29dd6d0f5db0eecd8eb56a3d873428d50fd7e1532bdfa8cfb4db01c93496512f
+    PK_mint (Y) : 2338df0f1a0ec1c9dc8486ba704ac0138fd2c2ddc124dc37c5ec9f4156e54ead
+
+[1] Deriving Token Secrets (User's Wallet)...
+    Token Index   : 42
+    Spend Address : 0x9355eb29da61d3a94343bf76e6458b6032c8c2e6 (This is the Token Secret!)
+    Blinding 'r'  : 9975352312114225588461889601612248069121371598217675252585165987882766246602
+
+[2] Client Blinding the Token...
+    Y (Hash-to-Curve) (X) : 1c6bb1f2196db102951c52ac7a37fc669bee684e589b759704cbb2669bcf3b8b
+    Y (Hash-to-Curve) (Y) : 2cec5ea37b7af3714b49bab8e5e481fce4566e0103b0d018fca50480daff2341
+    B (Blinded Point) (X) : 2199699490514eba0a2b2d86646b9f5301d0ad7b12315169b880cb4b10be8257
+    B (Blinded Point) (Y) : d52d3a55b22f9e020e437e40f54ce93a6bc42b67706b1220022b23bd16abb11
+    Blinded Point B mapped to G1. Sent to Smart Contract.
+
+[3] Mint blindly signing the point...
+    S' (Blind Sig) (X) : 29d627ce6e5061ed7f2a25ee5d110facceddf1c774b44e361d5a670f4f92eab5
+    S' (Blind Sig) (Y) : 63f2b652f68c359e79c57ffc1ae330955dc8c84d7e19c4c48aef9349b6c2cc4
+    Blinded Signature S' generated. Broadcasted to Chain.
+
+[4] Client unblinding the signature...
+    S (Unblinded Sig) (X) : 937017581b5a126f39c4fd65a21331b25af3e39dd8c22fb938f3f9d092e7f3b
+    S (Unblinded Sig) (Y) : 1173c27673d294a2f4a7d4c79f36873a60f7c285af31b62d9c2f2daa090f2718
+    Valid, unblinded eCash Token obtained: (SpendAddress, S)
+
+[5] Generating Redemption Proof for Smart Contract...
+    Destination      : 0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7
+    ECDSA Signature  : 0xcc0b15301220ca980b058f305f91169b0a0d5bd908a1682168f447bfe974079e0fb14f0d82d396a2eb5ff1d716314c2e915e11eaf8fccb426773e9cf2e902947 (plus recovery bit: 0)
+
+[6] EVM Verification (Redemption Transaction)...
+    [Contract] Signature mathematically bound to: 0x9355eb29da61d3a94343bf76e6458b6032c8c2e6
+    ✅ MEV Protection Verified!
+    ✅ BLS Pairing Verified! Mathematical proof is flawless.
+
+🎉 TRANSACTION SUCCESS: TypeScript bridge is fully operational! 🎉

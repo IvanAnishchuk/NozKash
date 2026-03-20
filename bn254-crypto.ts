@@ -72,8 +72,7 @@ export function hashToCurveBN254(messageBytes: Uint8Array): mcl.G1 {
 export function multiplyBN254(point: mcl.G1, scalar: bigint): mcl.G1 {
     const fr = new mcl.Fr();
     fr.setStr(scalar.toString(16), 16);
-    // mcl.mul returns the new point directly
-    return mcl.mul(point, fr) as mcl.G1;
+    return mcl.mul(point, fr) as mcl.G1; // Returns the point directly
 }
 
 /**

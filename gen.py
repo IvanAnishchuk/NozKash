@@ -1,5 +1,4 @@
 import os
-from eth_keys import keys
 from py_ecc.bn128 import curve_order, G2, multiply
 
 
@@ -8,22 +7,7 @@ def generate_keys():
     print("🔒 GHOST-TIP MINT KEY GENERATION UTILITY")
     print("========================================\n")
 
-    # ---------------------------------------------------------
-    # 1. SECP256K1 IDENTITY KEY (ECDH Return Channel)
-    # ---------------------------------------------------------
-    identity_priv_bytes = os.urandom(32)
-    identity_priv_key = keys.PrivateKey(identity_priv_bytes)
-    identity_pub_compressed = identity_priv_key.public_key.to_compressed_bytes().hex()
-
-    print("--- [1] SECP256K1 IDENTITY KEYS ---")
-    print(
-        f"MINT_IDENTITY_PRIVKEY_HEX (Python .env) : 0x{identity_priv_key.to_hex()[2:]}"
-    )
-    print(f"MINT_IDENTITY_PUBKEY      (Frontend TS) : 0x{identity_pub_compressed}\n")
-
-    # ---------------------------------------------------------
-    # 2. BN254 BLIND SIGNATURE KEY
-    # ---------------------------------------------------------
+    # Generate a random scalar within the curve's order
     sk_bytes = os.urandom(32)
     sk_int = int.from_bytes(sk_bytes, "big") % curve_order
 
@@ -38,7 +22,7 @@ def generate_keys():
     y_real = pk_g2[1].coeffs[0].n
     y_imag = pk_g2[1].coeffs[1].n
 
-    print("--- [2] BN254 BLS KEYS ---")
+    print("--- BN254 BLS KEYS ---")
     print(f"MINT_BLS_PRIVKEY_INT      (Python .env) : {sk_int}\n")
 
     # Format for Solidity (Base-10 Integers)

@@ -1,9 +1,9 @@
-import { keccak256 } from 'ethereum-cryptography/keccak';
-import { secp256k1 } from '@noble/curves/secp256k1';
+import { keccak256 } from 'ethereum-cryptography/keccak.js';
+import { secp256k1 } from '@noble/curves/secp256k1.js';
 import mcl from 'mcl-wasm';
-import { 
-    initBN254, hashToCurveBN254, multiplyBN254, 
-    modularInverse, verifyPairingBN254, CURVE_ORDER 
+import {
+    initBN254, hashToCurveBN254, multiplyBN254,
+    modularInverse, verifyPairingBN254, CURVE_ORDER
 } from './bn254-crypto';
 
 async function main() {
@@ -13,14 +13,13 @@ async function main() {
     // 0. MOCK THE MINT (Using hardcoded keys for cross-language testing)
     // Let's assume the Mint generated this sk_mint in Python
     const MINT_BLS_PRIVKEY = 1234567891011121314151617181920n;
-    
+
     const generatorG2 = new mcl.G2();
     generatorG2.setStr("1 1800deef121f1e76b4edb22031d2e05f00ce18a221f7ee33989cce7fa15f8a00 198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2 12c85ea5db8c6def483af156cb8cb8ce8ff948d11d4e0e5a9101ed8fb8a614bb 2b14be26bd96b40285a210515e012e2c88f121eb3e0b74100fc77d079422a578", 16);
-    
+
     const skFr = new mcl.Fr();
     skFr.setStr(MINT_BLS_PRIVKEY.toString(16), 16);
-    const PK_mint = new mcl.G2();
-    mcl.mul(PK_mint, generatorG2, skFr);
+    const PK_mint = mcl.mul(generatorG2, skFr);
 
     // 1. DETERMINISTIC DERIVATION
     console.log("[1] Deriving Token Secrets...");
@@ -58,11 +57,11 @@ async function main() {
     console.log("[4] Client unblinding the signature...");
     const r_inv = modularInverse(r, CURVE_ORDER);
     const S = multiplyBN254(S_prime, r_inv);
-    
+
     // 5. VERIFICATION
     console.log("[5] Executing Local Pairing Verification...");
     const isValid = verifyPairingBN254(S, Y, PK_mint);
-    
+
     if (isValid) {
         console.log("    ✅ BLS Pairing Verified! Math matches Python perfectly.");
     } else {

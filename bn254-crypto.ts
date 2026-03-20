@@ -1,5 +1,5 @@
 import mcl from 'mcl-wasm';
-import { keccak256 } from 'ethereum-cryptography/keccak';
+import { keccak256 } from 'ethereum-cryptography/keccak.js';
 
 // BN254 Curve Constants
 export const FIELD_MODULUS = 21888242871839275222246405745257275088696311157297823662689037894645226208583n;
@@ -68,12 +68,12 @@ export function hashToCurveBN254(messageBytes: Uint8Array): mcl.G1 {
 /**
  * Multiplies a G1 Point by a Scalar
  */
+
 export function multiplyBN254(point: mcl.G1, scalar: bigint): mcl.G1 {
     const fr = new mcl.Fr();
     fr.setStr(scalar.toString(16), 16);
-    const result = new mcl.G1();
-    mcl.mul(result, point, fr);
-    return result;
+    // mcl.mul returns the new point directly
+    return mcl.mul(point, fr) as mcl.G1;
 }
 
 /**

@@ -3,6 +3,7 @@ import { readFileSync, readdirSync, existsSync } from 'fs';
 import { join, resolve } from 'path';
 import mcl from 'mcl-wasm';
 import * as gl from './ghost-library.js';
+
 import { initBN254, verifyPairingBN254 } from './bn254-crypto.js';
 
 // ==============================================================================
@@ -111,12 +112,23 @@ describe.each(ALL_VECTORS.map(({ id, v }) => ({ id, v })))(
 
         it('should verify the MEV protection payload', async () => {
             const masterSeedBytes = Buffer.from(v.MASTER_SEED, 'utf-8');
-            const secrets = gl.deriveTokenSecrets(masterSeedBytes, v.TOKEN_INDEX);
-            const proof   = await gl.generateRedemptionProof(
-                gl.getSpendPriv(secrets),
-                '0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7',
-            );
+            const secrets  = gl.deriveTokenSecrets(masterSeedBytes, v.TOKEN_INDEX);
+            const redeem   = v.REDEEM_TX;
 
+            const spendPriv = gl.getSpendPriv(secrets);
+            const proof    = await gl.generateRedemptionProof(spendPriv, redeem.recipient);
+
+            // Log the comparison result
+            console.log(`\n--- MEV COMPARE [token_${v.TOKEN_INDEX}] ---`);
+            console.log('msg_hash match:    ', Buffer.from(proof.msgHash).toString('hex') === redeem.msg_hash);
+            console.log('compact_hex match: ', proof.compactHex === redeem.compact_hex);
+            console.log('recovery_bit TS:   ', proof.recoveryBit, ' vec:', redeem.recovery_bit, ' match:', proof.recoveryBit === redeem.recovery_bit);
+
+            expect(Buffer.from(proof.msgHash).toString('hex')).toBe(redeem.msg_hash);
+            expect(proof.compactHex).toBe(redeem.compact_hex);
+            expect(proof.recoveryBit).toBe(redeem.recovery_bit);
+            const v_hex = (proof.recoveryBit + 27).toString(16).padStart(2, '0');
+            expect(proof.compactHex + v_hex).toBe(redeem.spend_signature);
             expect(gl.verifyEcdsaMevProtection(proof, gl.getSpendAddress(secrets))).toBe(true);
         });
 

@@ -74,6 +74,37 @@ def test_derive_token_secrets_vector(v):
 
 
 @pytest.mark.parametrize("v", PARAMS, ids=IDS)
+def test_redemption_proof_vector(v):
+    """Verifies the MEV protection proof matches the vector and can be verified."""
+    master_seed = v["MASTER_SEED"].encode("utf-8")
+    secrets = gl.derive_token_secrets(master_seed, v["TOKEN_INDEX"])
+    redeem = v["REDEEM_TX"]
+
+    proof = gl.generate_redemption_proof(secrets.spend_priv, redeem["recipient"])
+
+    # msg_hash is deterministic: keccak256("Pay to: " + recipient)
+    assert proof.msg_hash.hex() == redeem["msg_hash"]
+    # compact_hex is deterministic given the private key and msg_hash
+    assert proof.compact_hex == redeem["compact_hex"]
+    assert proof.recovery_bit == redeem["recovery_bit"]
+
+    # Verify the proof reconstructs correctly from its parts
+    assert gl.verify_ecdsa_mev_protection(
+        proof.msg_hash,
+        proof.compact_hex,
+        proof.recovery_bit,
+        secrets.spend.address,
+    ) is True
+
+    # Verify the spend_signature encoding: r(32) || s(32) || v(1)
+    expected_sig = redeem["spend_signature"]
+    r_hex = proof.compact_hex[:64]
+    s_hex = proof.compact_hex[64:]
+    v_hex = format(proof.recovery_bit + 27, '02x')
+    assert r_hex + s_hex + v_hex == expected_sig
+
+
+@pytest.mark.parametrize("v", PARAMS, ids=IDS)
 def test_blind_token_vector(v):
     """Proves Hash-to-Curve mapping and multiplicative blinding match."""
     master_seed = v["MASTER_SEED"].encode("utf-8")

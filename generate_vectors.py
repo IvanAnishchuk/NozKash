@@ -25,6 +25,7 @@ from py_ecc.bn128 import G2, curve_order
 from ghost_library import Scalar, G2Point, _mul_g2
 
 import ghost_library as gl
+from ghost_library import serialize_g1
 
 VECTORS_DIR = Path("test_vectors")
 
@@ -75,6 +76,15 @@ def compute_vector(master_seed_hex: str, sk_int: int, token_index: int) -> dict:
     S_prime = gl.mint_blind_sign(blinded.B, sk)
     S       = gl.unblind_signature(S_prime, secrets.r)
 
+    # ── MEV protection proof ─────────────────────────────────────────────────
+    # The redemption proof binds the token to a fixed test recipient address.
+    # In production any recipient address can be used; the test address is fixed
+    # so vectors are deterministic and cross-language comparable.
+    test_recipient = "0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7"
+    proof = gl.generate_redemption_proof(secrets.spend_priv, test_recipient)
+
+    s_x, s_y = gl.serialize_g1(S)
+
     return {
         # ── Inputs ────────────────────────────────────────────────────────────
         "MASTER_SEED":      master_seed_hex,
@@ -90,8 +100,8 @@ def compute_vector(master_seed_hex: str, sk_int: int, token_index: int) -> dict:
         },
 
         # ── Spend keypair (nullifier) ─────────────────────────────────────────
-        # The spend address is the token's nullifier — revealed only at redemption.
-        # The private key signs the anti-MEV payload "Pay to: <recipient>".
+        # The spend address is the nullifier — revealed at redemption.
+        # The private key signs the anti-MEV payload.
         "SPEND_KEYPAIR": {
             "priv":    secrets.spend.priv.to_bytes().hex(),
             "pub":     secrets.spend.pub_hex,
@@ -100,13 +110,12 @@ def compute_vector(master_seed_hex: str, sk_int: int, token_index: int) -> dict:
 
         # ── Blind keypair (deposit ID + blinding factor) ──────────────────────
         # The blind address is the deposit ID — submitted with the deposit tx.
-        # It reveals nothing about the spend address without the master seed.
-        # The private key, as a BN254 scalar, IS the multiplicative blinding factor r.
+        # The private key as a BN254 scalar is the blinding factor r.
         "BLIND_KEYPAIR": {
             "priv":    secrets.blind.priv.to_bytes().hex(),
             "pub":     secrets.blind.pub_hex,
             "address": secrets.blind.address,
-            "r":       hex(secrets.r),   # int(priv) % curve_order
+            "r":       hex(secrets.r),
         },
 
         # ── BLS protocol intermediates ────────────────────────────────────────
@@ -125,6 +134,29 @@ def compute_vector(master_seed_hex: str, sk_int: int, token_index: int) -> dict:
         "S_UNBLINDED": {
             "X": hex(S[0].n)[2:],
             "Y": hex(S[1].n)[2:],
+        },
+
+        # ── Redemption transaction (what the client submits on-chain) ─────────
+        # redeem(recipient, spendSignature, unblindedSignatureS)
+        # spendSignature = r(32) || s(32) || v(1) where v = recovery_bit + 27
+        "REDEEM_TX": {
+            # Arguments to GhostVault.redeem()
+            "recipient":  test_recipient,
+            "S_x":        str(s_x),   # uint256 — Solidity encoding
+            "S_y":        str(s_y),   # uint256
+
+            # MEV protection signature — intermediate steps for verification
+            # msg_hash = keccak256("Pay to: " + recipient)
+            "mev_payload":    f"Pay to: {test_recipient}",
+            "msg_hash":       proof.msg_hash.hex(),
+            "compact_hex":    proof.compact_hex,   # 128 hex chars: r(32) + s(32)
+            "recovery_bit":   proof.recovery_bit,  # 0 or 1; v = recovery_bit + 27
+            # Full 65-byte spend signature as submitted to the contract
+            "spend_signature": (
+                proof.compact_hex[:64]          # r (32 bytes)
+                + proof.compact_hex[64:]         # s (32 bytes)
+                + format(proof.recovery_bit + 27, '02x')  # v (1 byte)
+            ),
         },
     }
 

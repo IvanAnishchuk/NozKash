@@ -57,7 +57,7 @@ if not PARAMS:
 @pytest.mark.parametrize("v", PARAMS, ids=IDS)
 def test_mint_pk_vector(v):
     """Proves the Mint's G2 Public Key derives correctly from the scalar."""
-    sk_mint = int(v["MINT_BLS_PRIVKEY_INT"])
+    sk_mint = int(v["MINT_BLS_PRIVKEY"], 16)
     pk_mint = multiply(G2, sk_mint)
 
     assert hex(pk_mint[0].coeffs[0].n)[2:] == v["PK_MINT"]["X_real"]
@@ -73,7 +73,7 @@ def test_derive_token_secrets_vector(v):
     secrets = gl.derive_token_secrets(master_seed, v["TOKEN_INDEX"])
 
     assert secrets.spend_address_hex == v["SPEND_ADDRESS"]
-    assert str(secrets.r) == v["BLINDING_R"]
+    assert hex(secrets.r) == v["BLINDING_R"]
 
 
 @pytest.mark.parametrize("v", PARAMS, ids=IDS)
@@ -95,7 +95,7 @@ def test_mint_blind_sign_vector(v):
     master_seed = v["MASTER_SEED"].encode("utf-8")
     secrets = gl.derive_token_secrets(master_seed, v["TOKEN_INDEX"])
     blinded = gl.blind_token(secrets.spend_address_bytes, secrets.r)
-    sk_mint = int(v["MINT_BLS_PRIVKEY_INT"])
+    sk_mint = int(v["MINT_BLS_PRIVKEY"], 16)
 
     S_prime = gl.mint_blind_sign(blinded.B, sk_mint)
 
@@ -109,7 +109,7 @@ def test_unblind_signature_vector(v):
     master_seed = v["MASTER_SEED"].encode("utf-8")
     secrets = gl.derive_token_secrets(master_seed, v["TOKEN_INDEX"])
     blinded = gl.blind_token(secrets.spend_address_bytes, secrets.r)
-    sk_mint = int(v["MINT_BLS_PRIVKEY_INT"])
+    sk_mint = int(v["MINT_BLS_PRIVKEY"], 16)
     S_prime = gl.mint_blind_sign(blinded.B, sk_mint)
 
     S = gl.unblind_signature(S_prime, secrets.r)
@@ -125,7 +125,7 @@ def test_full_lifecycle_vector(v):
     This is the mathematical statement the on-chain ecPairing call verifies.
     """
     master_seed = v["MASTER_SEED"].encode("utf-8")
-    sk_mint = int(v["MINT_BLS_PRIVKEY_INT"])
+    sk_mint = int(v["MINT_BLS_PRIVKEY"], 16)
     pk_mint = multiply(G2, sk_mint)
 
     secrets = gl.derive_token_secrets(master_seed, v["TOKEN_INDEX"])

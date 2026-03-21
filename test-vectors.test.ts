@@ -63,7 +63,7 @@ describe.each(ALL_VECTORS.map(({ id, v }) => ({ id, v })))(
             const secrets = gl.deriveTokenSecrets(masterSeedBytes, v.TOKEN_INDEX);
 
             expect(secrets.spendAddressHex.toLowerCase()).toBe(v.SPEND_ADDRESS.toLowerCase());
-            expect(secrets.r.toString()).toBe(v.BLINDING_R);
+            expect(secrets.r).toBe(BigInt(v.BLINDING_R));
         });
 
         it('should blind the token matching G1 vectors', () => {
@@ -84,7 +84,7 @@ describe.each(ALL_VECTORS.map(({ id, v }) => ({ id, v })))(
             const masterSeedBytes = Buffer.from(v.MASTER_SEED, 'utf-8');
             const secrets = gl.deriveTokenSecrets(masterSeedBytes, v.TOKEN_INDEX);
             const { B } = gl.blindToken(secrets.spendAddressBytes, secrets.r);
-            const skMint = BigInt(v.MINT_BLS_PRIVKEY_INT);
+            const skMint = BigInt(v.MINT_BLS_PRIVKEY);
 
             const S_prime = gl.mintBlindSign(B, skMint);
 
@@ -97,7 +97,7 @@ describe.each(ALL_VECTORS.map(({ id, v }) => ({ id, v })))(
             const masterSeedBytes = Buffer.from(v.MASTER_SEED, 'utf-8');
             const secrets = gl.deriveTokenSecrets(masterSeedBytes, v.TOKEN_INDEX);
             const { B } = gl.blindToken(secrets.spendAddressBytes, secrets.r);
-            const skMint = BigInt(v.MINT_BLS_PRIVKEY_INT);
+            const skMint = BigInt(v.MINT_BLS_PRIVKEY);
             const S_prime = gl.mintBlindSign(B, skMint);
 
             const S = gl.unblindSignature(S_prime, secrets.r);
@@ -122,7 +122,7 @@ describe.each(ALL_VECTORS.map(({ id, v }) => ({ id, v })))(
             const masterSeedBytes = Buffer.from(v.MASTER_SEED, 'utf-8');
             const secrets = gl.deriveTokenSecrets(masterSeedBytes, v.TOKEN_INDEX);
             const { Y, B } = gl.blindToken(secrets.spendAddressBytes, secrets.r);
-            const skMint = BigInt(v.MINT_BLS_PRIVKEY_INT);
+            const skMint = BigInt(v.MINT_BLS_PRIVKEY);
             const S_prime = gl.mintBlindSign(B, skMint);
             const S = gl.unblindSignature(S_prime, secrets.r);
 

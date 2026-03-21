@@ -61,7 +61,7 @@ def compute_vector(master_seed_hex: str, sk_int: int, token_index: int) -> dict:
         # Inputs
         "MASTER_SEED": master_seed_hex,
         "TOKEN_INDEX": token_index,
-        "MINT_BLS_PRIVKEY_INT": str(sk_int),
+        "MINT_BLS_PRIVKEY": hex(sk_int),
 
         # Mint public key (G2)
         "PK_MINT": {
@@ -73,7 +73,7 @@ def compute_vector(master_seed_hex: str, sk_int: int, token_index: int) -> dict:
 
         # Client-derived secrets
         "SPEND_ADDRESS": secrets.spend_address_hex,
-        "BLINDING_R": str(secrets.r),
+        "BLINDING_R": hex(secrets.r),
 
         # Hash-to-curve (Y = H(spend_address))
         "Y_HASH_TO_CURVE": {

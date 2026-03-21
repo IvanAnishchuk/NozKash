@@ -5,8 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {stdJson} from "forge-std/StdJson.sol";
 import {GhostVault} from "../src/GhostVault.sol";
 
-/// @dev Kept in lockstep with `test/vectors.json` and the pytest module that loads it (`test_mint_pk_vector`, …).
-///      Forks **Sepolia** in `setUp` so precompile `0x08` and chain behavior match a live testnet (`forge test` needs RPC access).
+/// @dev Kept in lockstep with `test/vectors.json`. Forks a live network in `setUp` so precompile `0x08` matches production.
 contract GhostVaultTest is Test {
     using stdJson for string;
 
@@ -14,10 +13,11 @@ contract GhostVaultTest is Test {
 
     string internal constant VECTORS_PATH = "test/vectors.json";
 
-    /// @notice Pin the fork for reproducible CI; `0` = latest Sepolia head at fork time.
+    uint256 internal constant P = 21888242871839275222246405745257275088696311157297823662689037894645226208583;
+
+    event MintFulfilled(uint256 indexed depositId, uint256[2] blindedSignature);
+
     function _forkSepolia() internal {
-        // Public fallback; set `SEPOLIA_RPC_URL` for a private endpoint (recommended for CI).
-        // Change url to https://ethereum-sepolia-rpc.publicnode.com to test against ETH Sepolia
         string memory url = vm.envOr("SEPOLIA_RPC_URL", string("https://api.avax-test.network/ext/bc/C/rpc"));
         uint256 blockNo = vm.envOr("SEPOLIA_FORK_BLOCK", uint256(0));
         if (blockNo == 0) {
@@ -29,7 +29,15 @@ contract GhostVaultTest is Test {
 
     function setUp() public {
         _forkSepolia();
-        vault = new GhostVault();
+        string memory j = vm.readFile(VECTORS_PATH);
+        uint256[4] memory pkMint = [
+            _hexU256(j, ".PK_MINT.X_imag"),
+            _hexU256(j, ".PK_MINT.X_real"),
+            _hexU256(j, ".PK_MINT.Y_imag"),
+            _hexU256(j, ".PK_MINT.Y_real")
+        ];
+        bytes32 domain = bytes32(_hexU256(j, ".REDEEM_INTEGRATION.BLS_DOMAIN"));
+        vault = new GhostVault(pkMint, domain);
     }
 
     function _vectorsJson() internal view returns (string memory) {
@@ -38,6 +46,10 @@ contract GhostVaultTest is Test {
 
     function _hexU256(string memory json, string memory key) internal pure returns (uint256) {
         return vm.parseUint(string.concat("0x", json.readString(key)));
+    }
+
+    function _hexBytes(string memory json, string memory key) internal pure returns (bytes memory) {
+        return vm.parseBytes(string.concat("0x", json.readString(key)));
     }
 
     /// @dev Mirrors `test_derive_token_secrets_vector` + JSON `SPEND_ADDRESS` / `TOKEN_INDEX` / `BLINDING_R`.
@@ -113,5 +125,120 @@ contract GhostVaultTest is Test {
                 pkMint
             )
         );
+    }
+
+    function test_vectorsJson_redeemIntegration_hashAndMsg() public view {
+        string memory j = _vectorsJson();
+        address recipient = j.readAddress(".REDEEM_INTEGRATION.RECIPIENT");
+        assertEq(
+            vault.redemptionMessageHash(recipient),
+            bytes32(_hexU256(j, ".REDEEM_INTEGRATION.MSG_HASH"))
+        );
+        address spend = j.readAddress(".REDEEM_INTEGRATION.SPEND_ADDRESS");
+        uint256[2] memory y = vault.hashNullifierPoint(spend);
+        assertEq(y[0], _hexU256(j, ".REDEEM_INTEGRATION.Y_FROM_H2C.X"));
+        assertEq(y[1], _hexU256(j, ".REDEEM_INTEGRATION.Y_FROM_H2C.Y"));
+    }
+
+    function test_hashNullifierPointOnCurve() public view {
+        string memory j = _vectorsJson();
+        address spend = j.readAddress(".REDEEM_INTEGRATION.SPEND_ADDRESS");
+        uint256[2] memory y = vault.hashNullifierPoint(spend);
+        uint256 x = y[0];
+        uint256 rhs = addmod(mulmod(mulmod(x, x, P), x, P), 3, P);
+        assertEq(mulmod(y[1], y[1], P), rhs);
+    }
+
+    function test_deposit_acceptsExactDenominationAndLocksEth() public {
+        string memory j = _vectorsJson();
+        uint256[2] memory b = [_hexU256(j, ".B_BLINDED.X"), _hexU256(j, ".B_BLINDED.Y")];
+        address user = address(0xCAFE);
+        vm.warp(1_717_000_000);
+        vm.deal(user, 1 ether);
+
+        vm.prank(user);
+        vault.deposit{value: vault.DENOMINATION()}(b);
+
+        assertEq(address(vault).balance, vault.DENOMINATION());
+    }
+
+    function test_deposit_revertsWhenWrongValue() public {
+        string memory j = _vectorsJson();
+        uint256[2] memory b = [_hexU256(j, ".B_BLINDED.X"), _hexU256(j, ".B_BLINDED.Y")];
+        vm.deal(address(this), 1 ether);
+        vm.expectRevert(GhostVault.InvalidValue.selector);
+        vault.deposit{value: 0}(b);
+    }
+
+    function test_announce_emitsMintFulfilled() public {
+        string memory j = _vectorsJson();
+        uint256[2] memory sPrime = [_hexU256(j, ".S_PRIME.X"), _hexU256(j, ".S_PRIME.Y")];
+        uint256 depositId = 0xabc123;
+
+        vm.expectEmit(true, true, true, true);
+        emit MintFulfilled(depositId, sPrime);
+        vault.announce(depositId, sPrime);
+    }
+
+    function test_redeem_succeedsAgainstVectors() public {
+        string memory j = _vectorsJson();
+        address recipient = j.readAddress(".REDEEM_INTEGRATION.RECIPIENT");
+        bytes memory sig = _hexBytes(j, ".REDEEM_INTEGRATION.SPEND_SIGNATURE_HEX");
+        uint256[2] memory sG1 = [
+            _hexU256(j, ".REDEEM_INTEGRATION.S_UNBLINDED_FOR_H2C.X"),
+            _hexU256(j, ".REDEEM_INTEGRATION.S_UNBLINDED_FOR_H2C.Y")
+        ];
+
+        vm.deal(address(vault), vault.DENOMINATION());
+        uint256 balBefore = recipient.balance;
+
+        vault.redeem(recipient, sig, sG1);
+
+        assertEq(recipient.balance - balBefore, vault.DENOMINATION());
+        assertTrue(vault.spentNullifiers(j.readAddress(".REDEEM_INTEGRATION.SPEND_ADDRESS")));
+    }
+
+    function test_redeem_revertsDoubleSpend() public {
+        string memory j = _vectorsJson();
+        address recipient = j.readAddress(".REDEEM_INTEGRATION.RECIPIENT");
+        bytes memory sig = _hexBytes(j, ".REDEEM_INTEGRATION.SPEND_SIGNATURE_HEX");
+        uint256[2] memory sG1 = [
+            _hexU256(j, ".REDEEM_INTEGRATION.S_UNBLINDED_FOR_H2C.X"),
+            _hexU256(j, ".REDEEM_INTEGRATION.S_UNBLINDED_FOR_H2C.Y")
+        ];
+
+        vm.deal(address(vault), 2 * vault.DENOMINATION());
+        vault.redeem(recipient, sig, sG1);
+
+        vm.expectRevert(GhostVault.AlreadySpent.selector);
+        vault.redeem(recipient, sig, sG1);
+    }
+
+    function test_redeem_revertsInvalidECDSA() public {
+        string memory j = _vectorsJson();
+        address recipient = j.readAddress(".REDEEM_INTEGRATION.RECIPIENT");
+        uint256[2] memory sG1 = [
+            _hexU256(j, ".REDEEM_INTEGRATION.S_UNBLINDED_FOR_H2C.X"),
+            _hexU256(j, ".REDEEM_INTEGRATION.S_UNBLINDED_FOR_H2C.Y")
+        ];
+        bytes memory badSig = new bytes(65);
+        for (uint256 i; i < 65; i++) {
+            badSig[i] = 0xab;
+        }
+
+        vm.deal(address(vault), vault.DENOMINATION());
+        vm.expectRevert(GhostVault.InvalidECDSA.selector);
+        vault.redeem(recipient, badSig, sG1);
+    }
+
+    function test_redeem_revertsInvalidBLS() public {
+        string memory j = _vectorsJson();
+        address recipient = j.readAddress(".REDEEM_INTEGRATION.RECIPIENT");
+        bytes memory sig = _hexBytes(j, ".REDEEM_INTEGRATION.SPEND_SIGNATURE_HEX");
+        uint256[2] memory badS = [uint256(1), uint256(2)];
+
+        vm.deal(address(vault), vault.DENOMINATION());
+        vm.expectRevert(GhostVault.InvalidBLS.selector);
+        vault.redeem(recipient, sig, badS);
     }
 }

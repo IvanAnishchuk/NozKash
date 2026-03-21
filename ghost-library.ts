@@ -55,7 +55,12 @@ export function generateMintKeypair(): { skMint: bigint, pkMint: mcl.G2 } {
 // ==============================================================================
 
 export function deriveTokenSecrets(masterSeed: Uint8Array, tokenIndex: number): TokenSecrets {
-    const indexBytes = new Uint8Array([0, 0, 0, tokenIndex]);
+    // DataView ensures correct 32-bit big-endian encoding for all token indices.
+    // Uint8Array([0, 0, 0, tokenIndex]) silently truncates indices >= 256 (modulo-wraps),
+    // breaking parity with Python's token_index.to_bytes(4, 'big') above that threshold.
+    const buffer = new ArrayBuffer(4);
+    new DataView(buffer).setUint32(0, tokenIndex, false); // false = big-endian
+    const indexBytes = new Uint8Array(buffer);
     const baseMaterial = keccak256(new Uint8Array([...masterSeed, ...indexBytes]));
 
     const spendPriv = keccak256(new Uint8Array([...Buffer.from("spend"), ...baseMaterial]));

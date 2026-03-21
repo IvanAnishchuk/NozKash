@@ -186,6 +186,10 @@ export function mintBlindSign(B: mcl.G1, skMint: bigint): mcl.G1 {
 /**
  * Generates the anti-MEV ECDSA signature binding the token to a destination.
  * Mirrors Python's generate_redemption_proof().
+ *
+ * IMPORTANT: Uses @noble/curves v2.x API:
+ *   - sign() with { format: 'recovered' } returns 65 bytes: [recoveryBit, ...r(32), ...s(32)]
+ *   - recoverPublicKey(sig65, msg, opts) expects the 65-byte recovered-format signature
  */
 export async function generateRedemptionProof(
     spendPriv: Uint8Array,
@@ -197,128 +201,59 @@ export async function generateRedemptionProof(
     const pubKeyUncompressed = secp256k1.getPublicKey(spendPriv, false);  // 65 bytes with 0x04
     const expectedAddress    = pubKeyToAddress(pubKeyUncompressed);
 
-    // @noble/curves sign() returns a Signature object with .r, .s, .recovery
-    const sig: any = secp256k1.sign(msgHash, spendPriv, { lowS: true, prehash: false });
+    // ── @noble/curves v2.x sign() with format: 'recovered' ──────────────
+    // Returns 65 bytes: [recovery_bit, r(32), s(32)]
+    // prehash: false because msgHash is already keccak256'd
+    // lowS: true for EVM compatibility
+    const sigRecovered: Uint8Array = secp256k1.sign(msgHash, spendPriv, {
+        lowS: true,
+        prehash: false,
+        format: 'recovered',
+    });
 
-    let signatureObj: Uint8Array;
-    let recoveryBit: 0 | 1;
-
-    // ── Diagnostic block: inspect what sign() actually returned ──────────
-    const sigProto    = Object.getPrototypeOf(sig);
-    const sigProtoKeys = sigProto ? Object.getOwnPropertyNames(sigProto) : [];
-    const sigOwnKeys   = Object.getOwnPropertyNames(sig);
+    // ── Diagnostic block: inspect the recovered signature ────────────────
     console.log('\n=== generateRedemptionProof DIAGNOSTICS ===');
-    console.log('[sig] typeof:              ', typeof sig);
-    console.log('[sig] constructor.name:    ', sig?.constructor?.name);
-    console.log('[sig] instanceof Uint8Array:', sig instanceof Uint8Array);
-    console.log('[sig] own keys:            ', JSON.stringify(sigOwnKeys.filter(k => !/^\d+$/.test(k))));
-    console.log('[sig] proto keys:          ', JSON.stringify(sigProtoKeys));
-    console.log('[sig] .recovery:           ', sig.recovery, '(typeof:', typeof sig.recovery + ')');
-    console.log('[sig] .r:                  ', sig.r, '(typeof:', typeof sig.r + ')');
-    console.log('[sig] .s:                  ', sig.s, '(typeof:', typeof sig.s + ')');
-    console.log('[sig] .toCompactRawBytes?: ', typeof sig.toCompactRawBytes);
-    console.log('[sig] .toCompactHex?:      ', typeof sig.toCompactHex);
-    console.log('[sig] .addRecoveryBit?:    ', typeof sig.addRecoveryBit);
-    console.log('[sig] .recoverPublicKey?:  ', typeof sig.recoverPublicKey);
-    console.log('[sig] length:              ', sig.length);
+    console.log('[sig] typeof:              ', typeof sigRecovered);
+    console.log('[sig] constructor.name:    ', sigRecovered?.constructor?.name);
+    console.log('[sig] instanceof Uint8Array:', sigRecovered instanceof Uint8Array);
+    console.log('[sig] length:              ', sigRecovered.length);
+    console.log('[sig] expected length:      65 (1 recovery + 32 r + 32 s)');
 
-    // Check what secp256k1 module-level APIs are available for recovery
-    console.log('[secp256k1] .sign:                ', typeof secp256k1.sign);
-    console.log('[secp256k1] .verify:              ', typeof secp256k1.verify);
-    console.log('[secp256k1] .recoverPublicKey:    ', typeof (secp256k1 as any).recoverPublicKey);
-    console.log('[secp256k1] .Signature:           ', typeof (secp256k1 as any).Signature);
-    console.log('[secp256k1] .Signature?.fromCompact:', typeof (secp256k1 as any).Signature?.fromCompact);
+    // Extract recovery bit (first byte) and compact sig (remaining 64 bytes)
+    const recoveryBit = sigRecovered[0] as 0 | 1;
+    const signatureObj = sigRecovered.slice(1); // 64-byte compact r||s
 
-    // Try calling toCompactRawBytes if it exists
-    if (typeof sig.toCompactRawBytes === 'function') {
-        const compact = sig.toCompactRawBytes();
-        console.log('[sig] toCompactRawBytes() length:', compact.length);
-        console.log('[sig] toCompactRawBytes() hex:   ', Buffer.from(compact).toString('hex'));
-    }
+    console.log('[parsed] recoveryBit (byte 0):', recoveryBit);
+    console.log('[parsed] compact sig length:   ', signatureObj.length);
+    console.log('[parsed] compact sig hex:      ', Buffer.from(signatureObj).toString('hex'));
 
-    // ── End diagnostic block ─────────────────────────────────────────────
+    // ── Verify recovery bit by recovering the public key ─────────────────
+    // @noble/curves v2.x recoverPublicKey(sig65, msg, opts)
+    // sig65 is the full 65-byte recovered-format signature
+    console.log('[verify] expectedAddress:      ', expectedAddress);
+    try {
+        const recoveredPubkey = secp256k1.recoverPublicKey(sigRecovered, msgHash, { prehash: false });
+        const recoveredAddr   = pubKeyToAddress(recoveredPubkey);
+        console.log('[verify] recoveredPubkey len:  ', recoveredPubkey.length);
+        console.log('[verify] recoveredAddress:     ', recoveredAddr);
+        console.log('[verify] address match:        ', recoveredAddr.toLowerCase() === expectedAddress.toLowerCase());
 
-    if (typeof sig.recovery === 'number' && typeof sig.r === 'bigint') {
-        // @noble/curves Signature object with recovery info
-        console.log('[path] Using sig.r / sig.s / sig.recovery directly');
-        const rHex = (sig.r as bigint).toString(16).padStart(64, '0');
-        const sHex = (sig.s as bigint).toString(16).padStart(64, '0');
-        signatureObj = Buffer.from(rHex + sHex, 'hex');
-        recoveryBit  = sig.recovery as 0 | 1;
-    } else if (typeof sig.toCompactRawBytes === 'function' && typeof sig.recovery === 'number') {
-        // Signature object that has toCompactRawBytes + recovery but no .r/.s as bigints
-        console.log('[path] Using sig.toCompactRawBytes() + sig.recovery');
-        signatureObj = sig.toCompactRawBytes();
-        recoveryBit  = sig.recovery as 0 | 1;
-    } else {
-        // Raw 64-byte compact sig with no recovery — must do trial recovery
-        console.log('[path] Falling back to trial recovery');
-        signatureObj = (sig as Uint8Array).slice(0, 64);
-
-        // ── Trial recovery: try both bits, see which recovers the expected address ──
-        const sigHex = Buffer.from(signatureObj).toString('hex');
-        console.log('[trial] expectedAddress:', expectedAddress);
-
-        let foundBit: 0 | 1 | null = null;
-        for (const bit of [0, 1] as const) {
-            try {
-                const recovered = secp256k1.recoverPublicKey(msgHash, signatureObj, bit);
-                const recoveredAddr = pubKeyToAddress(recovered);
-                console.log(`[trial] bit=${bit} → recoveredAddr: ${recoveredAddr}`);
-                if (recoveredAddr.toLowerCase() === expectedAddress.toLowerCase()) {
-                    foundBit = bit;
-                    console.log(`[trial] bit=${bit} MATCHES expected address`);
-                    break;
-                } else {
-                    console.log(`[trial] bit=${bit} does NOT match`);
-                }
-            } catch (err: any) {
-                console.log(`[trial] bit=${bit} threw: ${err.message}`);
-            }
+        if (recoveredAddr.toLowerCase() !== expectedAddress.toLowerCase()) {
+            console.log('[verify] WARNING: recovered address does NOT match expected!');
+            console.log('[verify] This means the recovery bit is wrong — should not happen with format: recovered');
         }
-
-        if (foundBit === null) {
-            // Last resort: try the old y-parity heuristic
-            console.log('[trial] Neither bit matched! Falling back to y-parity heuristic');
-            recoveryBit = deriveRecoveryBitByYParity(signatureObj);
-            console.log(`[trial] y-parity heuristic → ${recoveryBit}`);
-        } else {
-            recoveryBit = foundBit;
-        }
+    } catch (err: any) {
+        console.log('[verify] recoverPublicKey THREW:', err.message);
     }
 
     const compactHex = Buffer.from(signatureObj).toString('hex');
+
     console.log('[result] recoveryBit:', recoveryBit);
     console.log('[result] compactHex: ', compactHex);
+    console.log('[result] compactHex length:', compactHex.length, '(expected 128)');
     console.log('=== END DIAGNOSTICS ===\n');
+
     return { msgHash, signatureObj, compactHex, recoveryBit, pubKeyUncompressed };
-}
-
-/**
- * DEPRECATED: y-parity heuristic. This does NOT correctly determine the recovery bit.
- * The recovery bit is NOT simply the y-parity of the R point — it depends on which
- * of the two candidate public keys matches the actual signer. Kept only as a
- * last-resort fallback for logging/diagnosis.
- */
-function deriveRecoveryBitByYParity(
-    signatureObj: Uint8Array,
-): 0 | 1 {
-    const p = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2Fn;
-    const r = BigInt('0x' + Buffer.from(signatureObj.slice(0, 32)).toString('hex'));
-    const y_squared = (r * r % p * r % p + 7n) % p;
-    const y = modPow(y_squared, (p + 1n) / 4n, p);
-    return (y % 2n === 0n ? 0 : 1) as 0 | 1;
-}
-
-function modPow(base: bigint, exp: bigint, mod: bigint): bigint {
-    let result = 1n;
-    base = base % mod;
-    while (exp > 0n) {
-        if (exp % 2n === 1n) result = result * base % mod;
-        exp = exp / 2n;
-        base = base * base % mod;
-    }
-    return result;
 }
 
 // ==============================================================================
@@ -352,7 +287,7 @@ export function verifyEcdsaMevProtection(
         //   1. Verify signature validity against the known spend public key
         //   2. Confirm that public key hashes to the expected nullifier address
         // Both must pass — same as ecrecover returning expectedAddressHex.
-        if (!secp256k1.verify(proof.signatureObj, proof.msgHash, proof.pubKeyUncompressed)) {
+        if (!secp256k1.verify(proof.signatureObj, proof.msgHash, proof.pubKeyUncompressed, { prehash: false })) {
             return false;
         }
         return pubKeyToAddress(proof.pubKeyUncompressed).toLowerCase() === expectedAddressHex.toLowerCase();
@@ -360,4 +295,3 @@ export function verifyEcdsaMevProtection(
         return false;
     }
 }
-

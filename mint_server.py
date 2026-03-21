@@ -24,6 +24,7 @@ import os
 import sys
 from dataclasses import dataclass
 
+import typer
 from dotenv import load_dotenv
 from web3 import AsyncWeb3, WebSocketProvider
 from web3.types import EventData
@@ -287,14 +288,31 @@ class MintDaemon:
 
 
 # ==============================================================================
-# ENTRY POINT
+# TYPER APP
 # ==============================================================================
 
-def main() -> None:
+app = typer.Typer(
+    name="mint-server",
+    help="Ghost-Tip Protocol Mint Server — listens for deposits and issues blind signatures.",
+    add_completion=False,
+)
+
+
+@app.command()
+def run(
+    log_level: str = typer.Option(
+        None,
+        "--log-level",
+        help="Logging level (DEBUG, INFO, WARNING, ERROR). Overrides LOG_LEVEL env var.",
+        metavar="LEVEL",
+    ),
+) -> None:
+    """Start the mint daemon. Connects over WebSocket and processes DepositLocked events."""
     config = load_config()
 
+    effective_level = (log_level or config.log_level).upper()
     logging.basicConfig(
-        level=getattr(logging, config.log_level, logging.INFO),
+        level=getattr(logging, effective_level, logging.INFO),
         format="%(asctime)s  %(levelname)-8s  %(name)s  %(message)s",
         datefmt="%Y-%m-%dT%H:%M:%S",
     )
@@ -304,4 +322,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    app()

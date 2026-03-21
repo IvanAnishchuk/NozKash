@@ -22,21 +22,21 @@ Configuration (.env):
 
 Usage:
     uv run client.py deposit --index 0
-    uv run client.py scan --from-block 7000000 --indices 0 1 2 3 4
+    uv run client.py scan --from-block 7000000 --index-from 0 --index-to 9
     uv run client.py redeem --index 0 --to 0xRecipientAddress
     uv run client.py status
     uv run client.py balance
 """
 
-import argparse
 import json
 import logging
 import os
 import sys
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
-from typing import Optional
+from typing import Annotated, Optional
 
+import typer
 from dotenv import load_dotenv
 from web3 import Web3
 
@@ -265,7 +265,7 @@ def build_web3(config: ClientConfig) -> Web3:
     w3 = Web3(Web3.HTTPProvider(config.rpc_http_url))
     if not w3.is_connected():
         log.error("Cannot connect to RPC: %s", config.rpc_http_url)
-        sys.exit(1)
+        raise typer.Exit(code=1)
     return w3
 
 
@@ -333,7 +333,7 @@ def cmd_deposit(config: ClientConfig, token_index: int) -> None:
 
     if balance < DENOMINATION_WEI:
         log.error("Insufficient balance: need at least 0.01 ETH")
-        sys.exit(1)
+        raise typer.Exit(code=1)
 
     tx = contract.functions.deposit([b_x, b_y]).build_transaction({
         "from":     wallet,
@@ -353,7 +353,7 @@ def cmd_deposit(config: ClientConfig, token_index: int) -> None:
 
     if receipt["status"] != 1:
         log.error("Transaction REVERTED  tx=%s", tx_hex)
-        sys.exit(1)
+        raise typer.Exit(code=1)
 
     field_log("Confirmed at block", str(receipt["blockNumber"]))
     field_log("Gas used",           str(receipt["gasUsed"]))
@@ -390,9 +390,10 @@ def cmd_deposit(config: ClientConfig, token_index: int) -> None:
 def cmd_scan(
     config: ClientConfig,
     from_block: Optional[int],
-    indices: list[int],
+    index_from: int,
+    index_to: int,
 ) -> None:
-    banner("SCAN  —  Recovering Tokens from Chain Events")
+    banner(f"SCAN  —  Tokens {index_from}–{index_to}")
 
     state    = WalletState.load()
     w3       = build_web3(config)
@@ -405,7 +406,7 @@ def cmd_scan(
     latest_block = w3.eth.block_number
 
     field_log("Scanning blocks",   f"{start_block} → {latest_block}")
-    field_log("Token indices",     str(indices) if indices else "all known")
+    field_log("Token indices",     f"{index_from} – {index_to}")
     log.info("")
 
     # ── Step 1: Fetch all MintFulfilled events in range ───────────────────────
@@ -438,7 +439,7 @@ def cmd_scan(
     # ── Step 3: Derive secrets for each candidate index and try to match ──────
     section("Step 3 · Match Events to Token Indices")
 
-    scan_indices = indices if indices else list(state.tokens.keys())
+    scan_indices = range(index_from, index_to + 1)
     recovered = 0
 
     for idx in scan_indices:
@@ -545,17 +546,17 @@ def cmd_redeem(config: ClientConfig, token_index: int, recipient: str) -> None:
 
     if token_index not in state.tokens:
         log.error("Token %d not found in wallet state. Run 'scan' first.", token_index)
-        sys.exit(1)
+        raise typer.Exit(code=1)
 
     rec = state.tokens[token_index]
 
     if rec.spent:
         log.error("Token %d is already spent (nullifier recorded on-chain).", token_index)
-        sys.exit(1)
+        raise typer.Exit(code=1)
 
     if not rec.has_token:
         log.error("Token %d has no unblinded signature. Run 'scan' first.", token_index)
-        sys.exit(1)
+        raise typer.Exit(code=1)
 
     # ── Step 1: Reconstruct unblinded signature from state ────────────────────
     section("Step 1 · Load Unblinded Signature from Wallet State")
@@ -597,7 +598,7 @@ def cmd_redeem(config: ClientConfig, token_index: int, recipient: str) -> None:
                 field_log("Local BLS pairing", "✅ VALID" if ok else "❌ INVALID")
                 if not ok:
                     log.error("BLS pairing failed locally — token may be invalid.")
-                    sys.exit(1)
+                    raise typer.Exit(code=1)
         except Exception as e:
             log.warning("    Local pairing check skipped: %s", e)
     else:
@@ -628,7 +629,7 @@ def cmd_redeem(config: ClientConfig, token_index: int, recipient: str) -> None:
     field_log("Local ecrecover check", "✅ VALID" if is_valid else "❌ INVALID")
     if not is_valid:
         log.error("Local ECDSA verification failed — aborting.")
-        sys.exit(1)
+        raise typer.Exit(code=1)
 
     # Encode for Solidity: 65 bytes = r(32) + s(32) + v(1), v = recovery_bit + 27
     spend_sig_bytes = encode_spend_signature(proof.compact_hex, proof.recovery_bit)
@@ -676,7 +677,7 @@ def cmd_redeem(config: ClientConfig, token_index: int, recipient: str) -> None:
         log.error("Transaction REVERTED  tx=%s", tx_hex)
         log.error("Possible causes: token already spent, invalid BLS pairing,")
         log.error("invalid ECDSA signature, or wrong recovery bit.")
-        sys.exit(1)
+        raise typer.Exit(code=1)
 
     field_log("Confirmed at block",  str(receipt["blockNumber"]))
     field_log("Gas used",            str(receipt["gasUsed"]))
@@ -751,64 +752,80 @@ def cmd_balance(config: ClientConfig) -> None:
 
 
 # ==============================================================================
-# CLI ARGUMENT PARSING
+# TYPER APP
 # ==============================================================================
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="client.py",
-        description="Ghost-Tip Protocol CLI Wallet",
-    )
-    sub = parser.add_subparsers(dest="command", required=True)
-
-    # deposit
-    p_dep = sub.add_parser("deposit", help="Blind and deposit a token")
-    p_dep.add_argument("--index", type=int, required=True,
-                       help="Token index (0-based, must be unique per seed)")
-
-    # scan
-    p_scan = sub.add_parser("scan", help="Scan chain for MintFulfilled events and recover tokens")
-    p_scan.add_argument("--from-block", type=int, default=None,
-                        help="Block to start scanning from (default: last scanned)")
-    p_scan.add_argument("--indices", type=int, nargs="+", default=[],
-                        help="Token indices to scan for (default: all known)")
-
-    # redeem
-    p_red = sub.add_parser("redeem", help="Redeem an unblinded token to a destination")
-    p_red.add_argument("--index", type=int, required=True,
-                       help="Token index to redeem")
-    p_red.add_argument("--to",    type=str, required=True,
-                       help="Recipient Ethereum address")
-
-    # status
-    sub.add_parser("status", help="Show wallet state and token statuses")
-
-    # balance
-    sub.add_parser("balance", help="Query on-chain ETH balance")
-
-    return parser
+app = typer.Typer(
+    name="ghost-wallet",
+    help="Ghost-Tip Protocol CLI Wallet — reference implementation of the full eCash lifecycle.",
+    no_args_is_help=True,
+)
 
 
-# ==============================================================================
-# ENTRY POINT
-# ==============================================================================
+@app.command()
+def deposit(
+    index: Annotated[int, typer.Option(
+        "--index", "-i",
+        help="Token index (0-based, must be unique per seed).",
+        min=0,
+    )],
+) -> None:
+    """Blind a token secret and submit a deposit transaction to GhostVault."""
+    cmd_deposit(load_config(), index)
 
-def main() -> None:
-    parser = build_parser()
-    args   = parser.parse_args()
-    config = load_config()
 
-    if args.command == "deposit":
-        cmd_deposit(config, args.index)
-    elif args.command == "scan":
-        cmd_scan(config, args.from_block, args.indices)
-    elif args.command == "redeem":
-        cmd_redeem(config, args.index, args.to)
-    elif args.command == "status":
-        cmd_status(config)
-    elif args.command == "balance":
-        cmd_balance(config)
+@app.command()
+def scan(
+    from_block: Annotated[Optional[int], typer.Option(
+        "--from-block",
+        help="Block to start scanning from. Defaults to last scanned block.",
+        min=0,
+    )] = None,
+    index_from: Annotated[int, typer.Option(
+        "--index-from",
+        help="First token index to scan (inclusive).",
+        min=0,
+    )] = 0,
+    index_to: Annotated[int, typer.Option(
+        "--index-to",
+        help="Last token index to scan (inclusive).",
+        min=0,
+    )] = 9,
+) -> None:
+    """Scan chain for MintFulfilled events and recover tokens in index range [index-from, index-to]."""
+    if index_to < index_from:
+        typer.echo(f"Error: --index-to ({index_to}) must be >= --index-from ({index_from})", err=True)
+        raise typer.Exit(code=1)
+    cmd_scan(load_config(), from_block, index_from, index_to)
+
+
+@app.command()
+def redeem(
+    index: Annotated[int, typer.Option(
+        "--index", "-i",
+        help="Token index to redeem.",
+        min=0,
+    )],
+    to: Annotated[str, typer.Option(
+        "--to",
+        help="Recipient Ethereum address.",
+    )],
+) -> None:
+    """Unblind a recovered token and submit a redeem() transaction."""
+    cmd_redeem(load_config(), index, to)
+
+
+@app.command()
+def status() -> None:
+    """Show wallet state: token lifecycle statuses and on-chain balance."""
+    cmd_status(load_config())
+
+
+@app.command()
+def balance() -> None:
+    """Query on-chain ETH balance for the configured wallet address."""
+    cmd_balance(load_config())
 
 
 if __name__ == "__main__":
-    main()
+    app()

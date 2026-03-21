@@ -1,14 +1,18 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
-import { useSelectedAccount } from '../context/selected-account-context'
 import { usePrivacy } from '../context/usePrivacy'
+import { useRedeemSign } from '../hooks/useRedeemSign'
 import { useWallet } from '../hooks/useWallet'
-import type { LayoutOutletContext } from '../layoutOutletContext'
+import { DateRangePill } from '../components/DateRangePill'
 import {
-  MOCK_HOME_STATS,
-  MOCK_RECENT_ACTIVITY,
-  getAccountHomeBalanceView,
-} from '../mock/data'
-import type { ActivityKind } from '../mock/data'
+  ACTIVITY_TYPE_FILTERS,
+  filterMockHistory,
+  formatTxAmountDisplay,
+  redeemSignMessageForTx,
+} from '../lib/historyQuery'
+import type { LayoutOutletContext } from '../layoutOutletContext'
+import type { ActivityKind, HistoryFilterType } from '../mock/data'
+import { MOCK_HISTORY, MOCK_HOME_STATS } from '../mock/data'
 
 function kindToClass(k: ActivityKind) {
   switch (k) {
@@ -55,15 +59,67 @@ function ActivityIcon({ kind }: { kind: ActivityKind }) {
   )
 }
 
+function FilterFunnelIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 6h16M7 12h10M10 18h4"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}
+
 export function Dashboard() {
   const { privacyOn } = usePrivacy()
-  const { selectedAccountId } = useSelectedAccount()
-  const { network } = useWallet()
-  const { openDepositModal } = useOutletContext<LayoutOutletContext>()
-  const home = getAccountHomeBalanceView(selectedAccountId)
+  const { network, homeBalanceMain, homeBalanceUsd } = useWallet()
+  const { openDepositModal, showToast } =
+    useOutletContext<LayoutOutletContext>()
+  const { signingId, signRedeem } = useRedeemSign(showToast)
+
+  const [activeFilter, setActiveFilter] =
+    useState<HistoryFilterType>('all')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [filterOpen, setFilterOpen] = useState(false)
+  const filterWrapRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!filterOpen) return
+    const onDown = (e: MouseEvent) => {
+      const el = filterWrapRef.current
+      if (el && !el.contains(e.target as Node)) setFilterOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [filterOpen])
+
+  const filtered = useMemo(() => {
+    const list = filterMockHistory(
+      MOCK_HISTORY,
+      activeFilter,
+      dateFrom,
+      dateTo
+    )
+    return [...list].sort((a, b) => {
+      const d = b.dateIso.localeCompare(a.dateIso)
+      if (d !== 0) return d
+      return b.id.localeCompare(a.id)
+    })
+  }, [activeFilter, dateFrom, dateTo])
+
+  const clearDates = () => {
+    setDateFrom('')
+    setDateTo('')
+  }
+
+  const balStr = homeBalanceMain ?? '—'
+  const usdStr = homeBalanceUsd ?? '—'
 
   return (
-    <div className="page-inner">
+    <div className="page-inner page-inner--home">
       <div className="balance-card">
         <div className="balance-card-top">
           <div className="balance-label">PRIVATE BALANCE</div>
@@ -75,10 +131,10 @@ export function Dashboard() {
         <div className="balance-cols">
           <div className="balance-main">
             <div className="balance-amount">
-              {privacyOn ? '••••' : home.main}
+              {privacyOn ? '••••' : balStr}
             </div>
             <div className="balance-usd">
-              {privacyOn ? '••••' : home.usd}
+              {privacyOn ? '••••' : usdStr}
             </div>
           </div>
           <div className="balance-stats-col">
@@ -126,38 +182,102 @@ export function Dashboard() {
           </div>
           <div>
             <div className="add-deposit-label">Add deposit</div>
-            <div className="add-deposit-sub">
-              Shield ETH · {network}
-            </div>
+            <div className="add-deposit-sub">Shield ETH · {network}</div>
           </div>
         </div>
         <span className="add-deposit-badge">+ MINT</span>
       </button>
 
-      <div className="section-title">Recent activity</div>
-      <div>
-        {MOCK_RECENT_ACTIVITY.map((item) => {
-          const ic = kindToClass(item.kind)
-          return (
-            <div key={item.id} className="activity-item">
-              <div className="activity-left">
-                <div className={`activity-icon ${ic}`}>
-                  <ActivityIcon kind={item.kind} />
-                </div>
-                <div className="activity-text">
-                  <div className="activity-type">{item.label}</div>
-                  <div className="activity-time">{item.time}</div>
-                </div>
+      <div className="home-activity-block">
+        <div className="section-title home-activity-title">Activity</div>
+        <div className="home-date-toolbar">
+          <DateRangePill
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            onDateFromChange={setDateFrom}
+            onDateToChange={setDateTo}
+            onClear={clearDates}
+            className="date-range-pill--toolbar"
+          />
+          <div className="home-filter-wrap" ref={filterWrapRef}>
+            <button
+              type="button"
+              className="home-filter-btn home-filter-btn--toolbar"
+              aria-expanded={filterOpen}
+              aria-haspopup="menu"
+              aria-label="Filtrar por tipo"
+              onClick={() => setFilterOpen((o) => !o)}
+            >
+              <FilterFunnelIcon />
+            </button>
+            {filterOpen ? (
+              <div className="home-filter-pop" role="menu">
+                {ACTIVITY_TYPE_FILTERS.map((f) => (
+                  <button
+                    key={f.key}
+                    type="button"
+                    role="menuitem"
+                    className={`home-filter-option${activeFilter === f.key ? ' active' : ''}`}
+                    onClick={() => {
+                      setActiveFilter(f.key)
+                      setFilterOpen(false)
+                    }}
+                  >
+                    {f.label}
+                  </button>
+                ))}
               </div>
-              <span
-                className={`activity-amount ${ic} bal-amount`}
-                data-val={item.amountStr}
-              >
-                {privacyOn ? '••••' : item.amountStr}
-              </span>
-            </div>
-          )
-        })}
+            ) : null}
+          </div>
+        </div>
+
+        <div>
+          {filtered.length === 0 ? (
+            <div className="no-results">No transactions found</div>
+          ) : (
+            filtered.map((item) => {
+              const ic = kindToClass(item.type)
+              const amt = formatTxAmountDisplay(item)
+              return (
+                <div key={item.id} className="activity-item">
+                  <div className="activity-left">
+                    <div className={`activity-icon ${ic}`}>
+                      <ActivityIcon kind={item.type} />
+                    </div>
+                    <div className="activity-text">
+                      <div className="activity-type">{item.historyLabel}</div>
+                      <div className="activity-time">{item.historySub}</div>
+                    </div>
+                  </div>
+                  <div className="activity-right-col">
+                    <span
+                      className={`activity-amount ${ic} bal-amount`}
+                      data-val={amt}
+                      style={{ whiteSpace: 'nowrap' }}
+                    >
+                      {privacyOn ? '••••' : amt}
+                    </span>
+                    {item.type === 'Deposit' && (
+                      <button
+                        type="button"
+                        className="history-redeem-btn"
+                        disabled={signingId === item.id}
+                        onClick={() =>
+                          signRedeem(
+                            item.id,
+                            redeemSignMessageForTx(item)
+                          )
+                        }
+                      >
+                        {signingId === item.id ? 'Signing…' : 'Redeem'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
       </div>
     </div>
   )

@@ -17,15 +17,6 @@ export const MOCK_CRYPTO = {
 
 export type ActivityKind = 'Deposit' | 'Redeem' | 'Pending'
 
-export interface MockActivity {
-  id: string
-  kind: ActivityKind
-  label: string
-  time: string
-  /** Monto mostrado a la derecha (diseño tipo eGhostCash). */
-  amountStr: string
-}
-
 /** Home stats (fijas al cambiar cuenta; alineado con eghostcash_wallet_v1_4e.html). */
 export const MOCK_HOME_STATS = {
   validCount: 3,
@@ -33,84 +24,6 @@ export const MOCK_HOME_STATS = {
   spentCount: 2,
   spentEth: '0.02 ETH',
 } as const
-
-/** Balance principal + USD por cuenta (script `bals` / `usds` del HTML). */
-const ACCOUNT_HOME_BALANCE: Record<number, { main: string; usd: string }> = {
-  1: { main: '0.03 ETH', usd: '≈ $72.50 USD' },
-  2: { main: '0.12 ETH', usd: '≈ $290.40 USD' },
-  3: { main: '0.005 ETH', usd: '≈ $12.09 USD' },
-}
-
-export function getAccountHomeBalanceView(accountId: number): {
-  main: string
-  usd: string
-} {
-  return ACCOUNT_HOME_BALANCE[accountId] ?? {
-    main: '0.00 ETH',
-    usd: '≈ $0.00 USD',
-  }
-}
-
-/** Filas del dropdown MY ACCOUNTS (HTML `wallets`). */
-export interface MockEgcWalletRow {
-  id: number
-  name: string
-  addrShort: string
-  bal: string
-  color: string
-  initials: string
-}
-
-export const MOCK_EGC_WALLETS: MockEgcWalletRow[] = [
-  {
-    id: 1,
-    name: 'Account 1',
-    addrShort: '0x7f3a...d91c',
-    bal: '0.03 ETH',
-    color: '#3D0F18',
-    initials: 'A1',
-  },
-  {
-    id: 2,
-    name: 'Account 2',
-    addrShort: '0x4b2e...8a5f',
-    bal: '0.12 ETH',
-    color: '#1A1A3D',
-    initials: 'A2',
-  },
-  {
-    id: 3,
-    name: 'Account 3',
-    addrShort: '0x9c1d...3b7e',
-    bal: '0.005 ETH',
-    color: '#003D2A',
-    initials: 'A3',
-  },
-]
-
-export const MOCK_RECENT_ACTIVITY: MockActivity[] = [
-  {
-    id: 'a1',
-    kind: 'Pending',
-    label: 'Pending',
-    time: `Just now · ${MOCK_CRYPTO.network}`,
-    amountStr: '0.01 ETH',
-  },
-  {
-    id: 'a2',
-    kind: 'Redeem',
-    label: 'Redeem claim',
-    time: `3 hr ago · Claim #4 · ${MOCK_CRYPTO.network}`,
-    amountStr: '-0.01 ETH',
-  },
-  {
-    id: 'a3',
-    kind: 'Deposit',
-    label: 'Deposit',
-    time: `5 hr ago · TX 0xc3d4... · ${MOCK_CRYPTO.network}`,
-    amountStr: '+0.01 ETH',
-  },
-]
 
 export interface MockRedeemToken {
   id: string

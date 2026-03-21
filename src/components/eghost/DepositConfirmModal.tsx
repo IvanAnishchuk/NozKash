@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { usePrivacy } from '../../context/usePrivacy'
 import { useWallet } from '../../hooks/useWallet'
 import {
   ensureSepolia,
@@ -24,7 +23,6 @@ function usdApproxForDenomination(): string {
 }
 
 export function DepositConfirmModal({ open, onClose, onToast }: Props) {
-  const { privacyOn } = usePrivacy()
   const { account, network } = useWallet()
   const [gasLabel, setGasLabel] = useState('—')
   const [pending, setPending] = useState(false)
@@ -119,10 +117,6 @@ export function DepositConfirmModal({ open, onClose, onToast }: Props) {
   }
 
   if (!open) return null
-
-  const privacyLabel = privacyOn
-    ? 'Mint con vista privada (oculto en app)'
-    : 'Estándar (montos visibles en app)'
 
   return (
     <div
@@ -222,8 +216,16 @@ export function DepositConfirmModal({ open, onClose, onToast }: Props) {
           </div>
           <div className="info-row">
             <span className="info-key">Privacy</span>
-            <span className="info-val" style={{ fontSize: 12, maxWidth: '58%', textAlign: 'right' }}>
-              {privacyLabel}
+            <span
+              className="info-val"
+              style={{
+                fontFamily: 'var(--mono)',
+                fontSize: 12,
+                maxWidth: '58%',
+                textAlign: 'right',
+              }}
+            >
+              Blind-Signature
             </span>
           </div>
         </div>

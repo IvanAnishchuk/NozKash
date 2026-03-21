@@ -6,6 +6,14 @@ export function getEthereum(): EthereumProvider | null {
   return (window as unknown as { ethereum?: EthereumProvider }).ethereum ?? null
 }
 
+/** Convierte respuesta `eth_getBalance` (hex wei) a etiqueta legible. */
+export function weiHexToEthLabel(weiHex: string, fractionDigits = 4): string {
+  const wei = BigInt(weiHex)
+  const eth = Number(wei) / 1e18
+  if (!Number.isFinite(eth)) return '—'
+  return `${eth.toFixed(fractionDigits)} ETH`
+}
+
 export function normalizeChainId(chainId: unknown): string | null {
   if (typeof chainId !== 'string') return null
   return chainId.toLowerCase()

@@ -1,31 +1,51 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
-import { AddWalletModal } from './eghost/AddWalletModal'
+import { Outlet } from 'react-router-dom'
+import { BottomGhostDecor } from './BottomGhostDecor'
 import { DepositConfirmModal } from './eghost/DepositConfirmModal'
 import { EgcNavbarLogo } from './eghost/EgcNavbarLogo'
 import { SplashScreen } from './eghost/SplashScreen'
 import { usePrivacy } from '../context/usePrivacy'
-import { useSelectedAccount } from '../context/selected-account-context'
 import { useWallet } from '../hooks/useWallet'
-import type { MockEgcWalletRow } from '../mock/data'
-import { MOCK_EGC_WALLETS } from '../mock/data'
+import { getEthereum, weiHexToEthLabel } from '../lib/ethereum'
 import type { LayoutOutletContext } from '../layoutOutletContext'
+
+const AVATAR_PALETTE = ['#3D0F18', '#1A1A3D', '#003D2A', '#4B0082'] as const
 
 function addrInitials(address: string) {
   const hex = address.replace(/^0x/i, '')
   return (hex.slice(0, 2) || '?').toUpperCase()
 }
 
+function truncateAddr(address: string) {
+  return `${address.slice(0, 6)}...${address.slice(-4)}`
+}
+
+type MmRow = {
+  address: string
+  name: string
+  addrShort: string
+  bal: string
+  color: string
+  initials: string
+}
+
 export function Layout() {
   const { privacyOn, togglePrivacy } = usePrivacy()
-  const { selectedAccountId, setSelectedAccountId } = useSelectedAccount()
-  const { connectWallet, account, truncatedAddress } = useWallet()
+  const {
+    connectWallet,
+    disconnectWallet,
+    openMetaMaskAccountPicker,
+    account,
+    accounts,
+    selectAccount,
+    network,
+  } = useWallet()
 
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [walletSearch, setWalletSearch] = useState('')
-  const [addWalletOpen, setAddWalletOpen] = useState(false)
-  const [addWalletKey, setAddWalletKey] = useState(0)
-  const [extraWallets, setExtraWallets] = useState<MockEgcWalletRow[]>([])
+  const [balancesByAddr, setBalancesByAddr] = useState<Record<string, string>>(
+    {}
+  )
   const [depositModalOpen, setDepositModalOpen] = useState(false)
   const [toast, setToast] = useState<{
     msg: string
@@ -45,44 +65,40 @@ export function Layout() {
 
   const openDepositModal = useCallback(() => setDepositModalOpen(true), [])
 
-  const appendMockAccount = useCallback(() => {
-    setExtraWallets((prev) => {
-      const ids = [
-        ...MOCK_EGC_WALLETS.map((x) => x.id),
-        ...prev.map((x) => x.id),
-      ]
-      const next = Math.max(0, ...ids) + 1
-      const hex = () => Math.random().toString(16).slice(2, 6)
-      return [
-        ...prev,
-        {
-          id: next,
-          name: `Account ${next}`,
-          addrShort: `0x${hex()}...${hex()}`,
-          bal: '0.00 ETH',
-          color: '#1A2C3D',
-          initials: `A${next}`,
-        },
-      ]
-    })
-    showToast('Account created', 'success')
-  }, [showToast])
-
-  const walletRows = useMemo(() => {
-    const base = MOCK_EGC_WALLETS.map((w) => {
-      if (w.id === 1 && account) {
-        return {
-          ...w,
-          addrShort:
-            truncatedAddress ??
-            `${account.slice(0, 6)}...${account.slice(-4)}`,
-          initials: addrInitials(account),
+  useEffect(() => {
+    const eth = getEthereum()
+    if (!eth || accounts.length === 0) return
+    let cancelled = false
+    ;(async () => {
+      const next: Record<string, string> = {}
+      for (const addr of accounts) {
+        try {
+          const hex = (await eth.request({
+            method: 'eth_getBalance',
+            params: [addr, 'latest'],
+          })) as string
+          next[addr] = weiHexToEthLabel(hex, 4)
+        } catch {
+          next[addr] = '—'
         }
       }
-      return { ...w }
-    })
-    return [...base, ...extraWallets]
-  }, [account, truncatedAddress, extraWallets])
+      if (!cancelled) setBalancesByAddr(next)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [accounts, network])
+
+  const walletRows: MmRow[] = useMemo(() => {
+    return accounts.map((addr, i) => ({
+      address: addr,
+      name: `Account ${i + 1}`,
+      addrShort: truncateAddr(addr),
+      bal: balancesByAddr[addr] ?? '…',
+      color: AVATAR_PALETTE[i % AVATAR_PALETTE.length],
+      initials: addrInitials(addr),
+    }))
+  }, [accounts, balancesByAddr])
 
   const filteredWallets = useMemo(() => {
     const q = walletSearch.toLowerCase()
@@ -90,9 +106,19 @@ export function Layout() {
     return walletRows.filter(
       (w) =>
         w.name.toLowerCase().includes(q) ||
-        w.addrShort.toLowerCase().includes(q)
+        w.addrShort.toLowerCase().includes(q) ||
+        w.address.toLowerCase().includes(q)
     )
   }, [walletRows, walletSearch])
+
+  const accountIndex = account ? accounts.findIndex((a) => a === account) : -1
+  const pillColor =
+    accountIndex >= 0
+      ? AVATAR_PALETTE[accountIndex % AVATAR_PALETTE.length]
+      : '#3D0F18'
+  const pillName =
+    accountIndex >= 0 ? `Account ${accountIndex + 1}` : 'Wallet'
+  const pillInitials = account ? addrInitials(account) : 'MM'
 
   useEffect(() => {
     if (!dropdownOpen) return
@@ -105,9 +131,6 @@ export function Layout() {
     document.addEventListener('click', onDoc)
     return () => document.removeEventListener('click', onDoc)
   }, [dropdownOpen])
-
-  const primaryWallet =
-    walletRows.find((w) => w.id === selectedAccountId) ?? walletRows[0]
 
   const eyeBorderStyle = privacyOn
     ? { borderColor: 'rgba(0,229,160,.3)' as const }
@@ -194,17 +217,15 @@ export function Layout() {
                 <div
                   className="wallet-avatar"
                   style={{
-                    background: primaryWallet?.color ?? '#3D0F18',
+                    background: pillColor,
                     color: 'rgba(255,255,255,.7)',
                     fontSize: 9,
                     fontFamily: 'var(--mono)',
                   }}
                 >
-                  {primaryWallet?.initials ?? 'MM'}
+                  {pillInitials}
                 </div>
-                <span className="wallet-name">
-                  {primaryWallet?.name ?? 'Wallet'}
-                </span>
+                <span className="wallet-name">{pillName}</span>
                 <svg
                   className="wallet-chevron"
                   width="12"
@@ -240,125 +261,158 @@ export function Layout() {
             />
           </div>
           <div className="wd-list">
-            {filteredWallets.map((w) => (
+            {filteredWallets.length === 0 ? (
               <div
-                key={w.id}
-                className={`wd-item ${
-                  w.id === selectedAccountId ? 'active-wallet' : ''
-                }`}
-                role="button"
-                tabIndex={0}
-                onClick={() => {
-                  setSelectedAccountId(w.id)
-                  setDropdownOpen(false)
-                  showToast(`Switched to ${w.name}`, 'success')
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    setSelectedAccountId(w.id)
-                    setDropdownOpen(false)
-                    showToast(`Switched to ${w.name}`, 'success')
-                  }
+                className="wd-item"
+                style={{
+                  cursor: 'default',
+                  color: 'var(--text3)',
+                  fontSize: 12,
+                  fontFamily: 'var(--mono)',
                 }}
               >
+                No accounts match
+              </div>
+            ) : (
+              filteredWallets.map((w) => (
                 <div
-                  className="wd-avatar"
-                  style={{
-                    background: w.color,
-                    color: 'rgba(255,255,255,.8)',
-                    fontSize: 10,
+                  key={w.address}
+                  className={`wd-item ${
+                    w.address === account ? 'active-wallet' : ''
+                  }`}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    selectAccount(w.address)
+                    setDropdownOpen(false)
+                    showToast(`Active: ${w.name}`, 'success')
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      selectAccount(w.address)
+                      setDropdownOpen(false)
+                      showToast(`Active: ${w.name}`, 'success')
+                    }
                   }}
                 >
-                  {w.initials}
+                  <div
+                    className="wd-avatar"
+                    style={{
+                      background: w.color,
+                      color: 'rgba(255,255,255,.8)',
+                      fontSize: 10,
+                    }}
+                  >
+                    {w.initials}
+                  </div>
+                  <div className="wd-info">
+                    <div className="wd-wname">{w.name}</div>
+                    <div className="wd-addr">{w.addrShort}</div>
+                  </div>
+                  <div className="wd-bal">
+                    {privacyOn ? '••••' : w.bal}
+                  </div>
+                  {w.address === account ? (
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <circle
+                        cx="8"
+                        cy="8"
+                        r="7"
+                        stroke="var(--history-accent)"
+                        strokeWidth="1.5"
+                      />
+                      <path
+                        d="M5 8l2 2 4-4"
+                        stroke="var(--history-accent)"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  ) : (
+                    <div style={{ width: 16 }} />
+                  )}
                 </div>
-                <div className="wd-info">
-                  <div className="wd-wname">{w.name}</div>
-                  <div className="wd-addr">{w.addrShort}</div>
-                </div>
-                <div className="wd-bal">
-                  {privacyOn ? '••••' : w.bal}
-                </div>
-                {w.id === selectedAccountId ? (
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <circle
-                      cx="8"
-                      cy="8"
-                      r="7"
-                      stroke="var(--red2)"
-                      strokeWidth="1.5"
-                    />
-                    <path
-                      d="M5 8l2 2 4-4"
-                      stroke="var(--red2)"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                ) : (
-                  <div style={{ width: 16 }} />
-                )}
-              </div>
-            ))}
+              ))
+            )}
           </div>
           <div className="wd-divider" />
           <div
             className="wd-action"
             role="button"
             tabIndex={0}
-            onClick={() => {
+            onClick={async () => {
               setDropdownOpen(false)
-              appendMockAccount()
+              const ok = await openMetaMaskAccountPicker()
+              if (ok) {
+                showToast('Cuentas actualizadas desde MetaMask', 'success')
+              }
             }}
-            onKeyDown={(e) => {
+            onKeyDown={async (e) => {
               if (e.key === 'Enter') {
                 setDropdownOpen(false)
-                appendMockAccount()
+                const ok = await openMetaMaskAccountPicker()
+                if (ok) {
+                  showToast('Cuentas actualizadas desde MetaMask', 'success')
+                }
               }
             }}
           >
             <div className="wd-action-icon">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
                 <path
-                  d="M7 2v10M2 7h10"
+                  d="M17 1l4 4-4 4M3 11V9a4 4 0 014-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 01-4 4H3"
                   stroke="var(--text2)"
                   strokeWidth="1.5"
                   strokeLinecap="round"
+                  strokeLinejoin="round"
                 />
               </svg>
             </div>
-            <span className="wd-action-label">Add account</span>
+            <div className="wd-action-text-col">
+              <span className="wd-action-label">Change account</span>
+              <span className="wd-action-sub">Open MetaMask · add or select</span>
+            </div>
           </div>
           <div
-            className="wd-action"
+            className="wd-action danger"
             role="button"
             tabIndex={0}
-            onClick={() => {
+            onClick={async () => {
               setDropdownOpen(false)
-              setAddWalletKey((k) => k + 1)
-              setAddWalletOpen(true)
+              await disconnectWallet()
+              showToast('Wallet disconnected', 'success')
+            }}
+            onKeyDown={async (e) => {
+              if (e.key === 'Enter') {
+                setDropdownOpen(false)
+                await disconnectWallet()
+                showToast('Wallet disconnected', 'success')
+              }
             }}
           >
             <div className="wd-action-icon">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                <rect
-                  x="2"
-                  y="6"
-                  width="20"
-                  height="12"
-                  rx="2"
-                  stroke="var(--text2)"
+                <path
+                  d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"
+                  stroke="var(--red2)"
                   strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                 />
-                <path d="M2 10h20" stroke="var(--text2)" strokeWidth="1.5" />
               </svg>
             </div>
-            <span className="wd-action-label">Add wallet</span>
+            <div className="wd-action-text-col">
+              <span className="wd-action-label">Disconnect</span>
+              <span className="wd-action-sub">Revoke site access in MetaMask</span>
+            </div>
           </div>
         </div>
 
         <main className="screen active">
           <Outlet
-            context={{ openDepositModal } satisfies LayoutOutletContext}
+            context={
+              { openDepositModal, showToast } satisfies LayoutOutletContext
+            }
           />
         </main>
 
@@ -368,54 +422,7 @@ export function Layout() {
           onToast={showToast}
         />
 
-        <nav className="bottom-nav">
-          <NavLink
-            to="/"
-            end
-            className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
-          >
-            <svg viewBox="0 0 24 24" fill="none">
-              <path
-                d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"
-                stroke="var(--text2)"
-                strokeWidth="1.5"
-              />
-              <polyline
-                points="9 22 9 12 15 12 15 22"
-                stroke="var(--text2)"
-                strokeWidth="1.5"
-              />
-            </svg>
-            <span className="nav-label">HOME</span>
-          </NavLink>
-          <NavLink
-            to="/history"
-            className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
-          >
-            <svg viewBox="0 0 24 24" fill="none">
-              <circle
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="var(--text2)"
-                strokeWidth="1.5"
-              />
-              <path
-                d="M12 6v6l4 2"
-                stroke="var(--text2)"
-                strokeWidth="1.5"
-              />
-            </svg>
-            <span className="nav-label">HISTORY</span>
-          </NavLink>
-        </nav>
-
-        <AddWalletModal
-          key={addWalletKey}
-          open={addWalletOpen}
-          onClose={() => setAddWalletOpen(false)}
-          onToast={showToast}
-        />
+        <BottomGhostDecor />
       </div>
     </div>
   )

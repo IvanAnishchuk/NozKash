@@ -345,22 +345,14 @@ contract GhostVault {
         uint256[2] memory negY = _negateG1(Y);
         uint256[4] memory g2   = _g2Gen();
 
-        bytes memory input = abi.encodePacked(
-            S[0],
-            S[1],
-            g2[0],
-            g2[1],
-            g2[2],
-            g2[3],
-            negY[0],
-            negY[1],
-            PK_mint[0],
-            PK_mint[1],
-            PK_mint[2],
-            PK_mint[3]
-        );
+        uint256[12] memory input = [
+            S[0],       S[1],
+            g2[0],      g2[1],      g2[2],      g2[3],
+            negY[0],    negY[1],
+            PK_mint[0], PK_mint[1], PK_mint[2], PK_mint[3]
+        ];
 
-        (bool ok, bytes memory ret) = address(0x08).staticcall(input);
+        (bool ok, bytes memory ret) = address(0x08).staticcall(abi.encodePacked(input));
         require(ok, "Pairing precompile failed");
         return abi.decode(ret, (uint256)) == 1;
     }

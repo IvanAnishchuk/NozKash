@@ -1,3 +1,33 @@
+## Ghost-Tip: deterministic token secrets (normative for clients)
+
+All values below use **Keccak-256** outputs as **32-byte big-endian** integers where a scalar is needed. **`master_seed`** is the raw 32-byte seed (hex in `vectors.json` is only an example encoding).
+
+1. **`base`** — bind seed and token slot:
+
+   `base = keccak256(abi.encodePacked(master_seed, token_index_u32_le))`
+
+   Use a **fixed-width little-endian `uint32`** for `token_index` (same as `new Uint32Array([tokenIndex]).buffer` in JS) so every implementation agrees.
+
+2. **`spend_priv`** — secp256k1 private key material:
+
+   `spend_priv = keccak256(abi.encodePacked(bytes("spend"), base))`
+
+3. **`spend_addr`** — Ethereum address (nullifier at redeem):
+
+   `spend_addr = pubkeyToAddress(spend_priv · G)` using the usual **uncompressed secp256k1** public key and `keccak256(pubkey[1:])`, then `uint160`.
+
+4. **Blinding scalar `r`** (BN254 curve order `q`):
+
+   `r = uint256(keccak256(abi.encodePacked(bytes("blind"), base))) mod q`
+
+   This matches the common pattern **`"blind"` prefixed to the same `base`** as spend (not `seed ‖ "blind" ‖ index` unless you redefine `base` that way). **Python/TS and `vectors.json` must use the same rule** or `BLINDING_R` / `SPEND_ADDRESS` will not match.
+
+Then off-chain: `Y = H_G1(spend_addr)`, `B = r · Y`, mint signs `B`, user unblinds to `S` for `GhostVault.redeem`.
+
+On-chain, `H_G1` hashes **`abi.encodePacked(blsDomain, spend_addr)`** (32-byte domain then 20-byte address; fixtures use `blsDomain = 0`). **`forge test`** checks `test/test-vectors/token_*.json`; re-run **`scripts/regenerate_test_vectors.py`** after changing those secrets or the mint key.
+
+---
+
 ## Foundry
 
 **Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**

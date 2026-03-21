@@ -5,189 +5,346 @@ import {Test} from "forge-std/Test.sol";
 import {stdJson} from "forge-std/StdJson.sol";
 import {GhostVault} from "../src/GhostVault.sol";
 
-/// @dev Kept in lockstep with `test/vectors.json`. Forks a live network in `setUp` so precompile `0x08` matches production.
+/// @dev Exposes internal `verifyBLS` for vector checks.
+contract GhostVaultHarness is GhostVault {
+    constructor(uint256[4] memory pkMint_, bytes32 blsDomain_, address mintAuthority_)
+        GhostVault(pkMint_, blsDomain_, mintAuthority_)
+    {}
+
+    function exposedVerifyBLS(uint256[2] calldata S, uint256[2] calldata Y, uint256[4] calldata pk_)
+        external
+        view
+        returns (bool)
+    {
+        return verifyBLS(S, Y, pk_);
+    }
+}
+
+/// @dev Vectors live under `test/test-vectors/` (per-token JSON). Revision D: `depositId` = blind_addr.
 contract GhostVaultTest is Test {
     using stdJson for string;
 
-    GhostVault internal vault;
+    GhostVaultHarness internal vault;
+    address internal mintAuthority;
 
-    string internal constant VECTORS_PATH = "test/vectors.json";
+    /// @dev Shared mint key across all bundled token vectors; domain is zero (matches generator).
+    string internal constant TOKEN_FIXTURE = "test/test-vectors/token_42.json";
 
     uint256 internal constant P = 21888242871839275222246405745257275088696311157297823662689037894645226208583;
 
-    event MintFulfilled(uint256 indexed depositId, uint256[2] blindedSignature);
-
-    function _forkSepolia() internal {
-        string memory url = vm.envOr("SEPOLIA_RPC_URL", string("https://api.avax-test.network/ext/bc/C/rpc"));
-        uint256 blockNo = vm.envOr("SEPOLIA_FORK_BLOCK", uint256(0));
-        if (blockNo == 0) {
-            vm.createSelectFork(url);
-        } else {
-            vm.createSelectFork(url, blockNo);
-        }
-    }
+    event MintFulfilled(address indexed depositId, uint256[2] S_prime);
 
     function setUp() public {
-        _forkSepolia();
-        string memory j = vm.readFile(VECTORS_PATH);
-        uint256[4] memory pkMint = [
-            _hexU256(j, ".PK_MINT.X_imag"),
-            _hexU256(j, ".PK_MINT.X_real"),
-            _hexU256(j, ".PK_MINT.Y_imag"),
-            _hexU256(j, ".PK_MINT.Y_real")
-        ];
-        bytes32 domain = bytes32(_hexU256(j, ".REDEEM_INTEGRATION.BLS_DOMAIN"));
-        vault = new GhostVault(pkMint, domain);
+        mintAuthority = makeAddr("mintAuthority");
+        string memory j = vm.readFile(TOKEN_FIXTURE);
+        uint256[4] memory pkMint = _pkMintFromJson(j);
+        bytes32 domain = bytes32(0);
+        vault = new GhostVaultHarness(pkMint, domain, mintAuthority);
     }
 
-    function _vectorsJson() internal view returns (string memory) {
-        return vm.readFile(VECTORS_PATH);
+    function _tokenPaths() internal pure returns (string[6] memory p) {
+        p[0] = "test/test-vectors/token_0.json";
+        p[1] = "test/test-vectors/token_1.json";
+        p[2] = "test/test-vectors/token_255.json";
+        p[3] = "test/test-vectors/token_256.json";
+        p[4] = "test/test-vectors/token_42.json";
+        p[5] = "test/test-vectors/token_1000.json";
+    }
+
+    /// @dev Left-pad hex (no 0x) to 64 nibbles so uint256 limb parsing matches on-chain precompile inputs.
+    function _padHex64(string memory s) internal pure returns (string memory) {
+        bytes memory b = bytes(s);
+        uint256 skip = 0;
+        if (b.length >= 2 && b[0] == 0x30 && (b[1] == 0x78 || b[1] == 0x58)) {
+            skip = 2;
+        }
+        uint256 n = b.length - skip;
+        require(n <= 64, "hex field too long");
+        bytes memory out = new bytes(64);
+        for (uint256 i; i < 64 - n; i++) {
+            out[i] = 0x30;
+        }
+        for (uint256 i; i < n; i++) {
+            out[64 - n + i] = b[skip + i];
+        }
+        return string(out);
     }
 
     function _hexU256(string memory json, string memory key) internal pure returns (uint256) {
-        return vm.parseUint(string.concat("0x", json.readString(key)));
+        return vm.parseUint(string.concat("0x", _padHex64(json.readString(key))));
     }
 
     function _hexBytes(string memory json, string memory key) internal pure returns (bytes memory) {
         return vm.parseBytes(string.concat("0x", json.readString(key)));
     }
 
-    /// @dev Mirrors `test_derive_token_secrets_vector` + JSON `SPEND_ADDRESS` / `TOKEN_INDEX` / `BLINDING_R`.
-    function test_vectorsJson_tokenMetadata() public view {
-        string memory j = _vectorsJson();
-        assertEq(j.readAddress(".SPEND_ADDRESS"), 0x9355Eb29dA61d3A94343bf76E6458b6032C8C2e6);
-        assertEq(j.readUint(".TOKEN_INDEX"), 42);
-        assertEq(
-            j.readUint(".BLINDING_R"),
-            9975352312114225588461889601612248069121371598217675252585165987882766246602
-        );
-        assertEq(
-            j.readString(".MASTER_SEED"),
-            "2b8c5855536fdf6354d78377fc1810b8c850cea4fdecd12478f31dd0f04e6671"
-        );
-        assertEq(
-            j.readUint(".MINT_BLS_PRIVKEY_INT"),
-            17087468199840458255777380070714339658210908587906447159169398321837385710467
-        );
+    function _pkMintFromJson(string memory j) internal pure returns (uint256[4] memory pkMint) {
+        pkMint[0] = _hexU256(j, ".PK_MINT.X_imag");
+        pkMint[1] = _hexU256(j, ".PK_MINT.X_real");
+        pkMint[2] = _hexU256(j, ".PK_MINT.Y_imag");
+        pkMint[3] = _hexU256(j, ".PK_MINT.Y_real");
     }
 
-    /// @dev Mirrors `test_blind_token_vector` (Y, B) and `test_mint_blind_sign_vector` / `test_unblind_signature_vector` intermediates.
-    function test_vectorsJson_g1Points() public view {
-        string memory j = _vectorsJson();
-        assertEq(_hexU256(j, ".Y_HASH_TO_CURVE.X"), 0x1c6bb1f2196db102951c52ac7a37fc669bee684e589b759704cbb2669bcf3b8b);
-        assertEq(_hexU256(j, ".Y_HASH_TO_CURVE.Y"), 0x2cec5ea37b7af3714b49bab8e5e481fce4566e0103b0d018fca50480daff2341);
-        assertEq(_hexU256(j, ".B_BLINDED.X"), 0x2199699490514eba0a2b2d86646b9f5301d0ad7b12315169b880cb4b10be8257);
-        assertEq(_hexU256(j, ".B_BLINDED.Y"), 0xd52d3a55b22f9e020e437e40f54ce93a6bc42b67706b1220022b23bd16abb11);
-        assertEq(_hexU256(j, ".S_PRIME.X"), 0x29d627ce6e5061ed7f2a25ee5d110facceddf1c774b44e361d5a670f4f92eab5);
-        assertEq(_hexU256(j, ".S_PRIME.Y"), 0x63f2b652f68c359e79c57ffc1ae330955dc8c84d7e19c4c48aef9349b6c2cc4);
-        assertEq(_hexU256(j, ".S_UNBLINDED.X"), 0x937017581b5a126f39c4fd65a21331b25af3e39dd8c22fb938f3f9d092e7f3b);
-        assertEq(_hexU256(j, ".S_UNBLINDED.Y"), 0x1173c27673d294a2f4a7d4c79f36873a60f7c285af31b62d9c2f2daa090f2718);
+    function _g1FromJson(string memory j, string memory baseKey) internal pure returns (uint256[2] memory p) {
+        p[0] = _hexU256(j, string.concat(baseKey, ".X"));
+        p[1] = _hexU256(j, string.concat(baseKey, ".Y"));
     }
 
-    /// @dev Same pairing check as Python `pairing(G2, S) == pairing(PK_mint, Y)` against `GhostVault.verifyBLS`.
-    function test_vectorsJson_verifyBLS() public view {
-        string memory j = _vectorsJson();
-        uint256[2] memory sG1 = [_hexU256(j, ".S_UNBLINDED.X"), _hexU256(j, ".S_UNBLINDED.Y")];
-        uint256[2] memory yG1 = [_hexU256(j, ".Y_HASH_TO_CURVE.X"), _hexU256(j, ".Y_HASH_TO_CURVE.Y")];
-        uint256[4] memory pkMint = [
-            _hexU256(j, ".PK_MINT.X_imag"),
-            _hexU256(j, ".PK_MINT.X_real"),
-            _hexU256(j, ".PK_MINT.Y_imag"),
-            _hexU256(j, ".PK_MINT.Y_real")
-        ];
-        assertTrue(vault.verifyBLS(sG1, yG1, pkMint));
+    function test_allTestVectors_metadataBlsH2cEcdsaAndRedeem() public {
+        string[6] memory paths = _tokenPaths();
+        for (uint256 t; t < paths.length; t++) {
+            string memory j = vm.readFile(paths[t]);
+            _assertTokenCrypto(j);
+        }
+
+        vm.deal(address(vault), 6 * vault.DENOMINATION());
+        for (uint256 t; t < paths.length; t++) {
+            string memory j = vm.readFile(paths[t]);
+            _redeemOne(j);
+        }
     }
 
-    /// @dev `keccak256(utf8(PAYLOAD_UTF8))` + `sign_msg_hash` (eth_keys) on the spend key from this fixture; ties ECDSA to `SPEND_ADDRESS` and BLS to the same token.
-    function test_vectorsJson_verifyRedemption() public view {
-        string memory j = _vectorsJson();
-        bytes32 msgHash = keccak256(bytes(j.readString(".REDEMPTION.PAYLOAD_UTF8")));
-        assertEq(msgHash, bytes32(_hexU256(j, ".REDEMPTION.MSG_HASH")));
+    function _assertTokenCrypto(string memory j) internal view {
+        uint256[4] memory pkMint = _pkMintFromJson(j);
+        uint256[2] memory s = _g1FromJson(j, ".S_UNBLINDED");
+        uint256[2] memory y = _g1FromJson(j, ".Y_HASH_TO_CURVE");
+        assertTrue(vault.exposedVerifyBLS(s, y, pkMint));
 
-        uint256[2] memory sG1 = [_hexU256(j, ".S_UNBLINDED.X"), _hexU256(j, ".S_UNBLINDED.Y")];
-        uint256[2] memory yG1 = [_hexU256(j, ".Y_HASH_TO_CURVE.X"), _hexU256(j, ".Y_HASH_TO_CURVE.Y")];
-        uint256[4] memory pkMint = [
-            _hexU256(j, ".PK_MINT.X_imag"),
-            _hexU256(j, ".PK_MINT.X_real"),
-            _hexU256(j, ".PK_MINT.Y_imag"),
-            _hexU256(j, ".PK_MINT.Y_real")
-        ];
+        address spend = j.readAddress(".SPEND_KEYPAIR.address");
+        uint256[2] memory yOnChain = vault.hashNullifierPoint(spend);
+        assertEq(yOnChain[0], y[0]);
+        assertEq(yOnChain[1], y[1]);
 
-        assertTrue(
-            vault.verifyRedemption(
-                j.readAddress(".SPEND_ADDRESS"),
-                msgHash,
-                uint8(j.readUint(".REDEMPTION.V")),
-                bytes32(_hexU256(j, ".REDEMPTION.R")),
-                bytes32(_hexU256(j, ".REDEMPTION.S")),
-                sG1,
-                yG1,
-                pkMint
-            )
-        );
+        address recipient = j.readAddress(".REDEEM_TX.recipient");
+        assertEq(vault.redemptionMessageHash(recipient), bytes32(_hexU256(j, ".REDEEM_TX.msg_hash")));
+
+        bytes memory sig = _hexBytes(j, ".REDEEM_TX.spend_signature");
+        bytes32 msgHash = bytes32(_hexU256(j, ".REDEEM_TX.msg_hash"));
+        (bytes32 r, bytes32 s256, uint8 v) = _splitSig(sig);
+        address recovered = ecrecover(msgHash, v, r, s256);
+        assertEq(recovered, spend, "ECDSA must recover spend_addr");
     }
 
-    function test_vectorsJson_redeemIntegration_hashAndMsg() public view {
-        string memory j = _vectorsJson();
-        address recipient = j.readAddress(".REDEEM_INTEGRATION.RECIPIENT");
-        assertEq(
-            vault.redemptionMessageHash(recipient),
-            bytes32(_hexU256(j, ".REDEEM_INTEGRATION.MSG_HASH"))
-        );
-        address spend = j.readAddress(".REDEEM_INTEGRATION.SPEND_ADDRESS");
-        uint256[2] memory y = vault.hashNullifierPoint(spend);
-        assertEq(y[0], _hexU256(j, ".REDEEM_INTEGRATION.Y_FROM_H2C.X"));
-        assertEq(y[1], _hexU256(j, ".REDEEM_INTEGRATION.Y_FROM_H2C.Y"));
+    function _redeemOne(string memory j) internal {
+        address recipient = j.readAddress(".REDEEM_TX.recipient");
+        bytes memory sig = _hexBytes(j, ".REDEEM_TX.spend_signature");
+        uint256[2] memory sG1 = [j.readUint(".REDEEM_TX.S_x"), j.readUint(".REDEEM_TX.S_y")];
+
+        uint256 balBefore = recipient.balance;
+        vault.redeem(recipient, sig, sG1);
+        assertEq(recipient.balance - balBefore, vault.DENOMINATION());
+        assertTrue(vault.spentNullifiers(j.readAddress(".SPEND_KEYPAIR.address")));
+    }
+
+    function _splitSig(bytes memory sig) internal pure returns (bytes32 r, bytes32 s, uint8 v) {
+        require(sig.length == 65, "sig len");
+        assembly {
+            r := mload(add(sig, 0x20))
+            s := mload(add(sig, 0x40))
+            v := byte(0, mload(add(sig, 0x60)))
+        }
     }
 
     function test_hashNullifierPointOnCurve() public view {
-        string memory j = _vectorsJson();
-        address spend = j.readAddress(".REDEEM_INTEGRATION.SPEND_ADDRESS");
-        uint256[2] memory y = vault.hashNullifierPoint(spend);
-        uint256 x = y[0];
+        string memory j = vm.readFile(TOKEN_FIXTURE);
+        address spend = j.readAddress(".SPEND_KEYPAIR.address");
+        uint256[2] memory pt = vault.hashNullifierPoint(spend);
+        uint256 x = pt[0];
         uint256 rhs = addmod(mulmod(mulmod(x, x, P), x, P), 3, P);
-        assertEq(mulmod(y[1], y[1], P), rhs);
+        assertEq(mulmod(pt[1], pt[1], P), rhs);
     }
 
-    function test_deposit_acceptsExactDenominationAndLocksEth() public {
-        string memory j = _vectorsJson();
-        uint256[2] memory b = [_hexU256(j, ".B_BLINDED.X"), _hexU256(j, ".B_BLINDED.Y")];
-        address user = address(0xCAFE);
-        vm.warp(1_717_000_000);
-        vm.deal(user, 1 ether);
+    function test_deposit_twoBlindAddrsLockEth() public {
+        string memory j = vm.readFile(TOKEN_FIXTURE);
+        uint256[2] memory b = _g1FromJson(j, ".B_BLINDED");
+        address user = makeAddr("depositor");
+        address blind1 = makeAddr("blindAddr1");
+        address blind2 = makeAddr("blindAddr2");
+        vm.deal(user, 2 ether);
 
+        uint256 den = vault.DENOMINATION();
         vm.prank(user);
-        vault.deposit{value: vault.DENOMINATION()}(b);
+        vault.deposit{value: den}(blind1, b);
+        vm.prank(user);
+        vault.deposit{value: den}(blind2, b);
 
-        assertEq(address(vault).balance, vault.DENOMINATION());
+        assertEq(address(vault).balance, 2 * den);
+        assertTrue(vault.depositPending(blind1));
+        assertTrue(vault.depositPending(blind2));
+        assertFalse(vault.depositFulfilled(blind1));
     }
 
     function test_deposit_revertsWhenWrongValue() public {
-        string memory j = _vectorsJson();
-        uint256[2] memory b = [_hexU256(j, ".B_BLINDED.X"), _hexU256(j, ".B_BLINDED.Y")];
+        string memory j = vm.readFile(TOKEN_FIXTURE);
+        uint256[2] memory b = _g1FromJson(j, ".B_BLINDED");
         vm.deal(address(this), 1 ether);
         vm.expectRevert(GhostVault.InvalidValue.selector);
-        vault.deposit{value: 0}(b);
+        vault.deposit{value: 0}(makeAddr("blindX"), b);
     }
 
-    function test_announce_emitsMintFulfilled() public {
-        string memory j = _vectorsJson();
-        uint256[2] memory sPrime = [_hexU256(j, ".S_PRIME.X"), _hexU256(j, ".S_PRIME.Y")];
-        uint256 depositId = 0xabc123;
+    function test_deposit_revertsZeroBlindAddr() public {
+        string memory j = vm.readFile(TOKEN_FIXTURE);
+        uint256[2] memory b = _g1FromJson(j, ".B_BLINDED");
+        vm.deal(address(this), 1 ether);
+        uint256 den = vault.DENOMINATION();
+        vm.expectRevert(GhostVault.InvalidDepositId.selector);
+        vault.deposit{value: den}(address(0), b);
+    }
 
+    function test_deposit_revertsDuplicateBlindAddr() public {
+        string memory j = vm.readFile(TOKEN_FIXTURE);
+        uint256[2] memory b = _g1FromJson(j, ".B_BLINDED");
+        address blind = makeAddr("blindDup");
+        address user = makeAddr("depositor");
+        vm.deal(user, 2 ether);
+        uint256 den = vault.DENOMINATION();
+        vm.startPrank(user);
+        vault.deposit{value: den}(blind, b);
+        vm.expectRevert(GhostVault.DepositIdAlreadyUsed.selector);
+        vault.deposit{value: den}(blind, b);
+        vm.stopPrank();
+    }
+
+    function test_announce_emitsMintFulfilled_afterDeposit() public {
+        string memory j = vm.readFile(TOKEN_FIXTURE);
+        uint256[2] memory b = _g1FromJson(j, ".B_BLINDED");
+        uint256[2] memory sPrime = _g1FromJson(j, ".S_PRIME");
+
+        address blindId = j.readAddress(".BLIND_KEYPAIR.address");
+        address user = makeAddr("depositor");
+        vm.deal(user, 1 ether);
+        uint256 den = vault.DENOMINATION();
+        vm.prank(user);
+        vault.deposit{value: den}(blindId, b);
+
+        vm.prank(mintAuthority);
         vm.expectEmit(true, true, true, true);
-        emit MintFulfilled(depositId, sPrime);
-        vault.announce(depositId, sPrime);
+        emit MintFulfilled(blindId, sPrime);
+        vault.announce(blindId, sPrime);
+
+        assertTrue(vault.depositFulfilled(blindId));
+        assertFalse(vault.depositPending(blindId));
+    }
+
+    function test_announce_revertsNotMintAuthority() public {
+        string memory j = vm.readFile(TOKEN_FIXTURE);
+        uint256[2] memory b = _g1FromJson(j, ".B_BLINDED");
+
+        address blindId = j.readAddress(".BLIND_KEYPAIR.address");
+        address user = makeAddr("depositor");
+        vm.deal(user, 1 ether);
+        uint256 den = vault.DENOMINATION();
+        vm.prank(user);
+        vault.deposit{value: den}(blindId, b);
+
+        vm.expectRevert(GhostVault.NotMintAuthority.selector);
+        vault.announce(blindId, _g1FromJson(j, ".S_PRIME"));
+    }
+
+    function test_announce_revertsDepositNotFound() public {
+        string memory j = vm.readFile(TOKEN_FIXTURE);
+        vm.prank(mintAuthority);
+        vm.expectRevert(GhostVault.DepositNotFound.selector);
+        vault.announce(makeAddr("neverDeposited"), _g1FromJson(j, ".S_PRIME"));
+    }
+
+    function test_announce_revertsAlreadyFulfilled() public {
+        string memory j = vm.readFile(TOKEN_FIXTURE);
+        uint256[2] memory b = _g1FromJson(j, ".B_BLINDED");
+        uint256[2] memory sPrime = _g1FromJson(j, ".S_PRIME");
+
+        address blindId = j.readAddress(".BLIND_KEYPAIR.address");
+        address user = makeAddr("depositor");
+        vm.deal(user, 1 ether);
+        uint256 den = vault.DENOMINATION();
+        vm.prank(user);
+        vault.deposit{value: den}(blindId, b);
+
+        vm.startPrank(mintAuthority);
+        vault.announce(blindId, sPrime);
+        vm.expectRevert(GhostVault.AlreadyFulfilled.selector);
+        vault.announce(blindId, sPrime);
+        vm.stopPrank();
+    }
+
+    function test_refund_succeedsAfterTimeout() public {
+        string memory j = vm.readFile(TOKEN_FIXTURE);
+        uint256[2] memory b = _g1FromJson(j, ".B_BLINDED");
+
+        address blindId = j.readAddress(".BLIND_KEYPAIR.address");
+        address user = makeAddr("depositor");
+        vm.deal(user, 1 ether);
+        uint256 den = vault.DENOMINATION();
+        vm.prank(user);
+        vault.deposit{value: den}(blindId, b);
+
+        uint256 balBefore = user.balance;
+        vm.warp(block.timestamp + vault.REFUND_TIMEOUT() + 1);
+
+        vm.prank(user);
+        vault.refund(blindId);
+
+        assertEq(user.balance, balBefore + den);
+        assertEq(address(vault).balance, 0);
+    }
+
+    function test_refund_revertsTooEarly() public {
+        string memory j = vm.readFile(TOKEN_FIXTURE);
+        uint256[2] memory b = _g1FromJson(j, ".B_BLINDED");
+        address blindId = j.readAddress(".BLIND_KEYPAIR.address");
+        address user = makeAddr("depositor");
+        vm.deal(user, 1 ether);
+        uint256 den = vault.DENOMINATION();
+        vm.prank(user);
+        vault.deposit{value: den}(blindId, b);
+
+        vm.prank(user);
+        vm.expectRevert(GhostVault.RefundTooEarly.selector);
+        vault.refund(blindId);
+    }
+
+    function test_refund_revertsNotDepositor() public {
+        string memory j = vm.readFile(TOKEN_FIXTURE);
+        uint256[2] memory b = _g1FromJson(j, ".B_BLINDED");
+        address blindId = j.readAddress(".BLIND_KEYPAIR.address");
+        address user = makeAddr("depositor");
+        vm.deal(user, 1 ether);
+        uint256 den = vault.DENOMINATION();
+        vm.prank(user);
+        vault.deposit{value: den}(blindId, b);
+
+        vm.warp(block.timestamp + vault.REFUND_TIMEOUT() + 1);
+
+        vm.expectRevert(GhostVault.NotDepositor.selector);
+        vault.refund(blindId);
+    }
+
+    function test_refund_revertsAfterAnnounce() public {
+        string memory j = vm.readFile(TOKEN_FIXTURE);
+        uint256[2] memory b = _g1FromJson(j, ".B_BLINDED");
+        uint256[2] memory sPrime = _g1FromJson(j, ".S_PRIME");
+        address blindId = j.readAddress(".BLIND_KEYPAIR.address");
+        address user = makeAddr("depositor");
+        vm.deal(user, 1 ether);
+        uint256 den = vault.DENOMINATION();
+        vm.prank(user);
+        vault.deposit{value: den}(blindId, b);
+
+        vm.prank(mintAuthority);
+        vault.announce(blindId, sPrime);
+
+        vm.warp(block.timestamp + vault.REFUND_TIMEOUT() + 1);
+
+        vm.prank(user);
+        vm.expectRevert(GhostVault.AlreadyFulfilled.selector);
+        vault.refund(blindId);
     }
 
     function test_redeem_succeedsAgainstVectors() public {
-        string memory j = _vectorsJson();
-        address recipient = j.readAddress(".REDEEM_INTEGRATION.RECIPIENT");
-        bytes memory sig = _hexBytes(j, ".REDEEM_INTEGRATION.SPEND_SIGNATURE_HEX");
-        uint256[2] memory sG1 = [
-            _hexU256(j, ".REDEEM_INTEGRATION.S_UNBLINDED_FOR_H2C.X"),
-            _hexU256(j, ".REDEEM_INTEGRATION.S_UNBLINDED_FOR_H2C.Y")
-        ];
+        string memory j = vm.readFile(TOKEN_FIXTURE);
+        address recipient = j.readAddress(".REDEEM_TX.recipient");
+        bytes memory sig = _hexBytes(j, ".REDEEM_TX.spend_signature");
+        uint256[2] memory sG1 = [j.readUint(".REDEEM_TX.S_x"), j.readUint(".REDEEM_TX.S_y")];
 
         vm.deal(address(vault), vault.DENOMINATION());
         uint256 balBefore = recipient.balance;
@@ -195,17 +352,14 @@ contract GhostVaultTest is Test {
         vault.redeem(recipient, sig, sG1);
 
         assertEq(recipient.balance - balBefore, vault.DENOMINATION());
-        assertTrue(vault.spentNullifiers(j.readAddress(".REDEEM_INTEGRATION.SPEND_ADDRESS")));
+        assertTrue(vault.spentNullifiers(j.readAddress(".SPEND_KEYPAIR.address")));
     }
 
     function test_redeem_revertsDoubleSpend() public {
-        string memory j = _vectorsJson();
-        address recipient = j.readAddress(".REDEEM_INTEGRATION.RECIPIENT");
-        bytes memory sig = _hexBytes(j, ".REDEEM_INTEGRATION.SPEND_SIGNATURE_HEX");
-        uint256[2] memory sG1 = [
-            _hexU256(j, ".REDEEM_INTEGRATION.S_UNBLINDED_FOR_H2C.X"),
-            _hexU256(j, ".REDEEM_INTEGRATION.S_UNBLINDED_FOR_H2C.Y")
-        ];
+        string memory j = vm.readFile(TOKEN_FIXTURE);
+        address recipient = j.readAddress(".REDEEM_TX.recipient");
+        bytes memory sig = _hexBytes(j, ".REDEEM_TX.spend_signature");
+        uint256[2] memory sG1 = [j.readUint(".REDEEM_TX.S_x"), j.readUint(".REDEEM_TX.S_y")];
 
         vm.deal(address(vault), 2 * vault.DENOMINATION());
         vault.redeem(recipient, sig, sG1);
@@ -215,12 +369,9 @@ contract GhostVaultTest is Test {
     }
 
     function test_redeem_revertsInvalidECDSA() public {
-        string memory j = _vectorsJson();
-        address recipient = j.readAddress(".REDEEM_INTEGRATION.RECIPIENT");
-        uint256[2] memory sG1 = [
-            _hexU256(j, ".REDEEM_INTEGRATION.S_UNBLINDED_FOR_H2C.X"),
-            _hexU256(j, ".REDEEM_INTEGRATION.S_UNBLINDED_FOR_H2C.Y")
-        ];
+        string memory j = vm.readFile(TOKEN_FIXTURE);
+        address recipient = j.readAddress(".REDEEM_TX.recipient");
+        uint256[2] memory sG1 = [j.readUint(".REDEEM_TX.S_x"), j.readUint(".REDEEM_TX.S_y")];
         bytes memory badSig = new bytes(65);
         for (uint256 i; i < 65; i++) {
             badSig[i] = 0xab;
@@ -232,9 +383,9 @@ contract GhostVaultTest is Test {
     }
 
     function test_redeem_revertsInvalidBLS() public {
-        string memory j = _vectorsJson();
-        address recipient = j.readAddress(".REDEEM_INTEGRATION.RECIPIENT");
-        bytes memory sig = _hexBytes(j, ".REDEEM_INTEGRATION.SPEND_SIGNATURE_HEX");
+        string memory j = vm.readFile(TOKEN_FIXTURE);
+        address recipient = j.readAddress(".REDEEM_TX.recipient");
+        bytes memory sig = _hexBytes(j, ".REDEEM_TX.spend_signature");
         uint256[2] memory badS = [uint256(1), uint256(2)];
 
         vm.deal(address(vault), vault.DENOMINATION());

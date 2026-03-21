@@ -1,4 +1,11 @@
 {
+  "DERIVATION_SPEC": {
+    "base": "keccak256(concat(master_seed_32bytes, token_index_as_uint32_le))",
+    "spend_priv": "keccak256(concat(utf8_bytes('spend'), base))",
+    "spend_addr": "Ethereum address from secp256k1: pubkey = spend_priv * G; addr = last20(keccak256(uncompressed_pubkey_without_0x04))",
+    "blinding_r": "r = uint256(keccak256(concat(utf8_bytes('blind'), base))) mod bn254_curve_order_q",
+    "note": "Same `base` for both spend_priv and blinding_r. Index must be 4-byte little-endian everywhere."
+  },
   "MASTER_SEED": "2b8c5855536fdf6354d78377fc1810b8c850cea4fdecd12478f31dd0f04e6671",
   "TOKEN_INDEX": 42,
   "MINT_BLS_PRIVKEY_INT": 17087468199840458255777380070714339658210908587906447159169398321837385710467,

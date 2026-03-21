@@ -27,6 +27,19 @@ $ forge build
 $ forge test
 ```
 
+`GhostVault.t.sol` **forks Sepolia** in `setUp` (precompile `0x08` matches testnet). Outbound RPC access is required.
+
+| Env | Purpose |
+|-----|---------|
+| `SEPOLIA_RPC_URL` | Optional. If unset, tests use `https://ethereum-sepolia-rpc.publicnode.com` (set your own URL for stable CI). |
+| `SEPOLIA_FORK_BLOCK` | Optional. Pin a block number for reproducible runs; omit or `0` for latest at fork time. |
+
+CLI fork alias (when `SEPOLIA_RPC_URL` is set in the environment):
+
+```shell
+SEPOLIA_RPC_URL="https://..." forge test --fork-url sepolia
+```
+
 ### Format
 
 ```shell
@@ -48,7 +61,7 @@ $ anvil
 ### Deploy
 
 ```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
+$ forge script script/GhostVault.s.sol:GhostVaultScript --rpc-url <your_rpc_url> --private-key <your_private_key>
 ```
 
 ### Cast

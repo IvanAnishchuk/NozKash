@@ -1,3 +1,5 @@
+import { fujiRpcCall, PUBLIC_FUJI_HTTPS_RPC } from './fujiJsonRpc'
+
 export type EthereumProvider = {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>
 }
@@ -25,7 +27,7 @@ const FUJI_ADD_CHAIN_PARAMS = {
     symbol: 'AVAX',
     decimals: 18,
   },
-  rpcUrls: ['https://api.avax-test.network/ext/bc/C/rpc'],
+  rpcUrls: [PUBLIC_FUJI_HTTPS_RPC],
   blockExplorerUrls: ['https://testnet.snowtrace.io'],
 } as const
 
@@ -46,20 +48,30 @@ export function normalizeChainId(chainId: unknown): string | null {
   return chainId.toLowerCase()
 }
 
+/** ~5 min de ventana con pocas consultas: (intentos − 1) × intervalo ≈ 5 min. */
+const RECEIPT_POLL_INTERVAL_MS = 30_000
+const RECEIPT_POLL_MAX_ATTEMPTS = 11
+
+/**
+ * Polls Fuji via HTTP RPC (no MetaMask).
+ * Intervalo largo para no saturar el proveedor; hasta ~5 min de espera.
+ */
 export async function waitForTransactionReceipt(
-  ethereum: EthereumProvider,
   txHash: string
 ): Promise<{ status?: string }> {
-  for (let i = 0; i < 60; i++) {
-    const receipt = (await ethereum.request({
-      method: 'eth_getTransactionReceipt',
-      params: [txHash],
-    })) as { status?: string } | null
-
+  for (let i = 0; i < RECEIPT_POLL_MAX_ATTEMPTS; i++) {
+    const receipt = await fujiRpcCall<{ status?: string } | null>(
+      'eth_getTransactionReceipt',
+      [txHash]
+    )
     if (receipt) return receipt
-    await new Promise((r) => window.setTimeout(r, 1000))
+    if (i < RECEIPT_POLL_MAX_ATTEMPTS - 1) {
+      await new Promise((r) => window.setTimeout(r, RECEIPT_POLL_INTERVAL_MS))
+    }
   }
-  throw new Error('Timed out waiting for confirmation')
+  throw new Error(
+    'Timed out waiting for confirmation (~5 min, sparse RPC polling)'
+  )
 }
 
 export async function estimateSimpleTransferGasNative(

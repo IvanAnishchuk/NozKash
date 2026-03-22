@@ -1,18 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
+import { useGhostMasterSeed } from '../context/GhostMasterSeedProvider'
 import { usePrivacy } from '../context/usePrivacy'
 import { useRedeemSign } from '../hooks/useRedeemSign'
 import { useWallet } from '../hooks/useWallet'
 import { DateRangePill } from '../components/DateRangePill'
 import {
   ACTIVITY_TYPE_FILTERS,
-  filterMockHistory,
+  filterVaultActivity,
   formatTxAmountDisplay,
   redeemSignMessageForTx,
 } from '../lib/historyQuery'
+import {
+  fetchVaultActivityForFirstTokens,
+  GHOST_VAULT_RPC_POLL_MS,
+} from '../lib/ghostVault'
 import type { LayoutOutletContext } from '../layoutOutletContext'
-import type { ActivityKind, HistoryFilterType } from '../mock/data'
-import { MOCK_HISTORY, MOCK_HOME_STATS } from '../mock/data'
+import type { ActivityKind, HistoryFilterType, VaultTx } from '../types/activity'
+
+/** Coincide con `GHOST_VAULT_DEPOSIT_AMOUNT_LABEL` (0.01 AVAX por depósito). */
+const VAULT_DENOMINATION_AVAX = 0.01
 
 function kindToClass(k: ActivityKind) {
   switch (k) {
@@ -74,7 +81,8 @@ function FilterFunnelIcon() {
 
 export function Dashboard() {
   const { privacyOn } = usePrivacy()
-  const { network, homeBalanceMain, homeBalanceUsd } = useWallet()
+  const { effectiveMasterSeed, seedRevision } = useGhostMasterSeed()
+  const { network, account, homeBalanceMain, homeBalanceUsd } = useWallet()
   const { openDepositModal, showToast } =
     useOutletContext<LayoutOutletContext>()
   const { signingId, redeemPhase, signRedeem } = useRedeemSign(showToast)
@@ -85,6 +93,64 @@ export function Dashboard() {
   const [dateTo, setDateTo] = useState('')
   const [filterOpen, setFilterOpen] = useState(false)
   const filterWrapRef = useRef<HTMLDivElement>(null)
+  const [vaultChainRows, setVaultChainRows] = useState<VaultTx[]>([])
+
+  const seedRef = useRef(effectiveMasterSeed)
+  const networkRef = useRef(network)
+  seedRef.current = effectiveMasterSeed
+  networkRef.current = network
+
+  useEffect(() => {
+    let cancelled = false
+    const clearRows = () => {
+      queueMicrotask(() => {
+        if (!cancelled) setVaultChainRows([])
+      })
+    }
+
+    if (network !== 'Fuji') {
+      clearRows()
+      return () => {
+        cancelled = true
+      }
+    }
+    if (!effectiveMasterSeed) {
+      clearRows()
+      return () => {
+        cancelled = true
+      }
+    }
+
+    setVaultChainRows([])
+
+    async function loadVault() {
+      if (cancelled) return
+      const net = networkRef.current
+      const seed = seedRef.current
+      if (net !== 'Fuji' || !seed) {
+        if (!cancelled) setVaultChainRows([])
+        return
+      }
+      try {
+        const rows = await fetchVaultActivityForFirstTokens(seed, {
+          networkLabel: net,
+        })
+        if (!cancelled) setVaultChainRows(rows)
+      } catch (e) {
+        console.error('GhostVault activity fetch', e)
+        if (!cancelled) setVaultChainRows([])
+      }
+    }
+
+    const intervalId = window.setInterval(() => {
+      void loadVault()
+    }, GHOST_VAULT_RPC_POLL_MS)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(intervalId)
+    }
+  }, [network, seedRevision, account, !!effectiveMasterSeed])
 
   useEffect(() => {
     if (!filterOpen) return
@@ -97,8 +163,8 @@ export function Dashboard() {
   }, [filterOpen])
 
   const filtered = useMemo(() => {
-    const list = filterMockHistory(
-      MOCK_HISTORY,
+    const list = filterVaultActivity(
+      vaultChainRows,
       activeFilter,
       dateFrom,
       dateTo
@@ -106,9 +172,23 @@ export function Dashboard() {
     return [...list].sort((a, b) => {
       const d = b.dateIso.localeCompare(a.dateIso)
       if (d !== 0) return d
+      const ba = a.blockNumber ?? -1
+      const bb = b.blockNumber ?? -1
+      if (bb !== ba) return bb - ba
       return b.id.localeCompare(a.id)
     })
-  }, [activeFilter, dateFrom, dateTo])
+  }, [activeFilter, dateFrom, dateTo, vaultChainRows])
+
+  const homeStats = useMemo(() => {
+    const validCount = vaultChainRows.filter((r) => r.type === 'Deposit').length
+    const spentCount = vaultChainRows.filter((r) => r.type === 'Redeem').length
+    return {
+      validCount,
+      spentCount,
+      validEth: `${(validCount * VAULT_DENOMINATION_AVAX).toFixed(2)} AVAX`,
+      spentEth: `${(spentCount * VAULT_DENOMINATION_AVAX).toFixed(2)} AVAX`,
+    }
+  }, [vaultChainRows])
 
   const clearDates = () => {
     setDateFrom('')
@@ -142,22 +222,22 @@ export function Dashboard() {
               <div className="stat-block-row">
                 <span className="stat-block-label valid">VALID</span>
                 <span className="stat-block-num valid">
-                  {privacyOn ? '••' : MOCK_HOME_STATS.validCount}
+                  {privacyOn ? '••' : homeStats.validCount}
                 </span>
               </div>
               <div className="stat-block-eth">
-                {privacyOn ? '••••' : MOCK_HOME_STATS.validEth}
+                {privacyOn ? '••••' : homeStats.validEth}
               </div>
             </div>
             <div className="stat-block">
               <div className="stat-block-row">
                 <span className="stat-block-label spent">SPENT</span>
                 <span className="stat-block-num spent">
-                  {privacyOn ? '••' : MOCK_HOME_STATS.spentCount}
+                  {privacyOn ? '••' : homeStats.spentCount}
                 </span>
               </div>
               <div className="stat-block-eth">
-                {privacyOn ? '••••' : MOCK_HOME_STATS.spentEth}
+                {privacyOn ? '••••' : homeStats.spentEth}
               </div>
             </div>
           </div>
@@ -271,8 +351,8 @@ export function Dashboard() {
                       >
                         {signingId === item.id
                           ? redeemPhase === 'account'
-                            ? 'Cuenta…'
-                            : 'Firmando…'
+                            ? 'Account…'
+                            : 'Signing…'
                           : 'Redeem'}
                       </button>
                     )}

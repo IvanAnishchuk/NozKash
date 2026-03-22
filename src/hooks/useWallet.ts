@@ -44,6 +44,8 @@ function parseAccounts(accs: unknown): string[] {
 export function useWallet() {
   const [accounts, setAccounts] = useState<string[]>([])
   const [account, setAccount] = useState<string | null>(null)
+  /** Hex con prefijo 0x, minúsculas; null hasta primer lectura del proveedor. */
+  const [chainIdHex, setChainIdHex] = useState<string | null>(null)
   const [network, setNetwork] = useState<NetworkLabel>('Wrong Network')
   const [balanceWeiHex, setBalanceWeiHex] = useState<string | null>(null)
   const accountsRef = useRef<string[]>([])
@@ -93,6 +95,7 @@ export function useWallet() {
     const chainId = normalizeChainId(
       await ethereum.request({ method: 'eth_chainId' })
     )
+    setChainIdHex(chainId)
     if (chainId === TARGET_CHAIN_ID) setNetwork('Fuji')
     else setNetwork('Wrong Network')
   }, [])
@@ -125,6 +128,7 @@ export function useWallet() {
           return list[0]
         })
         const normalized = normalizeChainId(chainId)
+        setChainIdHex(normalized)
         setNetwork(normalized === TARGET_CHAIN_ID ? 'Fuji' : 'Wrong Network')
       } catch (err) {
         if (isCancelled) return
@@ -143,6 +147,7 @@ export function useWallet() {
     }
     const handleChainChanged = (newChainId: unknown) => {
       const normalized = normalizeChainId(newChainId)
+      setChainIdHex(normalized)
       setNetwork(normalized === TARGET_CHAIN_ID ? 'Fuji' : 'Wrong Network')
     }
 
@@ -273,6 +278,7 @@ export function useWallet() {
     openMetaMaskAccountPicker,
     accounts,
     account,
+    chainIdHex,
     selectAccount,
     isConnected,
     network,

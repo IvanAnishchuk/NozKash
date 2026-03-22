@@ -1,6 +1,6 @@
 # aleph-hackathon-m2026
 
-Proyecto hackathon — wallet UI **eGhostCash** (código en este repo: `ghost-tip-wallet`).
+Proyecto hackathon — wallet UI **eGhostCash** (paquete npm: `nozkash`).
 
 **Repositorio:** [github.com/Simonethg/aleph-hackathon-m2026](https://github.com/Simonethg/aleph-hackathon-m2026)
 

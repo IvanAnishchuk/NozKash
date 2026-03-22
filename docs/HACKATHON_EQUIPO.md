@@ -18,7 +18,7 @@ En tu Mac (con `gh auth login` ya hecho):
 
 ```bash
 gh config set git_protocol ssh
-cd /Users/Personal/ghost-tip-wallet
+cd ~/nozkash
 gh repo create aleph-hackathon-m2026 --public --source=. --remote=origin --push
 ```
 
@@ -31,7 +31,7 @@ Repo del equipo: **`Simonethg/aleph-hackathon-m2026`**.
 **HTTPS:**
 
 ```bash
-cd /Users/Personal/ghost-tip-wallet
+cd ~/nozkash
 git remote add origin https://github.com/Simonethg/aleph-hackathon-m2026.git
 git push -u origin main
 ```

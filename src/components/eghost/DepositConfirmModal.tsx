@@ -1,15 +1,27 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useGhostMasterSeed } from '../../context/GhostMasterSeedProvider'
 import { useWallet } from '../../hooks/useWallet'
 import {
   ensureFuji,
-  estimateSimpleTransferGasNative,
   getEthereum,
-  parseEthAddressList,
   waitForTransactionReceipt,
+  weiHexToNativeLabel,
 } from '../../lib/ethereum'
 import { avaxDecimalStringToWeiHex } from '../../lib/avaxWei'
-
-const PLACEHOLDER_TO = '0x0000000000000000000000000000000000000001'
+import { fujiRpcCall } from '../../lib/fujiJsonRpc'
+import {
+  GHOST_VAULT_ADDRESS,
+  GHOST_VAULT_DEPOSIT_VALUE_WEI_HEX,
+  GHOST_VAULT_RPC_POLL_MS,
+  getNextVaultTokenIndexForDeposit,
+} from '../../lib/ghostVault'
+import {
+  buildGhostVaultDepositCalldata,
+  encodeDepositPendingCalldata,
+  evmSelector4,
+  GHOST_VAULT_DEPOSIT_SELECTOR_HEX,
+  parseGhostVaultDepositCalldataArgs,
+} from '../../crypto/ghostDeposit'
 
 /** Quick amounts; only `SUPPORTED_DEPOSIT_AVAX` is enabled until arbitrary amounts ship. */
 const DEPOSIT_PRESETS = ['0.001', '0.01', '0.1', '1'] as const
@@ -70,32 +82,77 @@ function isSupportedDepositAmount(finalized: string): boolean {
   }
 }
 
+function addrPickLabel(addr: string): string {
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`
+}
+
 export function DepositConfirmModal({ open, onClose, onToast }: Props) {
-  const { network } = useWallet()
+  const { network, account } = useWallet()
+  const { effectiveMasterSeed, seedRevision, requestUnlockViaSign } =
+    useGhostMasterSeed()
   const [gasLabel, setGasLabel] = useState('—')
   const [pending, setPending] = useState(false)
   const [amountAvax, setAmountAvax] = useState<string>(DEFAULT_AMOUNT)
+
+  const seedRef = useRef(effectiveMasterSeed)
+  const accountRef = useRef(account)
+  seedRef.current = effectiveMasterSeed
+  accountRef.current = account
 
   useEffect(() => {
     if (open) setAmountAvax(DEFAULT_AMOUNT)
   }, [open])
 
   useEffect(() => {
-    if (!open) {
+    if (!open || network !== 'Fuji') {
       setGasLabel('—')
       return
     }
-    const eth = getEthereum()
-    if (!eth) return
+
     let cancelled = false
-    ;(async () => {
-      const g = await estimateSimpleTransferGasNative(eth, 'AVAX')
-      if (!cancelled) setGasLabel(g)
-    })()
+
+    async function refreshGasEstimate() {
+      const seed = seedRef.current
+      const from = accountRef.current
+      if (!from || !seed) {
+        if (!cancelled) setGasLabel('—')
+        return
+      }
+      try {
+        const nextIdx = await getNextVaultTokenIndexForDeposit(seed, {
+          contractAddress: GHOST_VAULT_ADDRESS,
+        })
+        const { data } = await buildGhostVaultDepositCalldata(seed, nextIdx)
+        const gasHex = await fujiRpcCall<string>('eth_estimateGas', [
+          {
+            from,
+            to: GHOST_VAULT_ADDRESS,
+            data,
+            value: GHOST_VAULT_DEPOSIT_VALUE_WEI_HEX,
+          },
+        ])
+        const priceHex = await fujiRpcCall<string>('eth_gasPrice', [])
+        const wei = BigInt(gasHex) * BigInt(priceHex)
+        const label = weiHexToNativeLabel(
+          `0x${wei.toString(16)}`,
+          'AVAX',
+          6
+        )
+        if (!cancelled) setGasLabel(`~${label}`)
+      } catch {
+        if (!cancelled) setGasLabel('—')
+      }
+    }
+
+    const intervalId = window.setInterval(() => {
+      void refreshGasEstimate()
+    }, GHOST_VAULT_RPC_POLL_MS)
+
     return () => {
       cancelled = true
+      window.clearInterval(intervalId)
     }
-  }, [open, network])
+  }, [open, network, seedRevision, !!effectiveMasterSeed])
 
   const close = () => {
     if (!pending) onClose()
@@ -120,13 +177,12 @@ export function DepositConfirmModal({ open, onClose, onToast }: Props) {
       return
     }
 
-    let valueHex: string
-    try {
-      valueHex = avaxDecimalStringToWeiHex(finalized)
-    } catch {
-      onToast('Invalid deposit amount', 'error')
+    if (!account) {
+      onToast('Conectá la wallet en la app; el depósito usa esa misma cuenta', 'error')
       return
     }
+
+    const from = account
 
     setPending(true)
     try {
@@ -139,75 +195,143 @@ export function DepositConfirmModal({ open, onClose, onToast }: Props) {
         return
       }
 
-      onToast(
-        'Deposit · step 1/2: in MetaMask confirm which account to use (pick from the list and Accept)',
-        'info'
-      )
+      onToast('Confirmá el depósito en MetaMask', 'info')
 
+      let seed = effectiveMasterSeed
+      if (!seed) {
+        onToast('Firmá el mensaje en MetaMask para derivar el vault…', 'info')
+        seed = await requestUnlockViaSign(from)
+      }
+      if (!seed) {
+        onToast('Hace falta firmar el mensaje para depositar', 'error')
+        return
+      }
+
+      const tokenIndex = await getNextVaultTokenIndexForDeposit(seed, {
+        contractAddress: GHOST_VAULT_ADDRESS,
+      })
+
+      let data: `0x${string}`
+      let builtDepositId: string
       try {
-        await ethereum.request({
-          method: 'wallet_requestPermissions',
-          params: [{ eth_accounts: {} }],
+        const built = await buildGhostVaultDepositCalldata(seed, tokenIndex)
+        data = built.data
+        builtDepositId = built.depositId
+      } catch (err) {
+        console.error('GhostVault deposit calldata', err)
+        onToast('Could not build blind deposit payload', 'error')
+        return
+      }
+
+      if (!data || data === '0x' || data.length < 10) {
+        console.error('[GhostVault deposit] missing calldata — would be plain AVAX transfer', {
+          data,
         })
-      } catch (permErr: unknown) {
-        const pe = permErr as { code?: number }
-        if (pe.code === 4001) {
-          onToast('Account selection cancelled in MetaMask', 'error')
-          return
-        }
-        /* Wallets without wallet_requestPermissions: fall through to requestAccounts */
+        onToast('Internal error: deposit calldata missing', 'error')
+        return
       }
 
-      let accs: string[]
+      const sendParams = {
+        from,
+        to: GHOST_VAULT_ADDRESS,
+        data,
+        value: GHOST_VAULT_DEPOSIT_VALUE_WEI_HEX,
+      }
+      let depositFnArgs: ReturnType<typeof parseGhostVaultDepositCalldataArgs>
       try {
-        accs = parseEthAddressList(
-          await ethereum.request({ method: 'eth_requestAccounts' })
+        depositFnArgs = parseGhostVaultDepositCalldataArgs(data)
+      } catch (e) {
+        depositFnArgs = {
+          blindedPointB: ['?', '?'],
+          depositId: builtDepositId,
+        }
+        console.warn('[GhostVault deposit debug] parse calldata failed', e)
+      }
+      const chainId = (await ethereum.request({
+        method: 'eth_chainId',
+      })) as string
+      const calldataSelector = data.slice(0, 10).toLowerCase()
+      const txValueWei = BigInt(sendParams.value)
+      const selectorMatchesDepositAbi =
+        calldataSelector === GHOST_VAULT_DEPOSIT_SELECTOR_HEX.toLowerCase()
+
+      let onChainDenominationWeiHex: string | null = null
+      let depositPendingView: boolean | null = null
+      try {
+        onChainDenominationWeiHex = await fujiRpcCall<string>('eth_call', [
+          { to: GHOST_VAULT_ADDRESS, data: evmSelector4('DENOMINATION()') },
+          'latest',
+        ])
+      } catch (denErr) {
+        console.warn('[GhostVault deposit debug] DENOMINATION() eth_call failed', denErr)
+      }
+      try {
+        const pendHex = await fujiRpcCall<string>('eth_call', [
+          {
+            to: GHOST_VAULT_ADDRESS,
+            data: encodeDepositPendingCalldata(builtDepositId),
+          },
+          'latest',
+        ])
+        depositPendingView = BigInt(pendHex) !== 0n
+      } catch (pendErr) {
+        console.warn('[GhostVault deposit debug] depositPending eth_call failed', pendErr)
+      }
+
+      const onChainDenomWei =
+        onChainDenominationWeiHex != null
+          ? BigInt(onChainDenominationWeiHex)
+          : null
+
+      console.log('[GhostVault deposit debug] before eth_sendTransaction', {
+        tokenIndex,
+        chainId,
+        vaultTo: GHOST_VAULT_ADDRESS,
+        txValueWeiHex: sendParams.value,
+        txValueWeiDecimal: txValueWei.toString(),
+        calldataSelector,
+        expectedDepositSelector: GHOST_VAULT_DEPOSIT_SELECTOR_HEX,
+        selectorMatchesDepositAbi,
+        onChainDenominationWeiHex,
+        onChainDenominationWeiDecimal:
+          onChainDenomWei != null ? onChainDenomWei.toString() : null,
+        txValueMatchesOnChainDenomination:
+          onChainDenomWei != null ? txValueWei === onChainDenomWei : null,
+        depositPending_view: depositPendingView,
+        eth_sendTransaction: { method: 'eth_sendTransaction' as const, params: [sendParams] },
+        deposit_blindedPointB_uint256_decimal: depositFnArgs.blindedPointB,
+        deposit_depositId: depositFnArgs.depositId,
+        depositId_from_build_matches_calldata:
+          builtDepositId.toLowerCase() === depositFnArgs.depositId.toLowerCase(),
+      })
+
+      try {
+        await fujiRpcCall<string>('eth_call', [sendParams, 'latest'])
+        console.log(
+          '[GhostVault deposit debug] eth_call (same as tx): ok — sin revert en este RPC'
         )
-      } catch {
-        onToast('Could not get MetaMask accounts', 'error')
-        return
-      }
-
-      if (accs.length === 0) {
-        onToast('No connected account in MetaMask', 'error')
-        return
-      }
-
-      await new Promise((r) => window.setTimeout(r, 300))
-
-      onToast(
-        'Deposit · step 2/2: confirm the transaction in MetaMask',
-        'info'
-      )
-
-      const fresh = parseEthAddressList(
-        await ethereum.request({ method: 'eth_accounts' })
-      )
-      const from = fresh[0] ?? accs[0]
-      if (!from) {
-        onToast('No account selected in MetaMask', 'error')
-        return
+      } catch (simErr) {
+        console.warn(
+          '[GhostVault deposit debug] eth_call (same as tx): revert / error (motivo útil si el nodo lo devuelve)',
+          simErr
+        )
       }
 
       const hash = (await ethereum.request({
         method: 'eth_sendTransaction',
-        params: [
-          {
-            from,
-            to: PLACEHOLDER_TO,
-            value: valueHex,
-            data: '0x',
-          },
-        ],
+        params: [sendParams],
       })) as string
 
-      const receipt = await waitForTransactionReceipt(ethereum, hash)
+      const receipt = await waitForTransactionReceipt(hash)
       if (receipt.status === '0x0') {
         onToast('Transaction failed or was reverted', 'error')
         return
       }
       onClose()
-      onToast(`Deposit confirmed · ${finalized} AVAX`, 'success')
+      onToast(
+        `Deposit confirmed · token #${tokenIndex} · ${finalized} AVAX`,
+        'success'
+      )
     } catch (err: unknown) {
       console.error('Deposit tx', err)
       const e = err as { code?: number; message?: string }
@@ -333,8 +457,10 @@ export function DepositConfirmModal({ open, onClose, onToast }: Props) {
           className="modal-sub-label"
           style={{ marginBottom: 12, marginTop: 4 }}
         >
-          Two steps in MetaMask: choose your account, then confirm the
-          transaction.
+          Cuenta que paga: {account ? addrPickLabel(account) : '—'}. La firma del vault se
+          pide al conectar y se mantiene en memoria mientras la wallet sigue conectada; acá solo
+          confirmás el depósito en
+          MetaMask.
         </p>
 
         <div className="deposit-info" style={{ marginBottom: 18 }}>

@@ -1,23 +1,45 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { MOCK_CRYPTO } from '../mock/data'
+import { useGhostMasterSeed } from '../context/GhostMasterSeedProvider'
+import { fetchVaultActivityForFirstTokens } from '../lib/ghostVault'
+import type { VaultTx } from '../types/activity'
 
 export function Recovery() {
-  const [phrase, setPhrase] = useState(
-    'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about',
-  )
+  const { effectiveMasterSeed } = useGhostMasterSeed()
+  const [phrase, setPhrase] = useState('')
   const [startIdx, setStartIdx] = useState('0')
   const [endIdx, setEndIdx] = useState('99')
   const [scanning, setScanning] = useState(false)
   const [done, setDone] = useState(false)
+  const [scanError, setScanError] = useState<string | null>(null)
+  const [scanRows, setScanRows] = useState<VaultTx[]>([])
 
-  const handleScan = () => {
+  const handleScan = async () => {
     setScanning(true)
     setDone(false)
-    window.setTimeout(() => {
-      setScanning(false)
+    setScanError(null)
+    setScanRows([])
+    try {
+      const seed = effectiveMasterSeed
+      if (!seed) {
+        setScanError(
+          'Conectá la wallet y aceptá la firma del vault (válida mientras sigas conectado), o usá VITE_GHOST_MASTER_SEED_HEX (dev).'
+        )
+        return
+      }
+      void startIdx
+      void endIdx
+      void phrase
+      const rows = await fetchVaultActivityForFirstTokens(seed, {
+        networkLabel: 'Fuji',
+      })
+      setScanRows(rows)
       setDone(true)
-    }, 1200)
+    } catch (e) {
+      setScanError(e instanceof Error ? e.message : 'Error al consultar la red')
+    } finally {
+      setScanning(false)
+    }
   }
 
   return (
@@ -38,20 +60,20 @@ export function Recovery() {
           RECOVERY
         </div>
         <div className="modal-sub-label" style={{ marginBottom: 0 }}>
-          Mock scan · {MOCK_CRYPTO.network}
+          Avalanche · Fuji · lectura GhostVault vía RPC
         </div>
       </div>
 
       <div className="deposit-info">
         <div className="type-row">
-          <span className="type-label">Seed phrase</span>
+          <span className="type-label">Seed phrase (reservado)</span>
         </div>
         <textarea
           className="srp-textarea"
           style={{ height: 120 }}
           value={phrase}
           onChange={(e) => setPhrase(e.target.value)}
-          placeholder="words separated by space…"
+          placeholder="Integración futura: BIP39 → master seed…"
         />
       </div>
 
@@ -89,17 +111,45 @@ export function Recovery() {
         </div>
       </div>
 
+      <p
+        className="modal-sub-label"
+        style={{ marginTop: 12, marginBottom: 0, fontSize: 11 }}
+      >
+        El escaneo actual usa solo la semilla del entorno (misma que el home), no
+        la frase anterior.
+      </p>
+
       <button
         type="button"
         className="btn-full"
         style={{ marginTop: 16, opacity: scanning ? 0.6 : 1 }}
         disabled={scanning}
-        onClick={handleScan}
+        onClick={() => void handleScan()}
       >
         {scanning ? 'Scanning…' : 'Scan Blockchain'}
       </button>
 
-      {done && (
+      {scanError && (
+        <div
+          className="deposit-info"
+          style={{
+            marginTop: 16,
+            borderColor: 'rgba(255,100,100,.3)',
+          }}
+        >
+          <div style={{ fontSize: 13, color: 'var(--red2)' }}>{scanError}</div>
+        </div>
+      )}
+
+      {done && scanRows.length === 0 && !scanError && (
+        <div className="deposit-info" style={{ marginTop: 16 }}>
+          <div style={{ fontSize: 13, color: 'var(--text2)' }}>
+            Sin actividad GhostVault para esta semilla en el rango escaneado.
+          </div>
+        </div>
+      )}
+
+      {done && scanRows.length > 0 && (
         <div
           className="deposit-info"
           style={{
@@ -108,12 +158,31 @@ export function Recovery() {
             background: 'var(--green-dim)',
           }}
         >
-          <div style={{ fontSize: 13, color: 'var(--green)', lineHeight: 1.5 }}>
-            Mock: scan done for indices {startIdx}–{endIdx}. Reference:{' '}
-            <span className="info-val" style={{ fontSize: 11 }}>
-              {MOCK_CRYPTO.spendAddress}
-            </span>
+          <div
+            style={{
+              fontSize: 13,
+              color: 'var(--green)',
+              lineHeight: 1.5,
+              marginBottom: 10,
+            }}
+          >
+            {scanRows.length} fila(s) on-chain
           </div>
+          <ul
+            style={{
+              margin: 0,
+              paddingLeft: 18,
+              fontSize: 11,
+              color: 'var(--text)',
+              wordBreak: 'break-all',
+            }}
+          >
+            {scanRows.map((r) => (
+              <li key={r.id} style={{ marginBottom: 6 }}>
+                {r.historyLabel} · {r.txHash}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>

@@ -3,7 +3,7 @@
 Tu identidad en Git (commits) debe coincidir con la de tu cuenta de GitHub:
 
 ```bash
-cd /Users/Personal/ghost-tip-wallet
+cd ~/nozkash
 
 git config user.name "Simonethg"
 git config user.email "simonethfernandez@gmail.com"
@@ -21,7 +21,7 @@ git config --global user.email "simonethfernandez@gmail.com"
 En **Terminal.app** o **iTerm** (no hace falta que sea dentro de Cursor):
 
 ```bash
-cd /Users/Personal/ghost-tip-wallet
+cd ~/nozkash
 
 # Si .git está roto o vacío, borrarlo y empezar de nuevo:
 rm -rf .git
@@ -50,11 +50,11 @@ Elegí **GitHub.com**, **HTTPS** o **SSH** según prefieras, y completá el logi
 Desde la carpeta del proyecto:
 
 ```bash
-cd /Users/Personal/ghost-tip-wallet
-gh repo create ghost-tip-wallet --private --source=. --remote=origin --push
+cd ~/nozkash
+gh repo create nozkash --private --source=. --remote=origin --push
 ```
 
-Cambia `ghost-tip-wallet` por el nombre que quieras en GitHub. Quita `--private` si querés el repo **público**.
+Podés cambiar `nozkash` por el nombre de repo que quieras en GitHub. Quita `--private` si querés el repo **público**.
 
 ### Opción B — manual en github.com
 
@@ -62,7 +62,7 @@ Cambia `ghost-tip-wallet` por el nombre que quieras en GitHub. Quita `--private`
 2. En la terminal:
 
 ```bash
-cd /Users/Personal/ghost-tip-wallet
+cd ~/nozkash
 git remote add origin https://github.com/Simonethg/NOMBRE_DEL_REPO.git
 git branch -M main
 git push -u origin main
@@ -76,4 +76,4 @@ En GitHub: **Settings → Emails** — asegurate de que `simonethfernandez@gmail
 
 ---
 
-Si algo falla al hacer `git init` dentro de Cursor, usá siempre la **Terminal del sistema** en `/Users/Personal/ghost-tip-wallet`.
+Si algo falla al hacer `git init` dentro de Cursor, usá siempre la **Terminal del sistema** en la carpeta del proyecto (p. ej. `~/nozkash`).

@@ -1,4 +1,4 @@
-import type { ActivityKind, HistoryFilterType, MockTx } from '../mock/data'
+import type { ActivityKind, HistoryFilterType, VaultTx } from '../types/activity'
 
 export function activityKindToFilter(
   t: ActivityKind
@@ -13,12 +13,12 @@ export function activityKindToFilter(
   }
 }
 
-export function filterMockHistory(
-  items: MockTx[],
+export function filterVaultActivity(
+  items: VaultTx[],
   activeFilter: HistoryFilterType,
   dateFrom: string,
   dateTo: string
-): MockTx[] {
+): VaultTx[] {
   return items.filter((item) => {
     if (
       activeFilter !== 'all' &&
@@ -32,13 +32,13 @@ export function filterMockHistory(
   })
 }
 
-export function formatTxAmountDisplay(item: MockTx): string {
+export function formatTxAmountDisplay(item: VaultTx): string {
   if (item.type === 'Deposit') return `+${item.amount}`
   if (item.type === 'Redeem') return `-${item.amount}`
   return item.amount
 }
 
-export function redeemSignMessageForTx(item: MockTx): string {
+export function redeemSignMessageForTx(item: VaultTx): string {
   return [
     'NozKash — Redeem claim',
     `Ref: ${item.id}`,

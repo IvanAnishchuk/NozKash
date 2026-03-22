@@ -3,7 +3,7 @@ import { secp256k1 } from '@noble/curves/secp256k1.js';
 import mcl from 'mcl-wasm';
 import {
     hashToCurveBN254, multiplyBN254,
-    modularInverse, verifyPairingBN254, CURVE_ORDER,
+    modularInverse, verifyPairingBN254, getG2Generator, CURVE_ORDER,
 } from './bn254-crypto.js';
 
 // ==============================================================================
@@ -108,11 +108,11 @@ export function generateMintKeypair(): MintKeypair {
     const skBytes = secp256k1.utils.randomPrivateKey();
     const skMint  = BigInt('0x' + Buffer.from(skBytes).toString('hex')) % CURVE_ORDER;
 
-    const generatorG2 = mcl.hashAndMapToG2('GhostTipG2Generator');
+    const g2 = getG2Generator();
     const skFr = new mcl.Fr();
     skFr.setStr(skMint.toString(10), 10);
 
-    const pkMint = mcl.mul(generatorG2, skFr) as mcl.G2;
+    const pkMint = mcl.mul(g2, skFr) as mcl.G2;
     return { skMint, pkMint };
 }
 
@@ -187,71 +187,36 @@ export function mintBlindSign(B: mcl.G1, skMint: bigint): mcl.G1 {
  * Generates the anti-MEV ECDSA signature binding the token to a destination.
  * Mirrors Python's generate_redemption_proof().
  *
- * IMPORTANT: Uses @noble/curves v2.x API:
+ * The message hash MUST match the Solidity contract's redemptionMessageHash():
+ *   keccak256(abi.encodePacked("Pay to RAW: ", recipient))
+ * which is "Pay to RAW: " (12 bytes) + raw 20-byte address = 32 bytes total.
+ *
+ * Uses @noble/curves v2.x API:
  *   - sign() with { format: 'recovered' } returns 65 bytes: [recoveryBit, ...r(32), ...s(32)]
- *   - recoverPublicKey(sig65, msg, opts) expects the 65-byte recovered-format signature
  */
 export async function generateRedemptionProof(
     spendPriv: Uint8Array,
     destinationAddress: string,
 ): Promise<RedemptionProof> {
-    const payloadStr = `Pay to: ${destinationAddress}`;
-    const msgHash    = keccak256(Buffer.from(payloadStr, 'utf-8'));
+    // Match Solidity: keccak256(abi.encodePacked("Pay to RAW: ", recipient))
+    const addrBytes = Buffer.from(destinationAddress.replace('0x', ''), 'hex');
+    const prefix    = Buffer.from('Pay to RAW: ', 'utf-8');  // 12 bytes
+    const msgHash   = keccak256(new Uint8Array([...prefix, ...addrBytes]));
 
     const pubKeyUncompressed = secp256k1.getPublicKey(spendPriv, false);  // 65 bytes with 0x04
-    const expectedAddress    = pubKeyToAddress(pubKeyUncompressed);
 
-    // ── @noble/curves v2.x sign() with format: 'recovered' ──────────────
+    // @noble/curves v2.x sign() with format: 'recovered'
     // Returns 65 bytes: [recovery_bit, r(32), s(32)]
-    // prehash: false because msgHash is already keccak256'd
-    // lowS: true for EVM compatibility
     const sigRecovered: Uint8Array = secp256k1.sign(msgHash, spendPriv, {
         lowS: true,
         prehash: false,
         format: 'recovered',
     });
 
-    // ── Diagnostic block: inspect the recovered signature ────────────────
-    console.log('\n=== generateRedemptionProof DIAGNOSTICS ===');
-    console.log('[sig] typeof:              ', typeof sigRecovered);
-    console.log('[sig] constructor.name:    ', sigRecovered?.constructor?.name);
-    console.log('[sig] instanceof Uint8Array:', sigRecovered instanceof Uint8Array);
-    console.log('[sig] length:              ', sigRecovered.length);
-    console.log('[sig] expected length:      65 (1 recovery + 32 r + 32 s)');
-
     // Extract recovery bit (first byte) and compact sig (remaining 64 bytes)
-    const recoveryBit = sigRecovered[0] as 0 | 1;
+    const recoveryBit  = sigRecovered[0] as 0 | 1;
     const signatureObj = sigRecovered.slice(1); // 64-byte compact r||s
-
-    console.log('[parsed] recoveryBit (byte 0):', recoveryBit);
-    console.log('[parsed] compact sig length:   ', signatureObj.length);
-    console.log('[parsed] compact sig hex:      ', Buffer.from(signatureObj).toString('hex'));
-
-    // ── Verify recovery bit by recovering the public key ─────────────────
-    // @noble/curves v2.x recoverPublicKey(sig65, msg, opts)
-    // sig65 is the full 65-byte recovered-format signature
-    console.log('[verify] expectedAddress:      ', expectedAddress);
-    try {
-        const recoveredPubkey = secp256k1.recoverPublicKey(sigRecovered, msgHash, { prehash: false });
-        const recoveredAddr   = pubKeyToAddress(recoveredPubkey);
-        console.log('[verify] recoveredPubkey len:  ', recoveredPubkey.length);
-        console.log('[verify] recoveredAddress:     ', recoveredAddr);
-        console.log('[verify] address match:        ', recoveredAddr.toLowerCase() === expectedAddress.toLowerCase());
-
-        if (recoveredAddr.toLowerCase() !== expectedAddress.toLowerCase()) {
-            console.log('[verify] WARNING: recovered address does NOT match expected!');
-            console.log('[verify] This means the recovery bit is wrong — should not happen with format: recovered');
-        }
-    } catch (err: any) {
-        console.log('[verify] recoverPublicKey THREW:', err.message);
-    }
-
-    const compactHex = Buffer.from(signatureObj).toString('hex');
-
-    console.log('[result] recoveryBit:', recoveryBit);
-    console.log('[result] compactHex: ', compactHex);
-    console.log('[result] compactHex length:', compactHex.length, '(expected 128)');
-    console.log('=== END DIAGNOSTICS ===\n');
+    const compactHex   = Buffer.from(signatureObj).toString('hex');
 
     return { msgHash, signatureObj, compactHex, recoveryBit, pubKeyUncompressed };
 }

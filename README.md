@@ -24,7 +24,7 @@ All values below use **Keccak-256** outputs as **32-byte big-endian** integers w
 
 Then off-chain: `Y = H_G1(spend_addr)`, `B = r · Y`, mint signs `B`, user unblinds to `S` for `GhostVault.redeem`.
 
-On-chain (PoC), `H_G1` hashes **`abi.encodePacked(spend_addr)`** — **20-byte address only** (constructor `blsDomain` is unused for H₂C). **`forge test`** reads **`test/test-vectors/token_*.json`** by default (override with env **`GHOST_VECTOR_SUITE`**).
+On-chain (PoC), `H_G1` hashes **`abi.encodePacked(spend_addr)`** — **20-byte address only**. This GhostVault build has **no refund** path (trusted mint). **`forge test`** reads **`test/test-vectors/token_*.json`** by default (override with env **`GHOST_VECTOR_SUITE`**).
 
 Regenerate those fixtures with the backend stack (**`uv`** + **`scripts/pyproject.toml`** / **`scripts/requirements.txt`** — keep dependency versions in sync):
 

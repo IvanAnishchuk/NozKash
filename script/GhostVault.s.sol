@@ -12,10 +12,9 @@ contract GhostVaultScript is Script {
             vm.envOr("PK_MINT_Y_IMAG", uint256(0)),
             vm.envOr("PK_MINT_Y_REAL", uint256(0))
         ];
-        bytes32 blsDomain = bytes32(vm.envOr("BLS_DOMAIN_UINT", uint256(0)));
         address mintAuthority = vm.envOr("MINT_AUTHORITY", address(0));
         vm.startBroadcast();
-        new GhostVault(pkMint, blsDomain, mintAuthority);
+        new GhostVault(pkMint, mintAuthority);
         vm.stopBroadcast();
     }
 }

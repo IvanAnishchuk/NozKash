@@ -7,9 +7,7 @@ import {GhostVault} from "../src/GhostVault.sol";
 
 /// @dev Exposes internal `verifyBLS` for vector checks.
 contract GhostVaultHarness is GhostVault {
-    constructor(uint256[4] memory pkMint_, bytes32 blsDomain_, address mintAuthority_)
-        GhostVault(pkMint_, blsDomain_, mintAuthority_)
-    {}
+    constructor(uint256[4] memory pkMint_, address mintAuthority_) GhostVault(pkMint_, mintAuthority_) {}
 
     function exposedVerifyBLS(uint256[2] calldata S, uint256[2] calldata Y, uint256[4] calldata pk_)
         external
@@ -47,8 +45,7 @@ contract GhostVaultTest is Test {
         mintAuthority = makeAddr("mintAuthority");
         string memory j = vm.readFile(_tokenFile(42));
         uint256[4] memory pkMint = _pkMintFromJson(j);
-        bytes32 domain = bytes32(0);
-        vault = new GhostVaultHarness(pkMint, domain, mintAuthority);
+        vault = new GhostVaultHarness(pkMint, mintAuthority);
     }
 
     function _tokenFile(uint256 tokenIndex) internal view returns (string memory) {
@@ -278,79 +275,6 @@ contract GhostVaultTest is Test {
         vm.expectRevert(GhostVault.AlreadyFulfilled.selector);
         vault.announce(blindId, sPrime);
         vm.stopPrank();
-    }
-
-    function test_refund_succeedsAfterTimeout() public {
-        string memory j = vm.readFile(_tokenFile(42));
-        uint256[2] memory b = _g1FromJson(j, ".B_BLINDED");
-
-        address blindId = j.readAddress(".BLIND_KEYPAIR.address");
-        address user = makeAddr("depositor");
-        vm.deal(user, 1 ether);
-        uint256 den = vault.DENOMINATION();
-        vm.prank(user);
-        vault.deposit{value: den}(blindId, b);
-
-        uint256 balBefore = user.balance;
-        vm.warp(block.timestamp + vault.REFUND_TIMEOUT() + 1);
-
-        vm.prank(user);
-        vault.refund(blindId);
-
-        assertEq(user.balance, balBefore + den);
-        assertEq(address(vault).balance, 0);
-    }
-
-    function test_refund_revertsTooEarly() public {
-        string memory j = vm.readFile(_tokenFile(42));
-        uint256[2] memory b = _g1FromJson(j, ".B_BLINDED");
-        address blindId = j.readAddress(".BLIND_KEYPAIR.address");
-        address user = makeAddr("depositor");
-        vm.deal(user, 1 ether);
-        uint256 den = vault.DENOMINATION();
-        vm.prank(user);
-        vault.deposit{value: den}(blindId, b);
-
-        vm.prank(user);
-        vm.expectRevert(GhostVault.RefundTooEarly.selector);
-        vault.refund(blindId);
-    }
-
-    function test_refund_revertsNotDepositor() public {
-        string memory j = vm.readFile(_tokenFile(42));
-        uint256[2] memory b = _g1FromJson(j, ".B_BLINDED");
-        address blindId = j.readAddress(".BLIND_KEYPAIR.address");
-        address user = makeAddr("depositor");
-        vm.deal(user, 1 ether);
-        uint256 den = vault.DENOMINATION();
-        vm.prank(user);
-        vault.deposit{value: den}(blindId, b);
-
-        vm.warp(block.timestamp + vault.REFUND_TIMEOUT() + 1);
-
-        vm.expectRevert(GhostVault.NotDepositor.selector);
-        vault.refund(blindId);
-    }
-
-    function test_refund_revertsAfterAnnounce() public {
-        string memory j = vm.readFile(_tokenFile(42));
-        uint256[2] memory b = _g1FromJson(j, ".B_BLINDED");
-        uint256[2] memory sPrime = _g1FromJson(j, ".S_PRIME");
-        address blindId = j.readAddress(".BLIND_KEYPAIR.address");
-        address user = makeAddr("depositor");
-        vm.deal(user, 1 ether);
-        uint256 den = vault.DENOMINATION();
-        vm.prank(user);
-        vault.deposit{value: den}(blindId, b);
-
-        vm.prank(mintAuthority);
-        vault.announce(blindId, sPrime);
-
-        vm.warp(block.timestamp + vault.REFUND_TIMEOUT() + 1);
-
-        vm.prank(user);
-        vm.expectRevert(GhostVault.AlreadyFulfilled.selector);
-        vault.refund(blindId);
     }
 
     function test_redeem_succeedsAgainstVectors() public {

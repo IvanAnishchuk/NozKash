@@ -1,12 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useOutletContext } from 'react-router-dom'
 import { useGhostMasterSeed } from '../context/GhostMasterSeedProvider'
-import { useWallet } from '../hooks/useWallet'
+import {
+  requestWalletBalanceRefresh,
+  useWallet,
+} from '../hooks/useWallet'
+import {
+  buildRedemptionDraftFromSeed,
+  loadRedemptionDraft,
+  redemptionDraftMatchesSecrets,
+  saveRedemptionDraft,
+} from '../crypto/ghostRedeem'
+import { ensureFuji, getEthereum } from '../lib/ethereum'
 import {
   fetchVaultActivityForFirstTokens,
   GHOST_VAULT_DEPOSIT_AMOUNT_LABEL,
   GHOST_VAULT_RPC_POLL_MS,
 } from '../lib/ghostVault'
+import { sendVaultRedeemTransaction } from '../lib/sendVaultRedeem'
+import type { LayoutOutletContext } from '../layoutOutletContext'
 
 function isEthAddress(s: string): boolean {
   return /^0x[a-fA-F0-9]{40}$/.test(s.trim())
@@ -23,8 +35,10 @@ type RedeemableRow = {
 }
 
 export function Redeem() {
-  const { network, accounts, account, openMetaMaskAccountPicker } = useWallet()
+  const { network, accounts, account, openMetaMaskAccountPicker } =
+    useWallet()
   const { effectiveMasterSeed, seedRevision } = useGhostMasterSeed()
+  const { showToast } = useOutletContext<LayoutOutletContext>()
   const [tokens, setTokens] = useState<RedeemableRow[]>([])
   const [selectedId, setSelectedId] = useState('')
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -33,6 +47,11 @@ export function Redeem() {
   const [recipient, setRecipient] = useState('')
   const [recipientTouched, setRecipientTouched] = useState(false)
   const [pickerPending, setPickerPending] = useState(false)
+  const [preparePending, setPreparePending] = useState(false)
+  const [sendPending, setSendPending] = useState(false)
+  const [storedDraftSummary, setStoredDraftSummary] = useState<string | null>(
+    null
+  )
 
   const seedRef = useRef(effectiveMasterSeed)
   const networkRef = useRef(network)
@@ -111,15 +130,119 @@ export function Redeem() {
     }
   }, [network, seedRevision, account, !!effectiveMasterSeed])
 
-  const handleRedeem = () => {
-    if (!isEthAddress(recipient)) {
-      window.alert('Indicá una dirección Ethereum válida (0x + 40 hex).')
+  useEffect(() => {
+    const d = loadRedemptionDraft()
+    if (!d) {
+      setStoredDraftSummary(null)
+      return
+    }
+    setStoredDraftSummary(
+      `Token #${d.tokenIndex} · depositId ${addrPickLabel(d.depositId)} · nullifier ${addrPickLabel(d.spendAddress)}`
+    )
+  }, [seedRevision, preparePending])
+
+  const handlePrepareRedeem = () => {
+    const seed = effectiveMasterSeed
+    if (!seed) {
+      showToast('Hace falta la semilla del vault (firmá en MetaMask o usá env).', 'error')
       return
     }
     const t = tokens.find((x) => x.id === selectedId)
-    window.alert(
-      `Redeem (pendiente tx): token #${t?.tokenIndex ?? '?'} → ${recipient}`
-    )
+    if (!t) {
+      showToast('Elegí un token con mint cumplido.', 'error')
+      return
+    }
+    setPreparePending(true)
+    try {
+      const draft = buildRedemptionDraftFromSeed(
+        seed,
+        t.tokenIndex,
+        account ?? undefined
+      )
+      saveRedemptionDraft(draft)
+      setStoredDraftSummary(
+        `Token #${draft.tokenIndex} · depositId ${addrPickLabel(draft.depositId)} · nullifier ${addrPickLabel(draft.spendAddress)}`
+      )
+      showToast(
+        'Paso 1 listo: claves spend/blind guardadas en este navegador. Cambiá a la cuenta que paga el gas y usá “Enviar transacción”.',
+        'info'
+      )
+    } catch (e) {
+      showToast(
+        e instanceof Error ? e.message : 'No se pudo guardar el borrador de redeem',
+        'error'
+      )
+    } finally {
+      setPreparePending(false)
+    }
+  }
+
+  const handleSendRedeemTx = async () => {
+    if (!isEthAddress(recipient)) {
+      showToast('Indicá una dirección Ethereum válida (0x + 40 hex).', 'error')
+      return
+    }
+    const draft = loadRedemptionDraft()
+    if (!draft) {
+      showToast('Primero usá “Paso 1: guardar claves” con el token elegido.', 'error')
+      return
+    }
+    const seed = effectiveMasterSeed
+    if (seed && !redemptionDraftMatchesSecrets(draft, seed)) {
+      showToast(
+        'El borrador no coincide con la semilla actual. Volvé a preparar el redeem.',
+        'error'
+      )
+      return
+    }
+
+    const ethereum = getEthereum()
+    if (!ethereum) {
+      showToast('MetaMask no está disponible', 'error')
+      return
+    }
+
+    setSendPending(true)
+    try {
+      const okChain = await ensureFuji(ethereum)
+      if (!okChain) {
+        showToast('Cambiá a Avalanche Fuji (43113) en MetaMask.', 'error')
+        return
+      }
+
+      const { txHash } = await sendVaultRedeemTransaction({
+        ethereum,
+        recipient: recipient.trim(),
+        draft,
+        masterSeed: seed ?? null,
+      })
+
+      setStoredDraftSummary(null)
+      requestWalletBalanceRefresh()
+      showToast(`Redeem confirmado · ${txShort(txHash)}`, 'success')
+    } catch (err: unknown) {
+      const e = err as { code?: number; message?: string }
+      if (e?.code === 4001) {
+        showToast('Transacción cancelada en MetaMask', 'error')
+        return
+      }
+      const msg = typeof e?.message === 'string' ? e.message : ''
+      if (/user rejected|denied/i.test(msg)) {
+        showToast('Transacción cancelada en MetaMask', 'error')
+      } else {
+        showToast(
+          msg || 'No se pudo enviar el redeem',
+          'error'
+        )
+      }
+    } finally {
+      setSendPending(false)
+    }
+  }
+
+  function txShort(hash: string): string {
+    if (hash.length > 14) return `${hash.slice(0, 10)}…${hash.slice(-6)}`
+    return hash
   }
 
   const openAccountPicker = async () => {
@@ -216,9 +339,10 @@ export function Redeem() {
           className="modal-sub-label"
           style={{ marginBottom: 10, fontSize: 11, lineHeight: 1.45 }}
         >
-          Elegí una de las cuentas de MetaMask o escribí otra dirección. El
-          depósito en vault sigue usando solo la cuenta conectada en el home;
-          aquí definís el <strong>recipient</strong> del canje.
+          Elegí una de las cuentas de MetaMask o escribí otra dirección. Esa
+          dirección es el <strong>recipient</strong> del contrato: recibe los
+          0.01 AVAX. La firma ECDSA del redeem la genera la app con la clave{' '}
+          <strong>spend</strong> (nullifier), no la clave blind.
         </p>
         {accounts.length > 0 ? (
           <div
@@ -281,24 +405,84 @@ export function Redeem() {
 
       <div className="deposit-info" style={{ marginTop: 12 }}>
         <div className="modal-title" style={{ fontSize: 11, marginBottom: 8 }}>
-          Unblinded signature
+          Flujo en dos pasos
         </div>
         <div className="modal-sub-label" style={{ fontSize: 11, lineHeight: 1.45 }}>
-          Se obtiene de los datos del evento MintFulfilled (S′) y la derivación
-          local; la integración con `GhostVault.redeem` va en el siguiente paso.
+          <strong>Paso 1</strong> (cuenta que tiene la semilla del vault): guardá en{' '}
+          <code style={{ fontSize: 10 }}>localStorage</code> por token: clave
+          privada <strong>blind</strong>, clave privada <strong>spend</strong>, y
+          dirección <strong>spend</strong> (nullifier on-chain). El depósito del
+          token se enlaza por <code>depositId</code> (= dirección blind), igual que
+          en <code>DepositLocked</code>.
         </div>
+        <div
+          className="modal-sub-label"
+          style={{ fontSize: 11, lineHeight: 1.45, marginTop: 8 }}
+        >
+          <strong>Paso 2</strong> (otra cuenta en MetaMask, p. ej. quien paga gas):
+          la app lee S′ del evento <code>MintFulfilled</code> (no de{' '}
+          <code>DepositLocked</code> — ese evento lleva el punto ciego{' '}
+          <code>B</code>). Con <code>r</code> derivado de la clave{' '}
+          <strong>blind</strong> se calcula{' '}
+          <code>unblindSignature(S′, r)</code> →{' '}
+          <code>unblindedSignatureS</code>. La firma ECDSA{' '}
+          <code>spendSignature</code> debe ser{' '}
+          <code>generateRedemptionProof(spendPriv)</code> — clave{' '}
+          <strong>spend</strong>, no blind — para que <code>ecrecover</code> coincida
+          con <code>nullifier</code> (= dirección spend guardada).{' '}
+          <code>recipient</code> suele ser la cuenta destino (p. ej. Account 2).
+        </div>
+        <div
+          className="modal-sub-label"
+          style={{ fontSize: 11, lineHeight: 1.45, marginTop: 8 }}
+        >
+          Enviá la tx <code>redeem(recipient, spendSignature, nullifier,
+          unblindedSignatureS)</code>: MetaMask solo firma la transacción EVM; el
+          calldata se arma en la app con el borrador.
+        </div>
+        {storedDraftSummary ? (
+          <div
+            style={{
+              fontSize: 11,
+              marginTop: 10,
+              fontFamily: 'var(--mono)',
+              color: 'var(--text2)',
+            }}
+          >
+            Borrador: {storedDraftSummary}
+          </div>
+        ) : null}
       </div>
 
       <button
         type="button"
-        className="btn-full"
-        style={{ marginTop: 16 }}
-        onClick={handleRedeem}
+        className="btn-secondary"
+        style={{ marginTop: 12, width: '100%' }}
+        onClick={() => void handlePrepareRedeem()}
         disabled={
-          loading || tokens.length === 0 || !isEthAddress(recipient)
+          loading ||
+          tokens.length === 0 ||
+          !effectiveMasterSeed ||
+          preparePending ||
+          network !== 'Fuji'
         }
       >
-        Redeem
+        {preparePending ? 'Guardando…' : 'Paso 1: guardar claves (spend + blind)'}
+      </button>
+
+      <button
+        type="button"
+        className="btn-full"
+        style={{ marginTop: 10 }}
+        onClick={() => void handleSendRedeemTx()}
+        disabled={
+          loading ||
+          !isEthAddress(recipient) ||
+          sendPending ||
+          network !== 'Fuji'
+        }
+      >
+        {sendPending ? 'MetaMask…' : 'Paso 2: enviar redeem (MetaMask)'}
       </button>
     </div>
   )

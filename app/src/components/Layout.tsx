@@ -5,7 +5,7 @@ import { DepositConfirmModal } from './eghost/DepositConfirmModal'
 import { EgcNavbarLogo } from './eghost/EgcNavbarLogo'
 import { SplashScreen } from './eghost/SplashScreen'
 import { usePrivacy } from '../context/usePrivacy'
-import { useWallet } from '../hooks/useWallet'
+import { useWallet, WALLET_BALANCE_POLL_MS } from '../hooks/useWallet'
 import { getEthereum, weiHexToNativeLabel } from '../lib/ethereum'
 import type { LayoutOutletContext } from '../layoutOutletContext'
 
@@ -72,7 +72,7 @@ export function Layout() {
     const eth = getEthereum()
     if (!eth || accounts.length === 0) return
     let cancelled = false
-    ;(async () => {
+    const fetchAll = async () => {
       const next: Record<string, string> = {}
       for (const addr of accounts) {
         try {
@@ -86,9 +86,12 @@ export function Layout() {
         }
       }
       if (!cancelled) setBalancesByAddr(next)
-    })()
+    }
+    void fetchAll()
+    const id = window.setInterval(() => void fetchAll(), WALLET_BALANCE_POLL_MS)
     return () => {
       cancelled = true
+      window.clearInterval(id)
     }
   }, [accounts, network])
 

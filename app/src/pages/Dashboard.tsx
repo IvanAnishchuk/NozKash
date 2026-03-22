@@ -1,20 +1,32 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
+import {
+  buildRedemptionDraftFromSeed,
+  isHomeRedeemReady,
+  loadRedemptionDraft,
+  saveRedemptionDraft,
+  type RedemptionDraftV1,
+} from '../crypto/ghostRedeem'
 import { useGhostMasterSeed } from '../context/GhostMasterSeedProvider'
 import { usePrivacy } from '../context/usePrivacy'
-import { useRedeemSign } from '../hooks/useRedeemSign'
-import { useWallet } from '../hooks/useWallet'
+import {
+  requestWalletBalanceRefresh,
+  useWallet,
+} from '../hooks/useWallet'
 import { DateRangePill } from '../components/DateRangePill'
+import { getEthereum } from '../lib/ethereum'
 import {
   ACTIVITY_TYPE_FILTERS,
   filterVaultActivity,
   formatTxAmountDisplay,
-  redeemSignMessageForTx,
 } from '../lib/historyQuery'
 import {
   fetchVaultActivityForFirstTokens,
   GHOST_VAULT_RPC_POLL_MS,
 } from '../lib/ghostVault'
+import { sendVaultRedeemTransaction } from '../lib/sendVaultRedeem'
+import { isStartRedeemVisible, shouldShowRedeemHere } from '../lib/redeemUiGates'
+import { mergeVaultRowsWithRedeemDraft } from '../lib/vaultRedeemMerge'
 import type { LayoutOutletContext } from '../layoutOutletContext'
 import type { ActivityKind, HistoryFilterType, VaultTx } from '../types/activity'
 
@@ -82,10 +94,24 @@ function FilterFunnelIcon() {
 export function Dashboard() {
   const { privacyOn } = usePrivacy()
   const { effectiveMasterSeed, seedRevision } = useGhostMasterSeed()
-  const { network, account, homeBalanceMain, homeBalanceUsd } = useWallet()
+  const {
+    network,
+    account,
+    homeBalanceMain,
+    homeBalanceUsd,
+    openMetaMaskAccountPicker,
+  } = useWallet()
   const { openDepositModal, showToast } =
     useOutletContext<LayoutOutletContext>()
-  const { signingId, redeemPhase, signRedeem } = useRedeemSign(showToast)
+
+  const [redemptionDraft, setRedemptionDraft] = useState<RedemptionDraftV1 | null>(
+    () => loadRedemptionDraft()
+  )
+  const [redeemingId, setRedeemingId] = useState<string | null>(null)
+  const [startingRedeemId, setStartingRedeemId] = useState<string | null>(null)
+  const [changeWalletModalOpen, setChangeWalletModalOpen] = useState(false)
+  const [changeWalletPickerPending, setChangeWalletPickerPending] =
+    useState(false)
 
   const [activeFilter, setActiveFilter] =
     useState<HistoryFilterType>('all')
@@ -99,6 +125,10 @@ export function Dashboard() {
   const networkRef = useRef(network)
   seedRef.current = effectiveMasterSeed
   networkRef.current = network
+
+  useEffect(() => {
+    setRedemptionDraft(loadRedemptionDraft())
+  }, [account, seedRevision])
 
   useEffect(() => {
     let cancelled = false
@@ -142,6 +172,8 @@ export function Dashboard() {
       }
     }
 
+    void loadVault()
+
     const intervalId = window.setInterval(() => {
       void loadVault()
     }, GHOST_VAULT_RPC_POLL_MS)
@@ -162,9 +194,16 @@ export function Dashboard() {
     return () => document.removeEventListener('mousedown', onDown)
   }, [filterOpen])
 
+  /** Incluye fila sintética si hay borrador de redeem y la cuenta activa es la de ejecución (≠ prepareAccount). */
+  const displayRows = useMemo(
+    () =>
+      mergeVaultRowsWithRedeemDraft(vaultChainRows, redemptionDraft, account),
+    [vaultChainRows, redemptionDraft, account]
+  )
+
   const filtered = useMemo(() => {
     const list = filterVaultActivity(
-      vaultChainRows,
+      displayRows,
       activeFilter,
       dateFrom,
       dateTo
@@ -177,7 +216,7 @@ export function Dashboard() {
       if (bb !== ba) return bb - ba
       return b.id.localeCompare(a.id)
     })
-  }, [activeFilter, dateFrom, dateTo, vaultChainRows])
+  }, [activeFilter, dateFrom, dateTo, displayRows])
 
   const homeStats = useMemo(() => {
     const validCount = vaultChainRows.filter((r) => r.type === 'Deposit').length
@@ -193,6 +232,87 @@ export function Dashboard() {
   const clearDates = () => {
     setDateFrom('')
     setDateTo('')
+  }
+
+  const handleStartRedeem = (item: VaultTx) => {
+    if (item.tokenIndex === undefined || !effectiveMasterSeed) {
+      showToast('Unlock the vault (sign) to prepare redeem.', 'error')
+      return
+    }
+    if (!account) {
+      showToast('Connect MetaMask first.', 'error')
+      return
+    }
+    if (network !== 'Fuji') {
+      showToast('Switch to Avalanche Fuji.', 'error')
+      return
+    }
+    setStartingRedeemId(item.id)
+    try {
+      const draft = buildRedemptionDraftFromSeed(
+        effectiveMasterSeed,
+        item.tokenIndex,
+        account
+      )
+      saveRedemptionDraft(draft)
+      setRedemptionDraft(draft)
+      setChangeWalletModalOpen(true)
+    } catch (e) {
+      showToast(
+        e instanceof Error ? e.message : 'Could not prepare redeem',
+        'error'
+      )
+    } finally {
+      setStartingRedeemId(null)
+    }
+  }
+
+  const handleHomeRedeem = async (item: VaultTx) => {
+    if (!account || item.tokenIndex === undefined) return
+    const draft = loadRedemptionDraft()
+    if (!draft || !isHomeRedeemReady(item, draft, account)) return
+
+    const ethereum = getEthereum()
+    if (!ethereum) {
+      showToast('MetaMask is not installed', 'error')
+      return
+    }
+
+    setRedeemingId(item.id)
+    try {
+      await sendVaultRedeemTransaction({
+        ethereum,
+        recipient: account,
+        draft,
+        masterSeed: effectiveMasterSeed,
+      })
+      requestWalletBalanceRefresh()
+      showToast('Redeem confirmed · funds sent to this account', 'success')
+      setRedemptionDraft(null)
+      const seed = effectiveMasterSeed
+      if (seed && network === 'Fuji') {
+        const rows = await fetchVaultActivityForFirstTokens(seed, {
+          networkLabel: network,
+          skipCache: true,
+        })
+        setVaultChainRows(rows)
+      }
+    } catch (err: unknown) {
+      const e = err as { code?: number; message?: string }
+      if (e?.code === 4001) {
+        showToast('Transaction cancelled in MetaMask', 'error')
+        return
+      }
+      const msg =
+        typeof e?.message === 'string' ? e.message : 'Could not complete redeem'
+      if (/user rejected|denied/i.test(msg)) {
+        showToast('Transaction cancelled in MetaMask', 'error')
+      } else {
+        showToast(msg, 'error')
+      }
+    } finally {
+      setRedeemingId(null)
+    }
   }
 
   const balStr = homeBalanceMain ?? '—'
@@ -337,25 +457,52 @@ export function Dashboard() {
                     >
                       {privacyOn ? '••••' : amt}
                     </span>
-                    {item.type === 'Deposit' && (
-                      <button
-                        type="button"
-                        className="history-redeem-btn"
-                        disabled={signingId === item.id}
-                        onClick={() =>
-                          signRedeem(
-                            item.id,
-                            redeemSignMessageForTx(item)
+                    {item.type === 'Deposit' ? (
+                      <div className="activity-redeem-actions">
+                        {isStartRedeemVisible(
+                          account,
+                          redemptionDraft,
+                          item
+                        ) &&
+                          effectiveMasterSeed && (
+                            <button
+                              type="button"
+                              className="history-redeem-btn history-redeem-btn--secondary"
+                              disabled={
+                                startingRedeemId === item.id ||
+                                redeemingId === item.id ||
+                                network !== 'Fuji'
+                              }
+                              onClick={() => handleStartRedeem(item)}
+                            >
+                              {startingRedeemId === item.id
+                                ? 'Saving…'
+                                : 'Start redeem'}
+                            </button>
+                          )}
+                        {shouldShowRedeemHere(
+                          account,
+                          isHomeRedeemReady(
+                            item,
+                            redemptionDraft,
+                            account
                           )
-                        }
-                      >
-                        {signingId === item.id
-                          ? redeemPhase === 'account'
-                            ? 'Account…'
-                            : 'Signing…'
-                          : 'Redeem'}
-                      </button>
-                    )}
+                        ) && (
+                          <button
+                            type="button"
+                            className="history-redeem-btn"
+                            disabled={
+                              redeemingId === item.id || network !== 'Fuji'
+                            }
+                            onClick={() => void handleHomeRedeem(item)}
+                          >
+                            {redeemingId === item.id
+                              ? 'Sending…'
+                              : 'Redeem here'}
+                          </button>
+                        )}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               )
@@ -363,6 +510,95 @@ export function Dashboard() {
           )}
         </div>
       </div>
+
+      {changeWalletModalOpen ? (
+        <div
+          className="modal-overlay open"
+          style={{ zIndex: 220 }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="change-wallet-redeem-title"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setChangeWalletModalOpen(false)
+          }}
+        >
+          <div
+            className="modal-sheet"
+            style={{ paddingBottom: 24, maxWidth: 400 }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="modal-handle" />
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: 12,
+              }}
+            >
+              <span
+                id="change-wallet-redeem-title"
+                style={{
+                  fontFamily: 'var(--mono)',
+                  fontSize: 14,
+                  color: 'var(--text)',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                Change wallet
+              </span>
+              <button
+                type="button"
+                className="import-close"
+                onClick={() => setChangeWalletModalOpen(false)}
+                aria-label="Close"
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path
+                    d="M4 4l8 8M12 4l-8 8"
+                    stroke="var(--text2)"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </button>
+            </div>
+            <p
+              className="modal-sub-label"
+              style={{ marginBottom: 16, lineHeight: 1.45 }}
+            >
+              In MetaMask, switch to the account that will{' '}
+              <strong>pay gas</strong> and <strong>receive</strong> the 0.01 AVAX
+              (e.g. Account 2). When you come back to this page,{' '}
+              <strong>Redeem here</strong> will appear on the mint row — tap it
+              to call <code style={{ fontSize: 11 }}>GhostVault.redeem</code>.
+            </p>
+            <button
+              type="button"
+              className="btn-secondary"
+              style={{ width: '100%', marginBottom: 10 }}
+              disabled={changeWalletPickerPending || network !== 'Fuji'}
+              onClick={() => {
+                setChangeWalletPickerPending(true)
+                void openMetaMaskAccountPicker().finally(() =>
+                  setChangeWalletPickerPending(false)
+                )
+              }}
+            >
+              {changeWalletPickerPending
+                ? 'MetaMask…'
+                : 'Choose account in MetaMask'}
+            </button>
+            <button
+              type="button"
+              className="btn-full"
+              onClick={() => setChangeWalletModalOpen(false)}
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

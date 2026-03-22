@@ -7,6 +7,16 @@ import {
   weiHexToNativeLabel,
 } from '../lib/ethereum'
 
+/** Interval for `eth_getBalance` while a wallet account is selected (keeps AVAX in sync after txs). */
+export const WALLET_BALANCE_POLL_MS = 12_000
+
+/** Dispatched after deposit/redeem so every `useWallet()` instance refetches (hooks are not shared). */
+export const WALLET_BALANCE_REFRESH_EVENT = 'ghost:wallet-balance-refresh'
+
+export function requestWalletBalanceRefresh(): void {
+  window.dispatchEvent(new Event(WALLET_BALANCE_REFRESH_EVENT))
+}
+
 type NetworkLabel = 'Fuji' | 'Wrong Network'
 
 const TARGET_CHAIN_ID = FUJI_CHAIN_ID
@@ -51,6 +61,23 @@ export function useWallet() {
   const accountsRef = useRef<string[]>([])
   accountsRef.current = accounts
 
+  const refreshBalance = useCallback(async () => {
+    const ethereum = getEthereum()
+    if (!ethereum || !account) {
+      setBalanceWeiHex(null)
+      return
+    }
+    try {
+      const hex = (await ethereum.request({
+        method: 'eth_getBalance',
+        params: [account, 'latest'],
+      })) as string
+      setBalanceWeiHex(hex)
+    } catch {
+      setBalanceWeiHex(null)
+    }
+  }, [account])
+
   useEffect(() => {
     const ethereum = getEthereum()
     if (!ethereum || !account) {
@@ -58,18 +85,32 @@ export function useWallet() {
       return
     }
     let cancelled = false
-    ethereum
-      .request({ method: 'eth_getBalance', params: [account, 'latest'] })
-      .then((hex) => {
-        if (!cancelled) setBalanceWeiHex(hex as string)
-      })
-      .catch(() => {
-        if (!cancelled) setBalanceWeiHex(null)
-      })
+    const fetchOnce = () => {
+      ethereum
+        .request({ method: 'eth_getBalance', params: [account, 'latest'] })
+        .then((hex) => {
+          if (!cancelled) setBalanceWeiHex(hex as string)
+        })
+        .catch(() => {
+          if (!cancelled) setBalanceWeiHex(null)
+        })
+    }
+    fetchOnce()
+    const id = window.setInterval(fetchOnce, WALLET_BALANCE_POLL_MS)
     return () => {
       cancelled = true
+      window.clearInterval(id)
     }
   }, [account, network])
+
+  useEffect(() => {
+    const onRefresh = () => {
+      void refreshBalance()
+    }
+    window.addEventListener(WALLET_BALANCE_REFRESH_EVENT, onRefresh)
+    return () =>
+      window.removeEventListener(WALLET_BALANCE_REFRESH_EVENT, onRefresh)
+  }, [refreshBalance])
 
   const homeBalanceMain = useMemo(() => {
     if (!balanceWeiHex) return null
@@ -122,11 +163,8 @@ export function useWallet() {
 
         const list = parseAccounts(accs)
         setAccounts(list)
-        setAccount((prev) => {
-          if (list.length === 0) return null
-          if (prev && list.includes(prev)) return prev
-          return list[0]
-        })
+        /** MetaMask devuelve la cuenta seleccionada en primer lugar; no conservar `prev` si sigue en la lista (provoca balance desincronizado al cambiar de cuenta en la extensión). */
+        setAccount(list.length > 0 ? list[0] : null)
         const normalized = normalizeChainId(chainId)
         setChainIdHex(normalized)
         setNetwork(normalized === TARGET_CHAIN_ID ? 'Fuji' : 'Wrong Network')
@@ -139,11 +177,7 @@ export function useWallet() {
     const handleAccountsChanged = (accs: unknown) => {
       const list = parseAccounts(accs)
       setAccounts(list)
-      setAccount((prev) => {
-        if (list.length === 0) return null
-        if (prev && list.includes(prev)) return prev
-        return list[0]
-      })
+      setAccount(list.length > 0 ? list[0] : null)
     }
     const handleChainChanged = (newChainId: unknown) => {
       const normalized = normalizeChainId(newChainId)
@@ -285,5 +319,6 @@ export function useWallet() {
     truncatedAddress: account ? truncateAddress(account) : null,
     homeBalanceMain,
     homeBalanceUsd,
+    refreshBalance,
   }
 }

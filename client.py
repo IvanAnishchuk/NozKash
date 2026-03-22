@@ -11,21 +11,30 @@ Commands:
     status    Show wallet state: known tokens, balances, lifecycle stages
     balance   Query on-chain ETH balance for the wallet address
 
+Flags:
+    --mock      Offline mode: skip ALL chain interactions. Only MASTER_SEED and
+                MINT_BLS_PRIVKEY_INT are needed in .env. Use with mint_mock.py
+                and redeem_mock.py for a full offline test cycle.
+    --dry-run   Generate payloads without broadcasting (still needs RPC for
+                nonce/gas queries).
+
 Configuration (.env):
-    MASTER_SEED             Hex string seed (from generate_keys.py)
-    WALLET_ADDRESS          Ethereum address that pays gas for deposit/redeem
-    WALLET_KEY              Private key for the above (hex, with or without 0x)
-    CONTRACT_ADDRESS        Deployed GhostVault contract address
-    RPC_HTTP_URL            HTTP RPC endpoint (e.g. https://sepolia.infura.io/...)
+    MASTER_SEED             Hex string seed (from generate_keys.py)    [always required]
+    MINT_BLS_PRIVKEY_INT    BLS scalar for the mint                    [mock mode only]
+    WALLET_ADDRESS          Ethereum address that pays gas             [chain mode only]
+    WALLET_KEY              Private key for the above                  [chain mode only]
+    CONTRACT_ADDRESS        Deployed GhostVault contract address       [chain mode only]
+    RPC_HTTP_URL            HTTP RPC endpoint                          [chain mode only]
     SCAN_FROM_BLOCK         Block to start scanning from (default: 0)
 
 Usage:
-    uv run client.py deposit --index 0
-    uv run client.py deposit --index 0 --dry-run
-    uv run client.py scan --from-block 7000000 --index-from 0 --index-to 9
-    uv run client.py redeem --index 0 --to 0xRecipientAddress
-    uv run client.py redeem --index 0 --to 0xRecipientAddress --dry-run
-    uv run client.py status
+    uv run client.py deposit --index 0 --mock             # offline deposit
+    uv run client.py deposit --index 0                    # real deposit
+    uv run client.py deposit --index 0 --dry-run          # simulate with RPC
+    uv run client.py scan --from-block 7000000
+    uv run client.py redeem --index 0 --to 0xAddr --mock  # offline redeem payload
+    uv run client.py redeem --index 0 --to 0xAddr
+    uv run client.py status --mock                        # offline wallet status
     uv run client.py balance
 """
 
@@ -95,6 +104,7 @@ class Verbosity(str, Enum):
 
 _verbosity: Verbosity = Verbosity.normal
 _dry_run: bool = False
+_mock_mode: bool = False
 
 
 def is_verbose() -> bool:
@@ -111,6 +121,10 @@ def is_quiet() -> bool:
 
 def is_dry_run() -> bool:
     return _dry_run
+
+
+def is_mock() -> bool:
+    return _mock_mode
 
 
 # ── Formatting helpers ─────────────────────────────────────────────────────────
@@ -150,10 +164,14 @@ def _kv_table(rows: list[tuple[str, object]], title: str = "", border: str = "se
 
 
 def print_banner() -> None:
-    dry_tag = "  [dryrun][ DRY-RUN ][/dryrun]" if _dry_run else ""
+    mode_tag = ""
+    if _mock_mode:
+        mode_tag = "  [dryrun][ MOCK ][/dryrun]"
+    elif _dry_run:
+        mode_tag = "  [dryrun][ DRY-RUN ][/dryrun]"
     console.print()
     console.print(Panel(
-        Text.assemble(("👻  ", ""), ("GHOST-TIP CLI WALLET", "banner"), ("  👻", ""), (dry_tag, "")),
+        Text.assemble(("👻  ", ""), ("GHOST-TIP CLI WALLET", "banner"), ("  👻", ""), (mode_tag, "")),
         subtitle=Text("eCash · BLS Blind Signatures · Sepolia", style="secondary"),
         border_style="cyan",
         padding=(0, 4),
@@ -253,9 +271,6 @@ class WalletState:
     last_scanned_block: int = 0
 
     def save(self) -> None:
-        if is_dry_run():
-            info("(dry-run) wallet state not persisted to disk", muted=True)
-            return
         data = {
             "tokens": {str(idx): asdict(rec) for idx, rec in self.tokens.items()},
             "last_scanned_block": self.last_scanned_block,
@@ -276,44 +291,69 @@ class WalletState:
 @dataclass(frozen=True)
 class ClientConfig:
     master_seed:      bytes
-    wallet_address:   str
-    wallet_key:       str
-    contract_address: str
-    rpc_http_url:     str
+    wallet_address:   str            # may be empty in mock mode
+    wallet_key:       str            # may be empty in mock mode
+    contract_address: str            # may be empty in mock mode
+    rpc_http_url:     str            # may be empty in mock mode
     scan_from_block:  int
 
 
 def load_config() -> ClientConfig:
-    missing = []
+    """
+    Load configuration from .env.
 
-    def require(key: str) -> str:
-        val = os.getenv(key, "").strip()
-        if not val:
-            missing.append(key)
-        return val
+    In mock mode (--mock flag), only MASTER_SEED is required.
+    Chain-specific vars (WALLET_*, CONTRACT_*, RPC_*) are loaded if present
+    but won't cause errors if missing — they're not needed for offline ops.
 
-    seed_hex    = require("MASTER_SEED")
-    wallet_addr = require("WALLET_ADDRESS")
-    wallet_key  = require("WALLET_KEY")
-    contract    = require("CONTRACT_ADDRESS")
-    rpc_url     = require("RPC_HTTP_URL")
+    In normal mode, all variables are required.
+    """
+    seed_hex = os.getenv("MASTER_SEED", "").strip()
 
-    if missing:
+    if not seed_hex:
         console.print(Panel(
             Text.assemble(
-                ("Missing .env variables:\n\n", "error"),
-                *[Text.assemble(("  • ", "muted"), (k, "label"), ("\n", "")) for k in missing],
-                ("\nRun generate_keys.py then add wallet/rpc settings.", "secondary"),
+                ("Missing MASTER_SEED in .env.\n\n", "error"),
+                ("Run ", "secondary"), ("uv run generate_keys.py", "label"),
+                (" to create all required keys.", "secondary"),
             ),
             title="[error]❌  Configuration Error[/error]",
             border_style="red",
         ))
         raise typer.Exit(code=1)
 
+    wallet_addr = os.getenv("WALLET_ADDRESS", "").strip()
+    wallet_key  = os.getenv("WALLET_KEY", "").strip()
+    contract    = os.getenv("CONTRACT_ADDRESS", "").strip()
+    rpc_url     = os.getenv("RPC_HTTP_URL", "").strip()
+
+    # In normal (non-mock) mode, require chain settings
+    if not is_mock():
+        missing = []
+        if not wallet_addr: missing.append("WALLET_ADDRESS")
+        if not wallet_key:  missing.append("WALLET_KEY")
+        if not contract:    missing.append("CONTRACT_ADDRESS")
+        if not rpc_url:     missing.append("RPC_HTTP_URL")
+
+        if missing:
+            console.print(Panel(
+                Text.assemble(
+                    ("Missing .env variables:\n\n", "error"),
+                    *[Text.assemble(("  • ", "muted"), (k, "label"), ("\n", "")) for k in missing],
+                    ("\nRun ", "secondary"), ("uv run generate_keys.py", "label"),
+                    (" then add wallet/rpc settings.\n", "secondary"),
+                    ("Or use ", "secondary"), ("--mock", "label"),
+                    (" for offline testing (only MASTER_SEED needed).", "secondary"),
+                ),
+                title="[error]❌  Configuration Error[/error]",
+                border_style="red",
+            ))
+            raise typer.Exit(code=1)
+
     return ClientConfig(
         master_seed=seed_hex.encode("utf-8"),
         wallet_address=wallet_addr,
-        wallet_key=wallet_key if wallet_key.startswith("0x") else "0x" + wallet_key,
+        wallet_key=wallet_key if wallet_key.startswith("0x") else ("0x" + wallet_key if wallet_key else ""),
         contract_address=contract,
         rpc_http_url=rpc_url,
         scan_from_block=int(os.getenv("SCAN_FROM_BLOCK", "0")),
@@ -394,7 +434,6 @@ def cmd_deposit(config: ClientConfig, token_index: int) -> None:
     section(f"DEPOSIT  ·  Token #{token_index}", "📥")
 
     state = WalletState.load()
-    w3    = build_web3(config)
 
     # Step 1: derive
     section("Step 1 · Derive Token Secrets", "🔑")
@@ -424,6 +463,29 @@ def cmd_deposit(config: ClientConfig, token_index: int) -> None:
     kv("Deposit ID",  secrets.deposit_id, style="addr")
     info("B is the blinded point — mint cannot derive spend address without r", muted=True)
     console.print()
+
+    # ── Mock / dry-run: skip chain interaction entirely ────────────────────
+    if is_mock():
+        section("Step 3 · Save Token (mock — no chain)", "🧪")
+        dry("deposit([B.x, B.y], depositId) with value=0.01 ETH")
+        dry(f"B.x       = {hex(b_x)}")
+        dry(f"B.y       = {hex(b_y)}")
+        dry(f"depositId = {secrets.deposit_id}")
+        dry("No calldata built (mock mode — no contract needed)")
+
+        state.tokens[token_index] = TokenRecord(
+            index=token_index,
+            spend_address=secrets.spend.address,
+            deposit_id=secrets.deposit_id,
+            deposit_tx="mock-no-broadcast",
+            deposit_block=None,
+        )
+        state.save()
+        ok("Mock deposit complete. Token saved to wallet state.")
+        return
+
+    # ── Chain interaction required from here ───────────────────────────────
+    w3 = build_web3(config)
 
     # Step 3: build calldata / simulate
     section("Step 3 · Build deposit() Calldata", "📋")
@@ -473,7 +535,6 @@ def cmd_deposit(config: ClientConfig, token_index: int) -> None:
         dry(f"depositId = {secrets.deposit_id}")
         dry("Transaction NOT sent (dry-run mode)")
 
-        # Save a dry-run record so scan/redeem can use it
         state.tokens[token_index] = TokenRecord(
             index=token_index,
             spend_address=secrets.spend.address,
@@ -634,20 +695,20 @@ def cmd_redeem(
     section(f"REDEEM  ·  Token #{token_index}  →  {recipient}", "💸")
 
     state = WalletState.load()
-    w3    = build_web3(config)
 
     if token_index not in state.tokens:
-        err(f"Token {token_index} not found in wallet state. Run 'scan' first.")
+        err(f"Token {token_index} not found in wallet state. Run 'deposit' first.")
         raise typer.Exit(code=1)
 
     rec = state.tokens[token_index]
 
     if rec.spent:
-        err(f"Token {token_index} is already spent (nullifier recorded on-chain).")
+        err(f"Token {token_index} is already spent.")
         raise typer.Exit(code=1)
 
     if not rec.has_token:
-        err(f"Token {token_index} has no unblinded signature. Run 'scan' first.")
+        hint = "'mint_mock.py sign'" if is_mock() else "'scan'"
+        err(f"Token {token_index} has no unblinded signature. Run {hint} first.")
         raise typer.Exit(code=1)
 
     # Step 1: load S
@@ -667,7 +728,7 @@ def cmd_redeem(
     info("The spend address is the nullifier — recorded as spent after redemption.", muted=True)
     console.print()
 
-    # Step 3: generate redemption proof
+    # Step 3: generate redemption proof (pure crypto — no chain needed)
     section("Step 3 · Generate Anti-MEV ECDSA Proof", "🛡️")
     recipient_checksum = Web3.to_checksum_address(recipient)
     proof = generate_redemption_proof(secrets.spend_priv, recipient_checksum)
@@ -693,6 +754,22 @@ def cmd_redeem(
     if is_debug():
         kv_hex("Encoded sig (65 bytes)", "0x" + spend_sig_bytes.hex())
     console.print()
+
+    # ── Mock mode: skip calldata / broadcasting entirely ──────────────────
+    if is_mock():
+        section("Step 4 · Mock Redemption Payload", "🧪")
+        dry("redeem(recipient, spendSignature, S)")
+        dry(f"recipient = {recipient_checksum}")
+        dry(f"S.x       = {hex(s_x)}")
+        dry(f"S.y       = {hex(s_y)}")
+        dry(f"v         = {proof.recovery_bit + 27}  (recovery_bit + 27)")
+        dry(f"sig       = 0x{spend_sig_bytes.hex()[:40]}…")
+        dry("No calldata built (mock mode — no contract needed)")
+        ok("Mock redemption payload generated. Run 'redeem_mock.py verify' to validate.")
+        return
+
+    # ── Chain interaction required from here ───────────────────────────────
+    w3 = build_web3(config)
 
     # Step 4: build calldata
     section("Step 4 · Build redeem() Calldata", "📋")
@@ -802,17 +879,24 @@ def cmd_status(config: ClientConfig) -> None:
     section("WALLET STATUS", "📊")
 
     state = WalletState.load()
-    w3    = build_web3(config)
 
-    wallet  = Web3.to_checksum_address(config.wallet_address)
-    balance = w3.eth.get_balance(wallet)
+    if is_mock():
+        # Mock mode: show wallet state without chain queries
+        console.print(_kv_table([
+            ("Mode",           "🧪 MOCK (offline)"),
+            ("Last scanned",   f"block {state.last_scanned_block}"),
+        ], title="📊  Wallet Status"))
+    else:
+        w3      = build_web3(config)
+        wallet  = Web3.to_checksum_address(config.wallet_address)
+        balance = w3.eth.get_balance(wallet)
 
-    # Balance panel
-    console.print(_kv_table([
-        ("Wallet address", wallet),
-        ("ETH balance",    f"{Web3.from_wei(balance, 'ether'):.6f} ETH"),
-        ("Last scanned",   f"block {state.last_scanned_block}"),
-    ], title="💰  On-chain Balance"))
+        console.print(_kv_table([
+            ("Wallet address", wallet),
+            ("ETH balance",    f"{Web3.from_wei(balance, 'ether'):.6f} ETH"),
+            ("Last scanned",   f"block {state.last_scanned_block}"),
+        ], title="💰  On-chain Balance"))
+
     console.print()
 
     if not state.tokens:
@@ -852,6 +936,11 @@ def cmd_status(config: ClientConfig) -> None:
 
 def cmd_balance(config: ClientConfig) -> None:
     print_banner()
+
+    if is_mock():
+        warn("Balance check is not available in mock mode (no chain connection).")
+        return
+
     w3      = build_web3(config)
     wallet  = Web3.to_checksum_address(config.wallet_address)
     balance = w3.eth.get_balance(wallet)
@@ -891,16 +980,33 @@ DryRunOpt = Annotated[
     ),
 ]
 
+MockOpt = Annotated[
+    bool,
+    typer.Option(
+        "--mock",
+        help="Offline mode: skip all chain interactions. Only MASTER_SEED needed in .env.",
+        is_flag=True,
+    ),
+]
+
+
+def _set_modes(verbosity: Verbosity, dry_run: bool = False, mock: bool = False) -> None:
+    """Set global mode flags. Mock implies dry-run."""
+    global _verbosity, _dry_run, _mock_mode
+    _verbosity = verbosity
+    _dry_run = dry_run or mock
+    _mock_mode = mock
+
 
 @app.command()
 def deposit(
     index: Annotated[int, typer.Option("--index", "-i", help="Token index (0-based).", min=0)],
     dry_run:   DryRunOpt   = False,
+    mock:      MockOpt     = False,
     verbosity: VerbosityOpt = Verbosity.normal,
 ) -> None:
     """Blind a token secret and submit (or simulate) a deposit to GhostVault."""
-    global _verbosity, _dry_run
-    _verbosity, _dry_run = verbosity, dry_run
+    _set_modes(verbosity, dry_run, mock)
     cmd_deposit(load_config(), index)
 
 
@@ -912,8 +1018,7 @@ def scan(
     verbosity:  VerbosityOpt = Verbosity.normal,
 ) -> None:
     """Scan chain for MintFulfilled events and recover tokens in [index-from, index-to]."""
-    global _verbosity
-    _verbosity = verbosity
+    _set_modes(verbosity)
     if index_to < index_from:
         err(f"--index-to ({index_to}) must be >= --index-from ({index_from})")
         raise typer.Exit(code=1)
@@ -926,31 +1031,31 @@ def redeem(
     to:       Annotated[str, typer.Option("--to",          help="Recipient Ethereum address.")],
     relayer:  Annotated[Optional[str], typer.Option("--relayer", help="Relayer base URL (relayer pays gas).")] = None,
     dry_run:  DryRunOpt   = False,
+    mock:     MockOpt     = False,
     verbosity: VerbosityOpt = Verbosity.normal,
 ) -> None:
     """Unblind a recovered token and submit redeem() directly or via a relayer."""
-    global _verbosity, _dry_run
-    _verbosity, _dry_run = verbosity, dry_run
+    _set_modes(verbosity, dry_run, mock)
     cmd_redeem(load_config(), index, to, relayer)
 
 
 @app.command()
 def status(
+    mock:      MockOpt     = False,
     verbosity: VerbosityOpt = Verbosity.normal,
 ) -> None:
     """Show wallet state: token lifecycle statuses and on-chain balance."""
-    global _verbosity
-    _verbosity = verbosity
+    _set_modes(verbosity, mock=mock)
     cmd_status(load_config())
 
 
 @app.command()
 def balance(
+    mock:      MockOpt     = False,
     verbosity: VerbosityOpt = Verbosity.normal,
 ) -> None:
     """Query on-chain ETH balance for the configured wallet address."""
-    global _verbosity
-    _verbosity = verbosity
+    _set_modes(verbosity, mock=mock)
     cmd_balance(load_config())
 
 

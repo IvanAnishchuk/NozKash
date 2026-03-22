@@ -9,6 +9,14 @@
 #   4. Scan chain for the signed token
 #   5. Redeem the token to a recipient address
 #
+# In --mock mode, all chain interactions are replaced:
+#   1. (skipped — no chain balance to check)
+#   2. Deposit: client.py deposit --dry-run (derives + blinds, saves to wallet)
+#   3. Mock mint: mint_mock.py sign (signs + unblinds + saves S to wallet)
+#   4. (skipped — mock mint already wrote wallet state)
+#   5. Redeem: client.py redeem --dry-run (generates calldata) then
+#              redeem_mock.py verify (runs full contract verification)
+#
 # Usage:
 #   ./ghost_flow.sh [OPTIONS]
 #
@@ -20,6 +28,9 @@
 #   -v, --verbose            Use verbose verbosity for client output
 #   -q, --quiet              Use quiet verbosity for client output
 #       --dry-run            Simulate all steps, broadcast nothing
+#       --mock               Full offline mode: no chain, no RPC, no gas.
+#                            Uses mock mint + mock redeemer for verification.
+#                            Implies --dry-run for client commands.
 #       --no-banner          Skip the ASCII banner
 #       --skip-balance       Skip balance check
 #       --skip-deposit       Skip deposit (assume already done)
@@ -32,12 +43,17 @@
 #   MASTER_SEED, WALLET_ADDRESS, WALLET_KEY,
 #   CONTRACT_ADDRESS, RPC_HTTP_URL, SCAN_FROM_BLOCK
 #
+# For --mock mode, only MASTER_SEED and MINT_BLS_PRIVKEY_INT are required.
+#
 # Examples:
 #   # Full flow, token 0, redeem to your own address
 #   ./ghost_flow.sh --to 0xYourAddress
 #
 #   # Dry-run: generate all payloads without broadcasting
 #   ./ghost_flow.sh --to 0xYourAddress --dry-run
+#
+#   # MOCK: full offline test — no chain, no gas, no RPC
+#   ./ghost_flow.sh --to 0xYourAddress --mock
 #
 #   # Resume from scan (deposit already done)
 #   ./ghost_flow.sh --to 0xYourAddress --skip-deposit
@@ -55,6 +71,7 @@ RELAYER=""
 SCAN_FROM_BLOCK="${SCAN_FROM_BLOCK:-0}"
 VERBOSITY="normal"
 DRY_RUN=false
+MOCK_MODE=false
 SKIP_BALANCE=false
 SKIP_DEPOSIT=false
 SKIP_SCAN=false
@@ -78,6 +95,7 @@ log_ok()   { echo -e "${GREEN}${BOLD}  ✅${RESET}  $*"; }
 log_warn() { echo -e "${YELLOW}${BOLD}  ⚠️ ${RESET}  $*"; }
 log_err()  { echo -e "${RED}${BOLD}  ❌${RESET}  $*" >&2; }
 log_dry()  { echo -e "${MAGENTA}${BOLD}  🔵 [DRY-RUN]${RESET}  $*"; }
+log_mock() { echo -e "${MAGENTA}${BOLD}  🧪 [MOCK]${RESET}  $*"; }
 log_sep()  { echo -e "${DIM}${CYAN}──────────────────────────────────────────────────${RESET}"; }
 log_step() { echo; log_sep; echo -e "  ${BOLD}${CYAN}$*${RESET}"; log_sep; }
 
@@ -89,7 +107,7 @@ require_cmd() {
 
 # ── Parse args ─────────────────────────────────────────────────────────────────
 usage() {
-    grep '^#' "$0" | grep -v '^#!/' | sed 's/^# \{0,1\}//' | head -50
+    grep '^#' "$0" | grep -v '^#!/' | sed 's/^# \{0,1\}//' | head -60
     exit 0
 }
 
@@ -102,6 +120,8 @@ while [[ $# -gt 0 ]]; do
         -v|--verbose)      VERBOSITY="verbose"; shift   ;;
         -q|--quiet)        VERBOSITY="quiet";   shift   ;;
            --dry-run)      DRY_RUN=true;        shift   ;;
+           --mock)         MOCK_MODE=true;
+                           DRY_RUN=true;        shift   ;;
            --no-banner)    SHOW_BANNER=false;   shift   ;;
            --skip-balance) SKIP_BALANCE=true;   shift   ;;
            --skip-deposit) SKIP_DEPOSIT=true;   shift   ;;
@@ -128,14 +148,28 @@ fi
 require_cmd uv
 require_cmd python3
 
-[[ -f ".env" ]] || die ".env file not found. Run generate_keys.py first."
+if [[ ! -f ".env" ]]; then
+    log_err ".env file not found."
+    echo
+    echo -e "  ${BOLD}Run:${RESET}  uv run generate_keys.py"
+    echo -e "  ${DIM}This generates all keys and configuration needed.${RESET}"
+    echo
+    exit 1
+fi
 
 if ! $SKIP_REDEEM && [[ -z "$RECIPIENT" ]]; then
     die "Recipient address required. Use --to 0xYourAddress or --skip-redeem."
 fi
 
-# Announce dry-run mode prominently
-if $DRY_RUN; then
+# Announce mode prominently
+if $MOCK_MODE; then
+    echo
+    echo -e "${MAGENTA}${BOLD}  ══════════════════════════════════════════════"
+    echo   "   🧪  MOCK MODE  —  full offline verification"
+    echo   "      No chain · No RPC · No gas · No contract"
+    echo -e "  ══════════════════════════════════════════════${RESET}"
+    echo
+elif $DRY_RUN; then
     echo
     echo -e "${MAGENTA}${BOLD}  ══════════════════════════════════════════════"
     echo   "     🔵  DRY-RUN MODE  —  no transactions sent"
@@ -150,6 +184,69 @@ $DRY_RUN && DRY_FLAG=("--dry-run")
 
 RELAYER_FLAG=()
 [[ -n "$RELAYER" ]] && RELAYER_FLAG=("--relayer" "$RELAYER")
+
+# ==============================================================================
+# MOCK MODE FLOW
+# ==============================================================================
+if $MOCK_MODE; then
+
+    # ── Step 1: Deposit (mock — derives secrets, blinds, saves wallet state, no chain)
+    log_step "STEP 1 · Deposit Token (index=$INDEX) [mock]"
+    uv run client.py deposit \
+        --index "$INDEX" \
+        --mock \
+        "${CLIENT_ARGS[@]}"
+    log_ok "Mock deposit complete. Wallet state created."
+
+    # ── Step 2: Mock Mint Sign (replaces: wait for mint + scan chain)
+    log_step "STEP 2 · Mock Mint Sign (index=$INDEX)"
+    log_mock "No chain needed — re-deriving B from seed and signing directly."
+    uv run mint_mock.py sign \
+        --index "$INDEX" \
+        --verbosity "$VERBOSITY"
+    log_ok "Mock mint complete. Token signed and saved to wallet state."
+
+    # ── Step 3: Redeem (mock — generates ECDSA proof, no calldata/chain needed)
+    log_step "STEP 3 · Redeem Payload (index=$INDEX → $RECIPIENT)"
+    uv run client.py redeem \
+        --index "$INDEX" \
+        --to    "$RECIPIENT" \
+        --mock \
+        "${CLIENT_ARGS[@]}"
+    log_ok "Mock redeem payload generated."
+
+    # ── Step 4: Mock Redeem Verify (full contract verification)
+    log_step "STEP 4 · Mock Redeem Verify (GhostVault.redeem() simulation)"
+    log_mock "Running ecrecover → nullifier check → BLS pairing off-chain."
+    uv run redeem_mock.py verify \
+        --index "$INDEX" \
+        --to    "$RECIPIENT" \
+        --verbosity "$VERBOSITY"
+    log_ok "All contract checks passed. Token verified and marked spent."
+
+    # ── Step 5: Final status
+    log_step "STEP 5 · Final Wallet Status"
+    uv run client.py status --mock "${CLIENT_ARGS[@]}"
+
+    # ── Summary ────────────────────────────────────────────────────────────
+    echo
+    log_sep
+    echo
+    echo -e "  ${GREEN}${BOLD}🎉  MOCK FLOW COMPLETE${RESET}"
+    echo -e "  ${DIM}Token #${INDEX}: deposit → mint → unblind → redeem — all verified offline.${RESET}"
+    echo
+    echo -e "  ${DIM}What was tested:${RESET}"
+    echo -e "  ${DIM}  ✔  client.py deposit --mock   (derive secrets, blind B, save state)${RESET}"
+    echo -e "  ${DIM}  ✔  mint_mock.py sign           (S' = sk·B, unblind, BLS verify, save S)${RESET}"
+    echo -e "  ${DIM}  ✔  client.py redeem --mock    (load S, derive spend key, ECDSA proof)${RESET}"
+    echo -e "  ${DIM}  ✔  redeem_mock.py verify       (ecrecover, nullifier, BLS pairing)${RESET}"
+    echo
+    exit 0
+fi
+
+# ==============================================================================
+# NORMAL / DRY-RUN FLOW (original behavior, requires chain for scan)
+# ==============================================================================
 
 # ── Step 0: Balance ────────────────────────────────────────────────────────────
 if ! $SKIP_BALANCE; then

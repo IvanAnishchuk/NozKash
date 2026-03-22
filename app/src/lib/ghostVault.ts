@@ -1,3 +1,4 @@
+import { keccak256 } from 'ethereum-cryptography/keccak'
 import {
   deriveTokenSecrets,
   getDepositId,
@@ -8,10 +9,55 @@ import type { VaultTx } from '../types/activity'
 
 type FujiRpcFn = typeof fujiRpcCall
 
+function parseEnvPositiveInt(
+  raw: string | undefined,
+  fallback: number
+): number {
+  if (raw == null || String(raw).trim() === '') return fallback
+  const n = Number.parseInt(String(raw), 10)
+  return Number.isFinite(n) && n > 0 ? n : fallback
+}
+
 /** Máx. llamadas JSON-RPC seguidas antes de pausar (`fetchVaultActivityForFirstTokens`). */
-export const GHOST_VAULT_SCAN_RPC_BURST = 5
+export const GHOST_VAULT_SCAN_RPC_BURST = parseEnvPositiveInt(
+  import.meta.env.VITE_GHOST_VAULT_RPC_BURST,
+  12
+)
 /** Pausa tras agotar el burst (ms). */
-export const GHOST_VAULT_SCAN_RPC_PAUSE_MS = 30_000
+export const GHOST_VAULT_SCAN_RPC_PAUSE_MS = parseEnvPositiveInt(
+  import.meta.env.VITE_GHOST_VAULT_RPC_PAUSE_MS,
+  5000
+)
+
+function scanCacheTtlMs(): number {
+  const raw = import.meta.env.VITE_GHOST_VAULT_SCAN_CACHE_MS
+  if (raw === undefined || String(raw).trim() === '') return 12_000
+  const n = Number.parseInt(String(raw), 10)
+  if (!Number.isFinite(n)) return 12_000
+  return Math.max(0, n)
+}
+
+function bytesToHex(b: Uint8Array): string {
+  return Array.from(b)
+    .map((x) => x.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+function masterSeedCacheKey(seed: Uint8Array): string {
+  return bytesToHex(keccak256(seed))
+}
+
+type ScanCacheEntry = { at: number; rows: VaultTx[] }
+const vaultActivityCache = new Map<string, ScanCacheEntry>()
+let inflightActivityKey: string | null = null
+let inflightActivityPromise: Promise<VaultTx[]> | null = null
+
+/**
+ * Invalida el caché de `fetchVaultActivityForFirstTokens` (p. ej. tras un depósito confirmado).
+ */
+export function invalidateVaultActivityCache(): void {
+  vaultActivityCache.clear()
+}
 
 /**
  * Cola serial: como máximo `burst` llamadas a `fujiRpcCall`; luego espera `pauseMs`.
@@ -53,9 +99,16 @@ export const GHOST_VAULT_SCAN_FROM_BLOCK_HEX = '0x329896c' // 53053804
 /**
  * Scan / allocate in windows of this many token indices (0–4, 5–9, …).
  * Aligned with a privacy-pool-style counter: the **next** deposit uses
- * `lastUsedTokenIndex + 1`, not the lowest unused index (gaps are not backfilled).
+ * `max(lastUsedTokenIndex + 1, GHOST_VAULT_MIN_NEW_DEPOSIT_TOKEN_INDEX)`, not the
+ * lowest unused index (gaps are not backfilled).
  */
 export const GHOST_VAULT_TOKEN_BATCH_SIZE = 5
+
+/**
+ * Lowest token index the UI will allocate for a **new** deposit (`lastUsed + 1`, but
+ * never below this). Use 2 to leave indices 0–1 unused by the auto counter.
+ */
+export const GHOST_VAULT_MIN_NEW_DEPOSIT_TOKEN_INDEX = 2
 
 /** Default cap: `maxBatches * GHOST_VAULT_TOKEN_BATCH_SIZE` token indices scanned upward. */
 export const GHOST_VAULT_DEFAULT_MAX_BATCHES = 1
@@ -133,6 +186,8 @@ type RpcLog = {
   blockNumber?: string
   transactionHash?: string
   topics?: string[]
+  /** Cuerpo ABI del evento (p. ej. `uint256[2]` en `MintFulfilled`). */
+  data?: string
 }
 
 function parseHexBlock(n: string | undefined): number {
@@ -311,17 +366,18 @@ async function fetchLogsForDepositIds(
   }
 
   async function fetchPerTopic1(): Promise<RpcLog[]> {
-    const parts = await Promise.all(
-      topic1List.map((t1) =>
-        ethGetLogsAutoChunk(
-          rpc,
-          { address: vault, topics: [topic0, t1] },
-          fromBlock,
-          'latest'
-        )
+    /** Secuencial para no disparar N `eth_getLogs` en paralelo contra el mismo RPC. */
+    const out: RpcLog[] = []
+    for (const t1 of topic1List) {
+      const chunk = await ethGetLogsAutoChunk(
+        rpc,
+        { address: vault, topics: [topic0, t1] },
+        fromBlock,
+        'latest'
       )
-    )
-    return parts.flat()
+      out.push(...chunk)
+    }
+    return out
   }
 
   let logs: RpcLog[] = []
@@ -353,6 +409,33 @@ function latestLogByDepositId(logs: RpcLog[]): Map<string, RpcLog> {
     }
   }
   return m
+}
+
+/**
+ * Lee `MintFulfilled` para un `depositId` y devuelve S′ (G1) como enteros del evento.
+ */
+export async function fetchMintFulfilledSPrime(
+  depositId: string,
+  options?: Pick<GhostVaultFetchOptions, 'contractAddress' | 'fromBlock'>
+): Promise<{ sx: bigint; sy: bigint } | null> {
+  const vault = normalizeAddress(
+    options?.contractAddress ?? GHOST_VAULT_ADDRESS
+  )
+  const fromBlock = options?.fromBlock ?? GHOST_VAULT_SCAN_FROM_BLOCK_HEX
+  const id = normalizeAddress(depositId)
+  const logs = await fetchLogsForDepositIds(
+    vault,
+    MINT_FULFILLED_TOPIC,
+    [id],
+    fromBlock,
+    fujiRpcCall
+  )
+  const log = latestLogByDepositId(logs).get(id)
+  const data = log?.data?.replace(/^0x/i, '') ?? ''
+  if (data.length < 128) return null
+  const sx = BigInt('0x' + data.slice(0, 64))
+  const sy = BigInt('0x' + data.slice(64, 128))
+  return { sx, sy }
 }
 
 async function spentNullifierIsSet(
@@ -388,20 +471,24 @@ export type GhostVaultFetchOptions = {
   networkLabel?: string
   /** Solo `findLastUsedVaultTokenIndex` / `getNextVaultTokenIndexForDeposit`. Ignorado en `fetchVaultActivityForFirstTokens`. */
   maxBatches?: number
+  /** Si es true, no usa el caché de actividad (sigue deduplicando peticiones en vuelo). */
+  skipCache?: boolean
 }
 
 /**
  * Scans token indices in windows of {@link GHOST_VAULT_TOKEN_BATCH_SIZE}:
- * derives `depositId` via `deriveTokenSecrets` (ghost-library), matches
- * `DepositLocked` / `MintFulfilled`, and `spentNullifiers(spend.address)` for redeemed.
+ * deriva `depositId` con `deriveTokenSecrets(masterSeed, i)` (misma `masterSeed` que en la app:
+ * firma `personal_sign` o `VITE_GHOST_MASTER_SEED_HEX`; **no** es la clave privada EVM cruda salvo en dev).
+ * Cruza eventos **`DepositLocked`** (depósito), **`MintFulfilled`** (mint entregado; no existe `MintLocked` en el contrato),
+ * y `spentNullifiers(nullifier)` donde `nullifier = spend.address`.
  *
- * Continues to the next batch only if **every** index in the current batch has a
- * `DepositLocked` log (sequential slot model). Stops after the first batch where
- * that is not the case (still listing activity for that batch). Sin tope de lotes:
- * avanza hasta la frontera natural del vault.
+ * - **Pending:** `DepositLocked` para ese `depositId` y aún no `MintFulfilled`.
+ * - **Deposited (mint cumplido):** `DepositLocked` + `MintFulfilled`, y `spentNullifiers` falso.
+ * - **Redeemed:** `spentNullifiers(spend.address)` verdadero (solo se consulta si hay `MintFulfilled`, para ahorrar RPC).
  *
- * **RPC:** como máximo {@link GHOST_VAULT_SCAN_RPC_BURST} llamadas JSON-RPC seguidas,
- * luego pausa {@link GHOST_VAULT_SCAN_RPC_PAUSE_MS} ms (cola serial).
+ * Continúa al siguiente lote de 5 solo si **todos** los índices del lote tienen `DepositLocked` (modelo secuencial).
+ *
+ * **RPC:** cola con burst/pausa; caché TTL + deduplicación de peticiones simultáneas idénticas.
  */
 export async function fetchVaultActivityForFirstTokens(
   masterSeed: Uint8Array,
@@ -411,6 +498,48 @@ export async function fetchVaultActivityForFirstTokens(
     options?.contractAddress ?? GHOST_VAULT_ADDRESS
   )
   const fromBlock = options?.fromBlock ?? GHOST_VAULT_SCAN_FROM_BLOCK_HEX
+  const cacheKey = `${vault}|${fromBlock}|${masterSeedCacheKey(masterSeed)}`
+  const ttl = scanCacheTtlMs()
+  const now = Date.now()
+
+  if (!options?.skipCache && ttl > 0) {
+    const hit = vaultActivityCache.get(cacheKey)
+    if (hit && now - hit.at < ttl) {
+      return hit.rows
+    }
+  }
+
+  if (inflightActivityKey === cacheKey && inflightActivityPromise) {
+    return inflightActivityPromise
+  }
+
+  inflightActivityKey = cacheKey
+  inflightActivityPromise = fetchVaultActivityForFirstTokensImpl(
+    masterSeed,
+    options,
+    vault,
+    fromBlock
+  ).then((rows) => {
+    if (!options?.skipCache && ttl > 0) {
+      vaultActivityCache.set(cacheKey, { at: Date.now(), rows })
+    }
+    return rows
+  })
+
+  try {
+    return await inflightActivityPromise
+  } finally {
+    inflightActivityKey = null
+    inflightActivityPromise = null
+  }
+}
+
+async function fetchVaultActivityForFirstTokensImpl(
+  masterSeed: Uint8Array,
+  options: GhostVaultFetchOptions | undefined,
+  vault: string,
+  fromBlock: string
+): Promise<VaultTx[]> {
   const netLabel = options?.networkLabel ?? 'Fuji'
   const rpc = createVaultScanRpcLimiter(
     GHOST_VAULT_SCAN_RPC_BURST,
@@ -452,11 +581,22 @@ export async function fetchVaultActivityForFirstTokens(
     const lockedById = latestLogByDepositId(lockedRaw)
     const fulfilledById = latestLogByDepositId(fulfilledRaw)
 
-    const spentFlags = await Promise.all(
-      secretsList.map((s) =>
-        spentNullifierIsSet(vault, getSpendAddress(s), rpc)
-      )
-    )
+    const spentFlags: boolean[] = []
+    for (let j = 0; j < indices.length; j++) {
+      const secrets = secretsList[j]!
+      const depositId = normalizeAddress(getDepositId(secrets))
+      const hasMint = fulfilledById.has(depositId)
+      if (!hasMint) {
+        spentFlags.push(false)
+      } else {
+        const spent = await spentNullifierIsSet(
+          vault,
+          getSpendAddress(secrets),
+          rpc
+        )
+        spentFlags.push(spent)
+      }
+    }
 
     for (let j = 0; j < indices.length; j++) {
       const tokenIndex = indices[j]!
@@ -619,8 +759,9 @@ export async function findLastUsedVaultTokenIndex(
 }
 
 /**
- * Next token index for a **new** deposit: `findLastUsedVaultTokenIndex + 1`
- * (privacy pool–style progression; does not reuse skipped lower indices).
+ * Next token index for a **new** deposit: `max(findLastUsedVaultTokenIndex + 1,
+ * {@link GHOST_VAULT_MIN_NEW_DEPOSIT_TOKEN_INDEX})` (privacy pool–style progression;
+ * does not reuse skipped lower indices).
  */
 export async function getNextVaultTokenIndexForDeposit(
   masterSeed: Uint8Array,
@@ -630,7 +771,7 @@ export async function getNextVaultTokenIndexForDeposit(
   >
 ): Promise<number> {
   const last = await findLastUsedVaultTokenIndex(masterSeed, options)
-  return last + 1
+  return Math.max(last + 1, GHOST_VAULT_MIN_NEW_DEPOSIT_TOKEN_INDEX)
 }
 
 /**

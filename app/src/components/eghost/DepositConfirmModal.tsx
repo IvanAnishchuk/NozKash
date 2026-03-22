@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useGhostMasterSeed } from '../../context/GhostMasterSeedProvider'
-import { useWallet } from '../../hooks/useWallet'
+import {
+  requestWalletBalanceRefresh,
+  useWallet,
+} from '../../hooks/useWallet'
 import {
   ensureFuji,
   getEthereum,
@@ -14,6 +17,7 @@ import {
   GHOST_VAULT_DEPOSIT_VALUE_WEI_HEX,
   GHOST_VAULT_RPC_POLL_MS,
   getNextVaultTokenIndexForDeposit,
+  invalidateVaultActivityCache,
 } from '../../lib/ghostVault'
 import {
   buildGhostVaultDepositCalldata,
@@ -327,6 +331,8 @@ export function DepositConfirmModal({ open, onClose, onToast }: Props) {
         onToast('Transaction failed or was reverted', 'error')
         return
       }
+      invalidateVaultActivityCache()
+      requestWalletBalanceRefresh()
       onClose()
       onToast(
         `Deposit confirmed · token #${tokenIndex} · ${finalized} AVAX`,

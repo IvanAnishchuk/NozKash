@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 52" width="160" height="52">
+  <defs>
+    <style>
+      .wordmark-g { animation: word-in 0.5s ease-out both; }
+      @keyframes word-in { from{opacity:0;transform:translateX(-6px)} to{opacity:1;transform:translateX(0)} }
+
+      .kash-text { animation: kash-glow 3s ease-in-out infinite; }
+      @keyframes kash-glow { 0%,100%{fill:#E84142} 50%{fill:#FF6162} }
+
+      .noz-text { animation: noz-fade 3s ease-in-out infinite; }
+      @keyframes noz-fade { 0%,100%{fill-opacity:1} 50%{fill-opacity:0.75} }
+
+      .scan-line { animation: scan 3s ease-in-out infinite; }
+      @keyframes scan {
+        0%   { width:0;    opacity:0;   }
+        15%  { opacity:0.5; }
+        80%  { width:136px; opacity:0.5; }
+        100% { width:136px; opacity:0;   }
+      }
+    </style>
+    <clipPath id="c"><rect width="160" height="52" rx="10"/></clipPath>
+  </defs>
+
+  <rect width="160" height="52" rx="10" fill="#0A0A0F"/>
+  <g clip-path="url(#c)">
+
+    <rect class="scan-line" x="12" y="40" height="1.5" rx="0.8" fill="#E84142" width="0"/>
+
+    <g class="wordmark-g">
+      <text y="34" font-family="'DM Sans','Helvetica Neue',Helvetica,Arial,sans-serif"
+            font-weight="600" font-size="24" letter-spacing="-0.8">
+        <tspan class="noz-text" x="12" fill="#FFFFFF">Noz</tspan>
+        <tspan class="kash-text" fill="#E84142">Kash</tspan>
+      </text>
+    </g>
+
+  </g>
+</svg>

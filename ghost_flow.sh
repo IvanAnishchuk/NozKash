@@ -12,7 +12,7 @@
 # In --mock mode, all chain interactions are replaced:
 #   1. (skipped — no chain balance to check)
 #   2. Deposit: client.py deposit --dry-run (derives + blinds, saves to wallet)
-#   3. Mock mint: mint_mock.py sign (signs + unblinds + saves S to wallet)
+#   3. Mock mint: mint_mock.py (signs + unblinds + saves S to wallet)
 #   4. (skipped — mock mint already wrote wallet state)
 #   5. Redeem: client.py redeem --dry-run (generates calldata) then
 #              redeem_mock.py verify (runs full contract verification)
@@ -201,7 +201,7 @@ if $MOCK_MODE; then
     # ── Step 2: Mock Mint Sign (replaces: wait for mint + scan chain)
     log_step "STEP 2 · Mock Mint Sign (index=$INDEX)"
     log_mock "No chain needed — re-deriving B from seed and signing directly."
-    uv run mint_mock.py sign \
+    uv run mint_mock.py \
         --index "$INDEX" \
         --verbosity "$VERBOSITY"
     log_ok "Mock mint complete. Token signed and saved to wallet state."
@@ -218,7 +218,7 @@ if $MOCK_MODE; then
     # ── Step 4: Mock Redeem Verify (full contract verification)
     log_step "STEP 4 · Mock Redeem Verify (GhostVault.redeem() simulation)"
     log_mock "Running ecrecover → nullifier check → BLS pairing off-chain."
-    uv run redeem_mock.py verify \
+    uv run redeem_mock.py \
         --index "$INDEX" \
         --to    "$RECIPIENT" \
         --verbosity "$VERBOSITY"
@@ -237,9 +237,9 @@ if $MOCK_MODE; then
     echo
     echo -e "  ${DIM}What was tested:${RESET}"
     echo -e "  ${DIM}  ✔  client.py deposit --mock   (derive secrets, blind B, save state)${RESET}"
-    echo -e "  ${DIM}  ✔  mint_mock.py sign           (S' = sk·B, unblind, BLS verify, save S)${RESET}"
+    echo -e "  ${DIM}  ✔  mint_mock.py                (S' = sk·B, unblind, BLS verify, save S)${RESET}"
     echo -e "  ${DIM}  ✔  client.py redeem --mock    (load S, derive spend key, ECDSA proof)${RESET}"
-    echo -e "  ${DIM}  ✔  redeem_mock.py verify       (ecrecover, nullifier, BLS pairing)${RESET}"
+    echo -e "  ${DIM}  ✔  redeem_mock.py              (ecrecover, nullifier, BLS pairing)${RESET}"
     echo
     exit 0
 fi

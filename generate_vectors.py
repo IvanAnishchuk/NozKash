@@ -142,8 +142,8 @@ def compute_vector(master_seed_hex: str, sk_int: int, token_index: int) -> dict:
         "REDEEM_TX": {
             # Arguments to GhostVault.redeem()
             "recipient":  test_recipient,
-            "S_x":        str(s_x),   # uint256 — Solidity encoding
-            "S_y":        str(s_y),   # uint256
+            "S_x":        hex(s_x),   # uint256 — 0x-prefixed hex
+            "S_y":        hex(s_y),   # uint256
 
             # MEV protection signature — intermediate steps for verification
             # msg_hash = keccak256("Pay to: " + recipient)

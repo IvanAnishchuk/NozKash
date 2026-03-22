@@ -179,7 +179,7 @@ MASTER_SEED={master_seed}
 # ── Mint BLS Key ──────────────────────────────────────────────────────────────
 # BLS scalar (integer) for the blind signing mint server.
 # The mint uses this to compute S' = sk · B on blinded deposit points.
-MINT_BLS_PRIVKEY_INT={bls_sk}
+MINT_BLS_PRIVKEY_INT={hex(bls_sk)}
 {chain_section}
 # ── Scanning ──────────────────────────────────────────────────────────────────
 # Block number to start scanning for MintFulfilled events.

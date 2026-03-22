@@ -106,7 +106,7 @@ class MockMint:
         """
         Load the mint scalar from environment variables.
 
-        Checks MINT_BLS_PRIVKEY (hex) first, then MINT_BLS_PRIVKEY_INT (decimal).
+        Checks MINT_BLS_PRIVKEY (hex) first, then MINT_BLS_PRIVKEY_INT (hex).
         """
         sk_hex = os.getenv("MINT_BLS_PRIVKEY")
         sk_int_str = os.getenv("MINT_BLS_PRIVKEY_INT")
@@ -114,7 +114,7 @@ class MockMint:
         if sk_hex:
             return cls.from_hex(sk_hex)
         if sk_int_str:
-            return cls.from_sk(int(sk_int_str))
+            return cls.from_hex(sk_int_str)
 
         raise MockMintError(
             "Missing MINT_BLS_PRIVKEY or MINT_BLS_PRIVKEY_INT in environment. "

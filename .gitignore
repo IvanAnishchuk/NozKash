@@ -1,3 +1,10 @@
+# Back up .env securely. It contains private keys.                                                                                    │
+# Add .env to .gitignore — never commit secrets to version control.
+.env
+
+# also exposes stuff, used by mock wallet client
+.ghost_wallet.json
+
 # Python-generated files
 __pycache__/
 *.py[oc]

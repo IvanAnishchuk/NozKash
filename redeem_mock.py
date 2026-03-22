@@ -128,7 +128,7 @@ class MockRedeemer:
         if sk_hex:
             sk = int(sk_hex, 16) if sk_hex.startswith("0x") else int(sk_hex)
         elif sk_int_str:
-            sk = int(sk_int_str)
+            sk = int(sk_int_str, 16) if sk_int_str.startswith("0x") else int(sk_int_str)
         else:
             raise MockRedeemError(
                 "Missing MINT_BLS_PRIVKEY or MINT_BLS_PRIVKEY_INT in environment."

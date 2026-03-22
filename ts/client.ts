@@ -35,7 +35,7 @@ import * as gl from './ghost-library.js';
 
 const DENOMINATION = parseEther('0.01');
 const WALLET_STATE_FILE = resolve('.ghost_wallet.json');
-const ABI_PATH = resolve('ghost_vault_abi.json');
+const ABI_PATH = resolve('sol/ghost_vault_abi.json');
 
 interface Config {
     masterSeed:      Uint8Array;

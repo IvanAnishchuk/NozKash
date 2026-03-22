@@ -228,8 +228,7 @@ def kv_hex(label: str, value: str) -> None:
 
 # ── Wallet state ───────────────────────────────────────────────────────────────
 
-WALLET_STATE_FILE = Path(".ghost_wallet.json")
-
+WALLET_STATE_FILE = Path(__file__).resolve().parent / ".." / ".ghost_wallet.json"
 
 @dataclass
 class TokenRecord:
@@ -390,7 +389,7 @@ def load_config() -> ClientConfig:
 
 # ── Contract ABI ───────────────────────────────────────────────────────────────
 
-_ABI_PATH = Path(__file__).resolve().parent / "ghost_vault_abi.json"
+_ABI_PATH = Path(__file__).resolve().parent / ".." / "sol" / "ghost_vault_abi.json"
 GHOST_VAULT_ABI = json.loads(_ABI_PATH.read_text())
 
 

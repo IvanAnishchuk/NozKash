@@ -159,15 +159,17 @@ contract GhostVault {
 
     /**
      * @notice Verify and redeem a token.  Transfers 0.01 ETH to recipient.
+     * @param nullifier The spend / nullifier address; must match `ecrecover` on the redemption hash.
      */
     function redeem(
         address             recipient,
         bytes      calldata spendSignature,
+        address             nullifier,
         uint256[2] calldata unblindedSignatureS
     ) external {
-        bytes32 txHash    = redemptionMessageHash(recipient);
-        address nullifier = recoverSigner(txHash, spendSignature);
-        if (nullifier == address(0)) revert InvalidECDSA();
+        bytes32 txHash = redemptionMessageHash(recipient);
+        address recoveredNullifier = recoverSigner(txHash, spendSignature);
+        if (recoveredNullifier != nullifier) revert InvalidECDSA();
 
         if (spentNullifiers[nullifier]) revert AlreadySpent();
         spentNullifiers[nullifier] = true;

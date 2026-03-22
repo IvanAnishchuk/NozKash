@@ -288,7 +288,12 @@ def generate_redemption_proof(
     Message hash matches GhostVault.redemptionMessageHash: keccak256("Pay to: " ‖ address₂₀),
     not UTF-8 "Pay to: 0x…" with checksum.
     """
-    addr = bytes.fromhex(destination_address.removeprefix("0x").lower())
+    hex40 = destination_address.strip().lower()
+    if hex40.startswith("0x"):
+        hex40 = hex40[2:]
+    if len(hex40) != 40:
+        raise ValueError(f"expected 20-byte hex address, got {len(hex40) // 2} bytes after 0x strip")
+    addr = bytes.fromhex(hex40)
     msg_hash = keccak(b"Pay to: " + addr)
     ecdsa_sig = spend_priv.sign_msg_hash(msg_hash)
 

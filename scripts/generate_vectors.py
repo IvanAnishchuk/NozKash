@@ -138,10 +138,11 @@ def compute_vector(master_seed_hex: str, sk_int: int, token_index: int) -> dict:
         },
 
         # ── Redemption transaction (what the client submits on-chain) ─────────
-        # redeem(recipient, spendSignature, unblindedSignatureS)
+        # redeem(recipient, spendSignature, nullifier, unblindedSignatureS)
+        # nullifier = SPEND_KEYPAIR.address (must match ecrecover on redemptionMessageHash)
         # spendSignature = r(32) || s(32) || v(1) where v = recovery_bit + 27
         "REDEEM_TX": {
-            # Arguments to GhostVault.redeem()
+            # Arguments to GhostVault.redeem() (nullifier lives under SPEND_KEYPAIR.address)
             "recipient":  test_recipient,
             "S_x":        str(s_x),   # uint256 — Solidity encoding
             "S_y":        str(s_y),   # uint256

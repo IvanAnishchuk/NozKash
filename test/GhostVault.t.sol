@@ -137,11 +137,12 @@ contract GhostVaultTest is Test {
 
     function _redeemOne(string memory j) internal {
         address recipient = j.readAddress(".REDEEM_TX.recipient");
+        address nullifier = j.readAddress(".SPEND_KEYPAIR.address");
         bytes memory sig = _hexBytes(j, ".REDEEM_TX.spend_signature");
         uint256[2] memory sG1 = [j.readUint(".REDEEM_TX.S_x"), j.readUint(".REDEEM_TX.S_y")];
 
         uint256 balBefore = recipient.balance;
-        vault.redeem(recipient, sig, sG1);
+        vault.redeem(recipient, sig, nullifier, sG1);
         assertEq(recipient.balance - balBefore, vault.DENOMINATION());
         assertTrue(vault.spentNullifiers(j.readAddress(".SPEND_KEYPAIR.address")));
     }
@@ -280,13 +281,14 @@ contract GhostVaultTest is Test {
     function test_redeem_succeedsAgainstVectors() public {
         string memory j = vm.readFile(_tokenFile(42));
         address recipient = j.readAddress(".REDEEM_TX.recipient");
+        address nullifier = j.readAddress(".SPEND_KEYPAIR.address");
         bytes memory sig = _hexBytes(j, ".REDEEM_TX.spend_signature");
         uint256[2] memory sG1 = [j.readUint(".REDEEM_TX.S_x"), j.readUint(".REDEEM_TX.S_y")];
 
         vm.deal(address(vault), vault.DENOMINATION());
         uint256 balBefore = recipient.balance;
 
-        vault.redeem(recipient, sig, sG1);
+        vault.redeem(recipient, sig, nullifier, sG1);
 
         assertEq(recipient.balance - balBefore, vault.DENOMINATION());
         assertTrue(vault.spentNullifiers(j.readAddress(".SPEND_KEYPAIR.address")));
@@ -295,19 +297,21 @@ contract GhostVaultTest is Test {
     function test_redeem_revertsDoubleSpend() public {
         string memory j = vm.readFile(_tokenFile(42));
         address recipient = j.readAddress(".REDEEM_TX.recipient");
+        address nullifier = j.readAddress(".SPEND_KEYPAIR.address");
         bytes memory sig = _hexBytes(j, ".REDEEM_TX.spend_signature");
         uint256[2] memory sG1 = [j.readUint(".REDEEM_TX.S_x"), j.readUint(".REDEEM_TX.S_y")];
 
         vm.deal(address(vault), 2 * vault.DENOMINATION());
-        vault.redeem(recipient, sig, sG1);
+        vault.redeem(recipient, sig, nullifier, sG1);
 
         vm.expectRevert(GhostVault.AlreadySpent.selector);
-        vault.redeem(recipient, sig, sG1);
+        vault.redeem(recipient, sig, nullifier, sG1);
     }
 
     function test_redeem_revertsInvalidECDSA() public {
         string memory j = vm.readFile(_tokenFile(42));
         address recipient = j.readAddress(".REDEEM_TX.recipient");
+        address nullifier = j.readAddress(".SPEND_KEYPAIR.address");
         uint256[2] memory sG1 = [j.readUint(".REDEEM_TX.S_x"), j.readUint(".REDEEM_TX.S_y")];
         bytes memory badSig = new bytes(65);
         for (uint256 i; i < 65; i++) {
@@ -316,17 +320,18 @@ contract GhostVaultTest is Test {
 
         vm.deal(address(vault), vault.DENOMINATION());
         vm.expectRevert(GhostVault.InvalidECDSA.selector);
-        vault.redeem(recipient, badSig, sG1);
+        vault.redeem(recipient, badSig, nullifier, sG1);
     }
 
     function test_redeem_revertsInvalidBLS() public {
         string memory j = vm.readFile(_tokenFile(42));
         address recipient = j.readAddress(".REDEEM_TX.recipient");
+        address nullifier = j.readAddress(".SPEND_KEYPAIR.address");
         bytes memory sig = _hexBytes(j, ".REDEEM_TX.spend_signature");
         uint256[2] memory badS = [uint256(1), uint256(2)];
 
         vm.deal(address(vault), vault.DENOMINATION());
         vm.expectRevert(GhostVault.InvalidBLS.selector);
-        vault.redeem(recipient, sig, badS);
+        vault.redeem(recipient, sig, nullifier, badS);
     }
 }

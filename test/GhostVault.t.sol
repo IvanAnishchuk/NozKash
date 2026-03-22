@@ -20,35 +20,42 @@ contract GhostVaultHarness is GhostVault {
     }
 }
 
-/// @dev Vectors live under `test/test-vectors/` (per-token JSON). Revision D: `depositId` = blind_addr.
+/// @dev Per-token JSON files in a suite directory. Default: `test/test-vectors/`.
+///      Point `GHOST_VECTOR_SUITE` at a `generate_vectors.py` output dir, e.g.
+///      `scripts/test_vectors/53972e74_e4cfa09d` (no trailing slash).
 contract GhostVaultTest is Test {
     using stdJson for string;
 
     GhostVaultHarness internal vault;
     address internal mintAuthority;
 
-    /// @dev Shared mint key across all bundled token vectors; domain is zero (matches generator).
-    string internal constant TOKEN_FIXTURE = "test/test-vectors/token_42.json";
+    /// @dev Directory containing `token_<index>.json` (Forge env `GHOST_VECTOR_SUITE`, or default below).
+    string internal vectorSuite;
 
     uint256 internal constant P = 21888242871839275222246405745257275088696311157297823662689037894645226208583;
 
     event MintFulfilled(address indexed depositId, uint256[2] S_prime);
 
     function setUp() public {
+        vectorSuite = vm.envOr("GHOST_VECTOR_SUITE", string("test/test-vectors"));
         mintAuthority = makeAddr("mintAuthority");
-        string memory j = vm.readFile(TOKEN_FIXTURE);
+        string memory j = vm.readFile(_tokenFile(42));
         uint256[4] memory pkMint = _pkMintFromJson(j);
         bytes32 domain = bytes32(0);
         vault = new GhostVaultHarness(pkMint, domain, mintAuthority);
     }
 
-    function _tokenPaths() internal pure returns (string[6] memory p) {
-        p[0] = "test/test-vectors/token_0.json";
-        p[1] = "test/test-vectors/token_1.json";
-        p[2] = "test/test-vectors/token_255.json";
-        p[3] = "test/test-vectors/token_256.json";
-        p[4] = "test/test-vectors/token_42.json";
-        p[5] = "test/test-vectors/token_1000.json";
+    function _tokenFile(uint256 tokenIndex) internal view returns (string memory) {
+        return string.concat(vectorSuite, "/token_", vm.toString(tokenIndex), ".json");
+    }
+
+    function _tokenPaths() internal view returns (string[6] memory p) {
+        p[0] = _tokenFile(0);
+        p[1] = _tokenFile(1);
+        p[2] = _tokenFile(255);
+        p[3] = _tokenFile(256);
+        p[4] = _tokenFile(42);
+        p[5] = _tokenFile(1000);
     }
 
     /// @dev Left-pad hex (no 0x) to 64 nibbles so uint256 limb parsing matches on-chain precompile inputs.
@@ -146,7 +153,7 @@ contract GhostVaultTest is Test {
     }
 
     function test_hashNullifierPointOnCurve() public view {
-        string memory j = vm.readFile(TOKEN_FIXTURE);
+        string memory j = vm.readFile(_tokenFile(42));
         address spend = j.readAddress(".SPEND_KEYPAIR.address");
         uint256[2] memory pt = vault.hashNullifierPoint(spend);
         uint256 x = pt[0];
@@ -155,7 +162,7 @@ contract GhostVaultTest is Test {
     }
 
     function test_deposit_twoBlindAddrsLockEth() public {
-        string memory j = vm.readFile(TOKEN_FIXTURE);
+        string memory j = vm.readFile(_tokenFile(42));
         uint256[2] memory b = _g1FromJson(j, ".B_BLINDED");
         address user = makeAddr("depositor");
         address blind1 = makeAddr("blindAddr1");
@@ -175,7 +182,7 @@ contract GhostVaultTest is Test {
     }
 
     function test_deposit_revertsWhenWrongValue() public {
-        string memory j = vm.readFile(TOKEN_FIXTURE);
+        string memory j = vm.readFile(_tokenFile(42));
         uint256[2] memory b = _g1FromJson(j, ".B_BLINDED");
         vm.deal(address(this), 1 ether);
         vm.expectRevert(GhostVault.InvalidValue.selector);
@@ -183,7 +190,7 @@ contract GhostVaultTest is Test {
     }
 
     function test_deposit_revertsZeroBlindAddr() public {
-        string memory j = vm.readFile(TOKEN_FIXTURE);
+        string memory j = vm.readFile(_tokenFile(42));
         uint256[2] memory b = _g1FromJson(j, ".B_BLINDED");
         vm.deal(address(this), 1 ether);
         uint256 den = vault.DENOMINATION();
@@ -192,7 +199,7 @@ contract GhostVaultTest is Test {
     }
 
     function test_deposit_revertsDuplicateBlindAddr() public {
-        string memory j = vm.readFile(TOKEN_FIXTURE);
+        string memory j = vm.readFile(_tokenFile(42));
         uint256[2] memory b = _g1FromJson(j, ".B_BLINDED");
         address blind = makeAddr("blindDup");
         address user = makeAddr("depositor");
@@ -206,7 +213,7 @@ contract GhostVaultTest is Test {
     }
 
     function test_announce_emitsMintFulfilled_afterDeposit() public {
-        string memory j = vm.readFile(TOKEN_FIXTURE);
+        string memory j = vm.readFile(_tokenFile(42));
         uint256[2] memory b = _g1FromJson(j, ".B_BLINDED");
         uint256[2] memory sPrime = _g1FromJson(j, ".S_PRIME");
 
@@ -227,7 +234,7 @@ contract GhostVaultTest is Test {
     }
 
     function test_announce_revertsNotMintAuthority() public {
-        string memory j = vm.readFile(TOKEN_FIXTURE);
+        string memory j = vm.readFile(_tokenFile(42));
         uint256[2] memory b = _g1FromJson(j, ".B_BLINDED");
 
         address blindId = j.readAddress(".BLIND_KEYPAIR.address");
@@ -242,14 +249,14 @@ contract GhostVaultTest is Test {
     }
 
     function test_announce_revertsDepositNotFound() public {
-        string memory j = vm.readFile(TOKEN_FIXTURE);
+        string memory j = vm.readFile(_tokenFile(42));
         vm.prank(mintAuthority);
         vm.expectRevert(GhostVault.DepositNotFound.selector);
         vault.announce(makeAddr("neverDeposited"), _g1FromJson(j, ".S_PRIME"));
     }
 
     function test_announce_revertsAlreadyFulfilled() public {
-        string memory j = vm.readFile(TOKEN_FIXTURE);
+        string memory j = vm.readFile(_tokenFile(42));
         uint256[2] memory b = _g1FromJson(j, ".B_BLINDED");
         uint256[2] memory sPrime = _g1FromJson(j, ".S_PRIME");
 
@@ -268,7 +275,7 @@ contract GhostVaultTest is Test {
     }
 
     function test_refund_succeedsAfterTimeout() public {
-        string memory j = vm.readFile(TOKEN_FIXTURE);
+        string memory j = vm.readFile(_tokenFile(42));
         uint256[2] memory b = _g1FromJson(j, ".B_BLINDED");
 
         address blindId = j.readAddress(".BLIND_KEYPAIR.address");
@@ -289,7 +296,7 @@ contract GhostVaultTest is Test {
     }
 
     function test_refund_revertsTooEarly() public {
-        string memory j = vm.readFile(TOKEN_FIXTURE);
+        string memory j = vm.readFile(_tokenFile(42));
         uint256[2] memory b = _g1FromJson(j, ".B_BLINDED");
         address blindId = j.readAddress(".BLIND_KEYPAIR.address");
         address user = makeAddr("depositor");
@@ -304,7 +311,7 @@ contract GhostVaultTest is Test {
     }
 
     function test_refund_revertsNotDepositor() public {
-        string memory j = vm.readFile(TOKEN_FIXTURE);
+        string memory j = vm.readFile(_tokenFile(42));
         uint256[2] memory b = _g1FromJson(j, ".B_BLINDED");
         address blindId = j.readAddress(".BLIND_KEYPAIR.address");
         address user = makeAddr("depositor");
@@ -320,7 +327,7 @@ contract GhostVaultTest is Test {
     }
 
     function test_refund_revertsAfterAnnounce() public {
-        string memory j = vm.readFile(TOKEN_FIXTURE);
+        string memory j = vm.readFile(_tokenFile(42));
         uint256[2] memory b = _g1FromJson(j, ".B_BLINDED");
         uint256[2] memory sPrime = _g1FromJson(j, ".S_PRIME");
         address blindId = j.readAddress(".BLIND_KEYPAIR.address");
@@ -341,7 +348,7 @@ contract GhostVaultTest is Test {
     }
 
     function test_redeem_succeedsAgainstVectors() public {
-        string memory j = vm.readFile(TOKEN_FIXTURE);
+        string memory j = vm.readFile(_tokenFile(42));
         address recipient = j.readAddress(".REDEEM_TX.recipient");
         bytes memory sig = _hexBytes(j, ".REDEEM_TX.spend_signature");
         uint256[2] memory sG1 = [j.readUint(".REDEEM_TX.S_x"), j.readUint(".REDEEM_TX.S_y")];
@@ -356,7 +363,7 @@ contract GhostVaultTest is Test {
     }
 
     function test_redeem_revertsDoubleSpend() public {
-        string memory j = vm.readFile(TOKEN_FIXTURE);
+        string memory j = vm.readFile(_tokenFile(42));
         address recipient = j.readAddress(".REDEEM_TX.recipient");
         bytes memory sig = _hexBytes(j, ".REDEEM_TX.spend_signature");
         uint256[2] memory sG1 = [j.readUint(".REDEEM_TX.S_x"), j.readUint(".REDEEM_TX.S_y")];
@@ -369,7 +376,7 @@ contract GhostVaultTest is Test {
     }
 
     function test_redeem_revertsInvalidECDSA() public {
-        string memory j = vm.readFile(TOKEN_FIXTURE);
+        string memory j = vm.readFile(_tokenFile(42));
         address recipient = j.readAddress(".REDEEM_TX.recipient");
         uint256[2] memory sG1 = [j.readUint(".REDEEM_TX.S_x"), j.readUint(".REDEEM_TX.S_y")];
         bytes memory badSig = new bytes(65);
@@ -383,7 +390,7 @@ contract GhostVaultTest is Test {
     }
 
     function test_redeem_revertsInvalidBLS() public {
-        string memory j = vm.readFile(TOKEN_FIXTURE);
+        string memory j = vm.readFile(_tokenFile(42));
         address recipient = j.readAddress(".REDEEM_TX.recipient");
         bytes memory sig = _hexBytes(j, ".REDEEM_TX.spend_signature");
         uint256[2] memory badS = [uint256(1), uint256(2)];

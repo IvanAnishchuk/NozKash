@@ -47,8 +47,9 @@ pragma solidity ^0.8.20;
  *     before Alice. Negligible on low-traffic testnet; for mainnet consider
  *     private mempool submission (e.g. Flashbots).
  *
- * Hash-to-G1 matches Python try-and-increment:
- *   keccak256(blsDomain || message || be32(counter)) on curve y^2 = x^3 + 3.
+ * Hash-to-G1 (PoC): try-and-increment on **nullifier address only** (20 bytes), matching
+ * `ghost_library.hash_to_curve(spend_address_bytes)` — no `blsDomain` prefix.
+ *   keccak256(nullifier_20 || be32(counter)) on curve y^2 = x^3 + 3.
  */
 contract GhostVault {
 
@@ -71,7 +72,7 @@ contract GhostVault {
     /// @dev BLS public key of the Mint on G2 (EIP-197 limb order).
     uint256[4] public pkMint;
 
-    /// @dev Domain separation tag for hash-to-curve.  Must match the Python mint.
+    /// @dev Reserved / unused in PoC hash-to-curve (H_G1 uses address only). Kept for ABI compatibility.
     bytes32 public immutable blsDomain;
 
     /// @dev Address authorised to call announce().  Set to Mint's funded account.
@@ -282,15 +283,15 @@ contract GhostVault {
 
     /**
      * @notice Map a nullifier address to a BN254 G1 point via hash-to-curve.
-     * @dev    blsDomain prepended for domain separation — must match the mint.
+     * @dev    PoC: preimage is the 20-byte address only (matches Python `ghost_library`).
      */
     function hashNullifierPoint(address nullifier) public view returns (uint256[2] memory) {
-        return hashToCurve(abi.encodePacked(blsDomain, nullifier));
+        return hashToCurve(abi.encodePacked(nullifier));
     }
 
     /**
      * @notice Try-and-increment hash-to-curve on BN254 (y^2 = x^3 + 3).
-     * @dev    Matches Python mint: keccak256(message || be32(counter)) mod P,
+     * @dev    Matches Python: keccak256(message || be32(counter)) mod P,
      *         Legendre symbol check, then Tonelli-Shanks sqrt via modexp.
      *         Reverts if no valid point found within MAX_H2C_ITERS
      *         (probability ~2^-65536 per call — effectively impossible).

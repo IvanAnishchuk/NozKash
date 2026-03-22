@@ -2,7 +2,10 @@
 src = "src"
 out = "out"
 libs = ["lib"]
-fs_permissions = [{ access = "read", path = "test" }]
+fs_permissions = [
+    { access = "read", path = "test" },
+    { access = "read", path = "scripts" },
+]
 
 # `forge test --fork-url sepolia`, `cast rpc --rpc sepolia`, etc. (optional; tests also accept `SEPOLIA_RPC_URL` in Solidity).
 [rpc_endpoints]

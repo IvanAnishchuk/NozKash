@@ -24,7 +24,19 @@ All values below use **Keccak-256** outputs as **32-byte big-endian** integers w
 
 Then off-chain: `Y = H_G1(spend_addr)`, `B = r · Y`, mint signs `B`, user unblinds to `S` for `GhostVault.redeem`.
 
-On-chain, `H_G1` hashes **`abi.encodePacked(blsDomain, spend_addr)`** (32-byte domain then 20-byte address; fixtures use `blsDomain = 0`). **`forge test`** checks `test/test-vectors/token_*.json`; re-run **`scripts/regenerate_test_vectors.py`** after changing those secrets or the mint key.
+On-chain (PoC), `H_G1` hashes **`abi.encodePacked(spend_addr)`** — **20-byte address only** (constructor `blsDomain` is unused for H₂C). **`forge test`** reads **`test/test-vectors/token_*.json`** by default (override with env **`GHOST_VECTOR_SUITE`**).
+
+Regenerate those fixtures with the backend stack (**`uv`** + **`scripts/pyproject.toml`** / **`scripts/requirements.txt`** — keep dependency versions in sync):
+
+```bash
+cd scripts && uv sync && uv run generate_vectors.py
+```
+
+(`--out` defaults to repo **`test/test-vectors`**; use **`--keypairs 1`** if you want a single mint key across the whole suite instead of the last of several overwrites.)
+
+One shot: **`bash scripts/forge_test_generated_vectors.sh`** (optional args are passed to **`generate_vectors.py`** only).
+
+**`ghost_library`** must use the same preimages: **`hash_to_curve(spend_address_bytes)`** (20 bytes) and **`keccak256(b"Pay to: " + recipient₂₀)`** for redemption signing.
 
 ---
 

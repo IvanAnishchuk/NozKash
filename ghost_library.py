@@ -281,12 +281,15 @@ def generate_redemption_proof(
     """
     Generates the anti-MEV ECDSA signature binding the token to a destination address.
 
+    The message hash MUST match the Solidity contract's redemptionMessageHash():
+        keccak256(abi.encodePacked("Pay to RAW: ", recipient))
+    which is the string "Pay to RAW: " (12 bytes) concatenated with the raw
+    20-byte address (NOT the hex string) = 32 bytes total.
+
     NOTE: recovery_bit is 0 or 1. The EVM ecrecover precompile expects v = recovery_bit + 27.
-    The Solidity contract must add 27 when constructing the signature bytes for ecrecover,
-    or use the (r, s, v) split form directly.
     """
-    payload_str = f"Pay to: {destination_address}"
-    msg_hash = keccak(payload_str.encode("utf-8"))
+    addr_bytes = bytes.fromhex(destination_address.replace("0x", ""))
+    msg_hash = keccak(b"Pay to RAW: " + addr_bytes)
     ecdsa_sig = spend_priv.sign_msg_hash(msg_hash)
 
     r_hex = hex(ecdsa_sig.r)[2:].zfill(64)

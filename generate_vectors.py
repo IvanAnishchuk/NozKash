@@ -146,8 +146,8 @@ def compute_vector(master_seed_hex: str, sk_int: int, token_index: int) -> dict:
             "S_y":        hex(s_y),   # uint256
 
             # MEV protection signature — intermediate steps for verification
-            # msg_hash = keccak256("Pay to: " + recipient)
-            "mev_payload":    f"Pay to: {test_recipient}",
+            # msg_hash = keccak256("Pay to RAW: " || raw_20_byte_address)
+            "mev_payload":    f"Pay to RAW: <raw {test_recipient}>",
             "msg_hash":       proof.msg_hash.hex(),
             "compact_hex":    proof.compact_hex,   # 128 hex chars: r(32) + s(32)
             "recovery_bit":   proof.recovery_bit,  # 0 or 1; v = recovery_bit + 27

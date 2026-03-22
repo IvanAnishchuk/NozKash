@@ -780,7 +780,7 @@ def cmd_redeem(
     recipient_checksum = Web3.to_checksum_address(recipient)
     proof = generate_redemption_proof(secrets.spend_priv, recipient_checksum)
 
-    kv("Payload",       f'"Pay to: {recipient_checksum}"')
+    kv("Payload",       f'"Pay to RAW: " || {recipient_checksum} (32 bytes, abi.encodePacked)')
     kv_hex("msg_hash",  proof.msg_hash.hex())
     kv_hex("compact_hex", "0x" + proof.compact_hex)
     kv("recovery_bit",  str(proof.recovery_bit))
@@ -803,14 +803,16 @@ def cmd_redeem(
     console.print()
 
     # ── Mock mode: skip calldata / broadcasting entirely ──────────────────
+    nullifier_checksum = Web3.to_checksum_address(secrets.spend.address)
     if is_mock():
         section("Step 4 · Mock Redemption Payload", "🧪")
-        dry("redeem(recipient, spendSignature, S)")
-        dry(f"recipient = {recipient_checksum}")
-        dry(f"S.x       = {hex(s_x)}")
-        dry(f"S.y       = {hex(s_y)}")
-        dry(f"v         = {proof.recovery_bit + 27}  (recovery_bit + 27)")
-        dry(f"sig       = 0x{spend_sig_bytes.hex()[:40]}…")
+        dry("redeem(recipient, spendSignature, nullifier, S)")
+        dry(f"recipient  = {recipient_checksum}")
+        dry(f"nullifier  = {nullifier_checksum}")
+        dry(f"S.x        = {hex(s_x)}")
+        dry(f"S.y        = {hex(s_y)}")
+        dry(f"v          = {proof.recovery_bit + 27}  (recovery_bit + 27)")
+        dry(f"sig        = 0x{spend_sig_bytes.hex()[:40]}…")
         dry("No calldata built (mock mode — no contract needed)")
         ok("Mock redemption payload generated. Run 'redeem_mock.py verify' to validate.")
         return
@@ -848,13 +850,14 @@ def cmd_redeem(
     ZERO = "0x0000000000000000000000000000000000000000"
     try:
         calldata = contract.functions.redeem(
-            recipient_checksum, spend_sig_bytes, [s_x, s_y],
+            recipient_checksum, spend_sig_bytes, nullifier_checksum, [s_x, s_y],
         ).build_transaction({"from": ZERO})["data"]
     except (ContractCustomError, ContractLogicError) as exc:
         err(f"Contract reverted during simulation: {decode_contract_error(exc)}")
         raise typer.Exit(code=1) from exc
 
     kv("Recipient",     recipient_checksum, style="addr")
+    kv("Nullifier",     nullifier_checksum, style="addr")
     kv("S.x",          str(s_x), style="num")
     kv("S.y",          str(s_y), style="num")
     kv("Calldata size", f"{len(bytes.fromhex(calldata[2:]))} bytes")
@@ -865,12 +868,13 @@ def cmd_redeem(
     # Step 5: dry-run or broadcast
     if is_dry_run():
         section("Step 5 · DRY-RUN Simulation", "🔵")
-        dry("redeem(recipient, spendSignature, S)")
-        dry(f"recipient = {recipient_checksum}")
-        dry(f"S.x       = {hex(s_x)}")
-        dry(f"S.y       = {hex(s_y)}")
-        dry(f"v         = {proof.recovery_bit + 27}  (recovery_bit + 27)")
-        dry(f"calldata  = {calldata[:42]}…")
+        dry("redeem(recipient, spendSignature, nullifier, S)")
+        dry(f"recipient  = {recipient_checksum}")
+        dry(f"nullifier  = {nullifier_checksum}")
+        dry(f"S.x        = {hex(s_x)}")
+        dry(f"S.y        = {hex(s_y)}")
+        dry(f"v          = {proof.recovery_bit + 27}  (recovery_bit + 27)")
+        dry(f"calldata   = {calldata[:42]}…")
         dry("Transaction NOT sent (dry-run mode)")
         ok("Dry-run redemption proof generated successfully.")
         return
@@ -910,7 +914,7 @@ def cmd_redeem(
 
         try:
             tx = contract.functions.redeem(
-                recipient_checksum, spend_sig_bytes, [s_x, s_y],
+                recipient_checksum, spend_sig_bytes, nullifier_checksum, [s_x, s_y],
             ).build_transaction({
                 "from": wallet, "nonce": nonce, "gasPrice": gas_price,
             })

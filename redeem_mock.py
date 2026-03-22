@@ -166,8 +166,9 @@ class MockRedeemer:
         from eth_utils import keccak
         from eth_keys import keys
 
-        payload = f"Pay to: {recipient}"
-        msg_hash = keccak(payload.encode("utf-8"))
+        # Match Solidity: keccak256(abi.encodePacked("Pay to RAW: ", recipient))
+        addr_bytes = bytes.fromhex(recipient.replace("0x", ""))
+        msg_hash = keccak(b"Pay to RAW: " + addr_bytes)
 
         r_bytes = spend_signature_bytes[:32]
         s_bytes = spend_signature_bytes[32:64]
@@ -402,7 +403,7 @@ def verify(
 
     if not is_quiet:
         console.print(Text.assemble(
-            ("  Payload        ", "label"), (f'"Pay to: {to}"', "value"),
+            ("  Payload        ", "label"), (f'"Pay to RAW: " || {to} (32 bytes)', "value"),
         ))
         console.print(Text.assemble(
             ("  msg_hash       ", "label"), (_short(proof.msg_hash.hex(), 18, 8), "hash"),

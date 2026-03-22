@@ -82,7 +82,7 @@ def test_redemption_proof_vector(v):
 
     proof = gl.generate_redemption_proof(secrets.spend_priv, redeem["recipient"])
 
-    # msg_hash is deterministic: keccak256("Pay to: " + recipient)
+    # msg_hash is deterministic: keccak256("Pay to RAW: " || raw_20_byte_address)
     assert proof.msg_hash.hex() == redeem["msg_hash"]
     # compact_hex is deterministic given the private key and msg_hash
     assert proof.compact_hex == redeem["compact_hex"]

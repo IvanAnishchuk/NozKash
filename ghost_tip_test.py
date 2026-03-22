@@ -149,6 +149,7 @@ def main() -> None:
         result = mock_redeemer.redeem(
             recipient=destination,
             spend_signature_bytes=sig_65,
+            nullifier=secrets.spend.address,
             unblinded_s_x=s_x,
             unblinded_s_y=s_y,
         )
@@ -166,6 +167,7 @@ def main() -> None:
         result2 = mock_redeemer.redeem(
             recipient=destination,
             spend_signature_bytes=sig_65,
+            nullifier=secrets.spend.address,
             unblinded_s_x=s_x,
             unblinded_s_y=s_y,
         )

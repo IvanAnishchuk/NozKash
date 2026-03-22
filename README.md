@@ -4,6 +4,8 @@
 
 Deployed on Avalanche Fuji testnet!
 
+[Simoneth Arianna Gomez](https://github.com/Simonethg), [Fabio Laura](https://github.com/raptor0929), [Ivan Anishchuk](https://github.com/IvanAnishchuk)
+
 **Privacy-preserving eCash for EVM chains — without zero-knowledge proofs.**
 
 nozkash uses BLS blind signatures over BN254 to deliver unlinkable token transfers at a fraction of the gas cost of zk-SNARK privacy protocols. Users deposit a fixed denomination, receive a cryptographically blind-signed token from a mint, and redeem it to any address — the mint never learns which deposit corresponds to which redemption.
@@ -374,3 +376,7 @@ npx tsx client.ts redeem --index 0 --to 0xRecipient
 ## License
 
 Dedicated to public goods under CC0.
+
+---
+
+(Buenos Aires, Sunday, March 22 / 9:00 AM Argentina Time)

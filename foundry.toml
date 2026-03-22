@@ -7,8 +7,10 @@ fs_permissions = [
     { access = "read", path = "scripts" },
 ]
 
-# `forge test --fork-url sepolia`, `cast rpc --rpc sepolia`, etc. (optional; tests also accept `SEPOLIA_RPC_URL` in Solidity).
+# `forge test --fork-url sepolia|avalanche-fuji`, `cast rpc --rpc avalanche-fuji`, etc.
 [rpc_endpoints]
 sepolia = "${SEPOLIA_RPC_URL}"
+# GhostVault.t.sol forks this in setUp (override URL in Solidity via FUJI_RPC_URL).
+avalanche-fuji = "https://api.avax-test.network/ext/bc/C/rpc"
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

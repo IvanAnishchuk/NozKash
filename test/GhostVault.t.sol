@@ -20,9 +20,8 @@ contract GhostVaultHarness is GhostVault {
     }
 }
 
-/// @dev Per-token JSON files in a suite directory. Default: `test/test-vectors/`.
-///      Point `GHOST_VECTOR_SUITE` at a `generate_vectors.py` output dir, e.g.
-///      `scripts/test_vectors/53972e74_e4cfa09d` (no trailing slash).
+/// @dev Forks **Avalanche Fuji** C-Chain in `setUp` (public RPC in `foundry.toml` alias `avalanche-fuji`;
+///      set `FUJI_RPC_URL` to override). Per-token JSON: default `test/test-vectors/`, or `GHOST_VECTOR_SUITE`.
 contract GhostVaultTest is Test {
     using stdJson for string;
 
@@ -37,6 +36,13 @@ contract GhostVaultTest is Test {
     event MintFulfilled(address indexed depositId, uint256[2] S_prime);
 
     function setUp() public {
+        string memory fujiUrl = vm.envOr("FUJI_RPC_URL", string(""));
+        if (bytes(fujiUrl).length > 0) {
+            vm.createSelectFork(fujiUrl);
+        } else {
+            vm.createSelectFork("avalanche-fuji");
+        }
+
         vectorSuite = vm.envOr("GHOST_VECTOR_SUITE", string("test/test-vectors"));
         mintAuthority = makeAddr("mintAuthority");
         string memory j = vm.readFile(_tokenFile(42));

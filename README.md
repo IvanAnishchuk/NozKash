@@ -69,17 +69,17 @@ $ forge build
 $ forge test
 ```
 
-`GhostVault.t.sol` **forks Sepolia** in `setUp` (precompile `0x08` matches testnet). Outbound RPC access is required.
+`GhostVault.t.sol` **forks Avalanche Fuji** C-Chain in `setUp` (alias `avalanche-fuji` in `foundry.toml`). Outbound RPC access is required.
 
 | Env | Purpose |
 |-----|---------|
-| `SEPOLIA_RPC_URL` | Optional. If unset, tests use `https://ethereum-sepolia-rpc.publicnode.com` (set your own URL for stable CI). |
-| `SEPOLIA_FORK_BLOCK` | Optional. Pin a block number for reproducible runs; omit or `0` for latest at fork time. |
+| `FUJI_RPC_URL` | Optional. If set, used as the fork URL instead of the public Fuji endpoint from `foundry.toml`. |
+| `GHOST_VECTOR_SUITE` | Optional. Directory of flat `token_*.json` files (default `test/test-vectors`). |
 
-CLI fork alias (when `SEPOLIA_RPC_URL` is set in the environment):
+CLI (same RPC as tests when using the alias):
 
 ```shell
-SEPOLIA_RPC_URL="https://..." forge test --fork-url sepolia
+forge test --fork-url avalanche-fuji
 ```
 
 ### Format

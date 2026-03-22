@@ -452,7 +452,7 @@ def load_config(verbosity: Verbosity) -> MintConfig:
         wallet_address=wallet_address,
         wallet_key=wallet_key if wallet_key.startswith("0x") else "0x" + wallet_key,
         poll_interval=float(os.getenv("POLL_INTERVAL_SECONDS", "2")),
-        log_level=VERBOSITY_TO_LOG_LEVEL[verbosity].__name__,
+        log_level=logging.getLevelName(VERBOSITY_TO_LOG_LEVEL[verbosity]),
     )
 
 

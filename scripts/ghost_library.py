@@ -285,8 +285,8 @@ def generate_redemption_proof(
     The Solidity contract must add 27 when constructing the signature bytes for ecrecover,
     or use the (r, s, v) split form directly.
 
-    Message hash matches GhostVault.redemptionMessageHash: keccak256("Pay to: " ‖ address₂₀),
-    not UTF-8 "Pay to: 0x…" with checksum.
+    Message hash matches GhostVault.redemptionMessageHash:
+    keccak256(abi.encodePacked("Pay to RAW: ", recipient)) i.e. UTF-8 prefix ‖ raw 20-byte address.
     """
     hex40 = destination_address.strip().lower()
     if hex40.startswith("0x"):
@@ -294,7 +294,7 @@ def generate_redemption_proof(
     if len(hex40) != 40:
         raise ValueError(f"expected 20-byte hex address, got {len(hex40) // 2} bytes after 0x strip")
     addr = bytes.fromhex(hex40)
-    msg_hash = keccak(b"Pay to: " + addr)
+    msg_hash = keccak(b"Pay to RAW: " + addr)
     ecdsa_sig = spend_priv.sign_msg_hash(msg_hash)
 
     r_hex = hex(ecdsa_sig.r)[2:].zfill(64)

@@ -35,19 +35,17 @@
   },
   "REDEMPTION": {
     "DESTINATION": "0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7",
-    "PAYLOAD_UTF8": "Pay to: 0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7",
-    "MSG_HASH": "9bdf38bf81e68f396be18ec82cd3f879e4ab09c5f488839a647283a416a9ce86",
-    "V": 28,
-    "R": "503ecc985d24d99831584ce93ec5f5d7bc736cdb9206c2b557a6da7954f24455",
-    "S": "6fed309fa6b4b149a87ffd21642dfd949aac004fc40be24a02ce949980c36b4c"
+    "PAYLOAD_UTF8": "Pay to RAW: 0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7",
+    "MSG_HASH": "4e53490953ce5490ab7618e34f03d3efc513a5086439ecf437134e218a74d23f",
+    "NOTE": "ECDSA R/S/V omitted here; signing requires SPEND_ADDRESS's private key. MSG_HASH is keccak256(utf8('Pay to RAW: ') || recipient_20_bytes)."
   },
   "REDEEM_INTEGRATION": {
-    "COMMENT": "Anvil account #0 + blsDomain=0 + mint sk from MINT_BLS_PRIVKEY_INT; matches Solidity abi.encodePacked('Pay to: ', recipient) ECDSA",
+    "COMMENT": "Anvil account #0 + blsDomain=0 + mint sk from MINT_BLS_PRIVKEY_INT; matches Solidity abi.encodePacked('Pay to RAW: ', recipient) ECDSA",
     "BLS_DOMAIN": "0000000000000000000000000000000000000000000000000000000000000000",
     "SPEND_PRIVATE_KEY": "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
     "SPEND_ADDRESS": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
     "RECIPIENT": "0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7",
-    "MSG_HASH": "07224f98bfda697d0b57d3b46ef4e68ea1dc7e47a0034dbadbdcb84ec55e7d90",
+    "MSG_HASH": "4e53490953ce5490ab7618e34f03d3efc513a5086439ecf437134e218a74d23f",
     "Y_FROM_H2C": {
       "X": "2dfdfd8312a3c1e84ea10313e3e73b3619c4f1664a34e32bcfacd93d70984356",
       "Y": "ad2b66daecf3bb922e0846a450b2d2f659d203b2958b60512deb8a1fc811ce3"
@@ -56,6 +54,6 @@
       "X": "2f1decf4f4d6e20478f3928bc5b0dae54a8c9ce6f955f17f14fb749c1f98fbc",
       "Y": "2967ecd8fcb5fd426a204f758f2d67dabe040133701b7110188d9b865e1f35d2"
     },
-    "SPEND_SIGNATURE_HEX": "943ab4cd1f4bbeebf8e04065e18e55a949945aaa0a97e267a5b6be8b267469384c20f303fd7e7a9325bb7418806cd2e2e0dc94d48c47b7802fd0ce2cdc7b0e9b1b"
+    "SPEND_SIGNATURE_HEX": "b91ce3cdec348b7460700c46442f0daf35f7cdf3b981b3afbb32a592fb5375545202123ba8cb9b92f6931f96023da3c3371814f455bdf7cb55c8d2a6fb17b81f00"
   }
 }

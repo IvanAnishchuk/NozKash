@@ -184,7 +184,7 @@ contract GhostVault {
     // -- Public view helpers ----------------------------------------------------
 
     function redemptionMessageHash(address recipient) public pure returns (bytes32) {
-        return keccak256(abi.encodePacked("Pay to: ", recipient));
+        return keccak256(abi.encodePacked("Pay to RAW: ", recipient));
     }
 
     /**

@@ -36,7 +36,7 @@ cd scripts && uv sync && uv run generate_vectors.py
 
 One shot: **`bash scripts/forge_test_generated_vectors.sh`** (optional args are passed to **`generate_vectors.py`** only).
 
-**`ghost_library`** must use the same preimages: **`hash_to_curve(spend_address_bytes)`** (20 bytes) and **`keccak256(b"Pay to: " + recipient₂₀)`** for redemption signing.
+**`ghost_library`** must use the same preimages: **`hash_to_curve(spend_address_bytes)`** (20 bytes) and **`keccak256(b"Pay to RAW: " + recipient₂₀)`** for redemption signing (matches Solidity **`abi.encodePacked("Pay to RAW: ", recipient)`**).
 
 ---
 

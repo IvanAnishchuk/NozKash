@@ -5,8 +5,13 @@ import { DepositConfirmModal } from './eghost/DepositConfirmModal'
 import { EgcNavbarLogo } from './eghost/EgcNavbarLogo'
 import { SplashScreen } from './eghost/SplashScreen'
 import { usePrivacy } from '../context/usePrivacy'
+import { loadRedemptionDraft } from '../crypto/ghostRedeem'
 import { useWallet, WALLET_BALANCE_POLL_MS } from '../hooks/useWallet'
 import { getEthereum, weiHexToNativeLabel } from '../lib/ethereum'
+import {
+  invalidateVaultActivityCache,
+  requestVaultActivityRefresh,
+} from '../lib/ghostVault'
 import type { LayoutOutletContext } from '../layoutOutletContext'
 
 const AVATAR_PALETTE = ['#3D0F18', '#1A1A3D', '#003D2A', '#4B0082'] as const
@@ -53,6 +58,8 @@ export function Layout() {
 
   const pillRef = useRef<HTMLDivElement | null>(null)
   const dropRef = useRef<HTMLDivElement | null>(null)
+  /** Tracks last connected account for redeem draft → origin refresh. */
+  const prevAccountForRedeemDraftRef = useRef<string | null>(null)
 
   const showToast = useCallback(
     (msg: string, type: 'success' | 'error' | 'info' = 'success') => {
@@ -133,6 +140,31 @@ export function Layout() {
     document.addEventListener('click', onDoc)
     return () => document.removeEventListener('click', onDoc)
   }, [dropdownOpen])
+
+  /**
+   * After redeem step 2 (executor wallet), switching back to the prepare/origin wallet
+   * should refresh vault activity + next-token index for that account’s seed. We always
+   * invalidate here so the origin view is not stuck on stale cache (incl. when WS live
+   * mode skips invalidate on generic refresh).
+   */
+  useEffect(() => {
+    const draft = loadRedemptionDraft()
+    const prep = draft?.prepareAccount?.toLowerCase()
+    const curr = account?.toLowerCase() ?? null
+    const prev = prevAccountForRedeemDraftRef.current
+
+    if (
+      prep &&
+      prev != null &&
+      prev !== prep &&
+      curr === prep
+    ) {
+      invalidateVaultActivityCache()
+      requestVaultActivityRefresh()
+    }
+
+    prevAccountForRedeemDraftRef.current = curr
+  }, [account])
 
   const eyeBorderStyle = privacyOn
     ? { borderColor: 'rgba(0,229,160,.3)' as const }

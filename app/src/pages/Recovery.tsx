@@ -23,7 +23,7 @@ export function Recovery() {
       const seed = effectiveMasterSeed
       if (!seed) {
         setScanError(
-          'Conectá la wallet y aceptá la firma del vault (válida mientras sigas conectado), o usá VITE_GHOST_MASTER_SEED_HEX (dev).'
+          'Connect your wallet and accept the vault signature (valid while connected), or set VITE_GHOST_MASTER_SEED_HEX (dev).'
         )
         return
       }
@@ -36,7 +36,7 @@ export function Recovery() {
       setScanRows(rows)
       setDone(true)
     } catch (e) {
-      setScanError(e instanceof Error ? e.message : 'Error al consultar la red')
+      setScanError(e instanceof Error ? e.message : 'Error querying the network')
     } finally {
       setScanning(false)
     }
@@ -60,20 +60,20 @@ export function Recovery() {
           RECOVERY
         </div>
         <div className="modal-sub-label" style={{ marginBottom: 0 }}>
-          Avalanche · Fuji · lectura GhostVault vía RPC
+          Avalanche · Fuji · GhostVault reads via RPC
         </div>
       </div>
 
       <div className="deposit-info">
         <div className="type-row">
-          <span className="type-label">Seed phrase (reservado)</span>
+          <span className="type-label">Seed phrase (reserved)</span>
         </div>
         <textarea
           className="srp-textarea"
           style={{ height: 120 }}
           value={phrase}
           onChange={(e) => setPhrase(e.target.value)}
-          placeholder="Integración futura: BIP39 → master seed…"
+          placeholder="Future integration: BIP39 → master seed…"
         />
       </div>
 
@@ -115,8 +115,8 @@ export function Recovery() {
         className="modal-sub-label"
         style={{ marginTop: 12, marginBottom: 0, fontSize: 11 }}
       >
-        El escaneo actual usa solo la semilla del entorno (misma que el home), no
-        la frase anterior.
+        The current scan uses only the environment seed (same as home), not the
+        phrase above.
       </p>
 
       <button
@@ -144,7 +144,7 @@ export function Recovery() {
       {done && scanRows.length === 0 && !scanError && (
         <div className="deposit-info" style={{ marginTop: 16 }}>
           <div style={{ fontSize: 13, color: 'var(--text2)' }}>
-            Sin actividad GhostVault para esta semilla en el rango escaneado.
+            No GhostVault activity for this seed in the scanned range.
           </div>
         </div>
       )}
@@ -166,7 +166,7 @@ export function Recovery() {
               marginBottom: 10,
             }}
           >
-            {scanRows.length} fila(s) on-chain
+            {scanRows.length} on-chain row(s)
           </div>
           <ul
             style={{

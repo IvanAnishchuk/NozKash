@@ -17,7 +17,7 @@ import {
   GHOST_VAULT_DEPOSIT_VALUE_WEI_HEX,
   GHOST_VAULT_RPC_POLL_MS,
   getNextVaultTokenIndexForDeposit,
-  invalidateVaultActivityCache,
+  requestVaultActivityRefresh,
 } from '../../lib/ghostVault'
 import {
   buildGhostVaultDepositCalldata,
@@ -67,14 +67,6 @@ function finalizeAmountForTx(s: string): string | null {
   if (!Number.isFinite(n) || n <= 0) return null
   if (!/^\d+(\.\d+)?$/.test(t)) return null
   return t
-}
-
-function usdApproxForAvax(amountStr: string): string {
-  const finalized = finalizeAmountForTx(amountStr)
-  if (!finalized) return '—'
-  const n = Number(finalized)
-  const usd = n * 2417
-  return `≈ $${usd.toFixed(2)} USD`
 }
 
 /** Exact 0.01 AVAX in wei; any other value is blocked for now. */
@@ -166,7 +158,7 @@ export function DepositConfirmModal({ open, onClose, onToast }: Props) {
     if (pending) return
     const ethereum = getEthereum()
     if (!ethereum) {
-      onToast('MetaMask is not installed', 'error')
+      onToast('No Ethereum wallet found', 'error')
       return
     }
 
@@ -182,7 +174,7 @@ export function DepositConfirmModal({ open, onClose, onToast }: Props) {
     }
 
     if (!account) {
-      onToast('Conectá la wallet en la app; el depósito usa esa misma cuenta', 'error')
+      onToast('Connect your wallet in the app; the deposit uses that same account', 'error')
       return
     }
 
@@ -199,15 +191,15 @@ export function DepositConfirmModal({ open, onClose, onToast }: Props) {
         return
       }
 
-      onToast('Confirmá el depósito en MetaMask', 'info')
+      onToast('Confirm the deposit in your wallet', 'info')
 
       let seed = effectiveMasterSeed
       if (!seed) {
-        onToast('Firmá el mensaje en MetaMask para derivar el vault…', 'info')
+        onToast('Sign the message in your wallet to derive the vault…', 'info')
         seed = await requestUnlockViaSign(from)
       }
       if (!seed) {
-        onToast('Hace falta firmar el mensaje para depositar', 'error')
+        onToast('You must sign the message to deposit', 'error')
         return
       }
 
@@ -312,11 +304,11 @@ export function DepositConfirmModal({ open, onClose, onToast }: Props) {
       try {
         await fujiRpcCall<string>('eth_call', [sendParams, 'latest'])
         console.log(
-          '[GhostVault deposit debug] eth_call (same as tx): ok — sin revert en este RPC'
+          '[GhostVault deposit debug] eth_call (same as tx): ok — no revert on this RPC'
         )
       } catch (simErr) {
         console.warn(
-          '[GhostVault deposit debug] eth_call (same as tx): revert / error (motivo útil si el nodo lo devuelve)',
+          '[GhostVault deposit debug] eth_call (same as tx): revert / error (useful detail if the node returns it)',
           simErr
         )
       }
@@ -326,12 +318,12 @@ export function DepositConfirmModal({ open, onClose, onToast }: Props) {
         params: [sendParams],
       })) as string
 
-      const receipt = await waitForTransactionReceipt(hash)
+      const receipt = await waitForTransactionReceipt(hash, { ethereum })
       if (receipt.status === '0x0') {
         onToast('Transaction failed or was reverted', 'error')
         return
       }
-      invalidateVaultActivityCache()
+      requestVaultActivityRefresh()
       requestWalletBalanceRefresh()
       onClose()
       onToast(
@@ -342,12 +334,12 @@ export function DepositConfirmModal({ open, onClose, onToast }: Props) {
       console.error('Deposit tx', err)
       const e = err as { code?: number; message?: string }
       if (e?.code === 4001) {
-        onToast('Transaction cancelled in MetaMask', 'error')
+        onToast('Transaction cancelled in your wallet', 'error')
         return
       }
       const msg = typeof e?.message === 'string' ? e.message : ''
       if (/user rejected|denied|rejected/i.test(msg)) {
-        onToast('Transaction cancelled in MetaMask', 'error')
+        onToast('Transaction cancelled in your wallet', 'error')
       } else {
         onToast('Could not send the transaction', 'error')
       }
@@ -463,10 +455,9 @@ export function DepositConfirmModal({ open, onClose, onToast }: Props) {
           className="modal-sub-label"
           style={{ marginBottom: 12, marginTop: 4 }}
         >
-          Cuenta que paga: {account ? addrPickLabel(account) : '—'}. La firma del vault se
-          pide al conectar y se mantiene en memoria mientras la wallet sigue conectada; acá solo
-          confirmás el depósito en
-          MetaMask.
+          Paying account: {account ? addrPickLabel(account) : '—'}. The vault signature is
+          requested on connect and kept in memory while the wallet stays connected; here you
+          only confirm the deposit in your wallet.
         </p>
 
         <div className="deposit-info" style={{ marginBottom: 18 }}>
@@ -480,12 +471,6 @@ export function DepositConfirmModal({ open, onClose, onToast }: Props) {
               }}
             >
               {amountLabel}
-            </span>
-          </div>
-          <div className="info-row">
-            <span className="info-key">≈ USD</span>
-            <span className="info-val" style={{ fontFamily: 'var(--mono)' }}>
-              {usdApproxForAvax(amountAvax)}
             </span>
           </div>
           <div className="info-row">

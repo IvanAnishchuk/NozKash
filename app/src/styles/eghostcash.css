@@ -6,7 +6,7 @@
   --text:#F0EEF8;--text2:#8A88A0;--text3:#4A4860;
   --border:#2A2838;--border2:#3A3850;
   --mono:'Space Mono',monospace;--sans:'DM Sans',sans-serif;
-  /* Filtros de actividad + botón Redeem (mismo acento azul) */
+  /* Activity filters + Redeem button (same blue accent) */
   --history-accent:#79B8FF;
   --history-accent-dim:rgba(56,139,253,.22);
   --history-accent-border:rgba(88,166,255,.42);
@@ -98,7 +98,7 @@
   overflow:visible;
   z-index:5;
 }
-/* Área fija (como antes con el icono HOME): fantasma pequeño centrado con aire y sombra visible */
+/* Fixed area (like before with HOME icon): small centered ghost with padding and visible shadow */
 .bottom-nav-ghost{
   display:flex;
   align-items:center;
@@ -114,7 +114,7 @@
   height:auto;
   overflow:visible;
 }
-/* Animaciones del fantasma (evitan <style> dentro del SVG y nombres globales genéricos) */
+/* Ghost animations (avoid <style> inside SVG and generic global names) */
 .bn-ghost-wrap{
   transform-origin:40px 48px;
   animation:bn-ghost-float 3s ease-in-out infinite;
@@ -187,7 +187,7 @@
 /* Home: activity header + type filter popover */
 .home-activity-block{margin-top:4px}
 .home-activity-title{margin-bottom:6px}
-/* Home: barra de fechas (píldora) + embudo */
+/* Home: date bar (pill) + funnel */
 .home-date-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:10px;min-width:0}
 .home-date-toolbar .date-range-pill--toolbar{flex:1;min-width:0}
 .home-filter-wrap{position:relative;flex-shrink:0}
@@ -217,7 +217,7 @@
 .activity-amount.deposit{color:var(--green)}
 .activity-amount.redeem{color:var(--red2)}
 .activity-amount.pending{color:var(--yellow)}
-/* Ancho del Redeem = al del monto (columna max-content + botón estirado) */
+/* Redeem column width matches amount (max-content column + stretched button) */
 .activity-right-col{
   display:grid;
   grid-template-columns:max-content;
@@ -269,7 +269,7 @@
   color:var(--text);
 }
 
-/* Rango de fechas — barra tipo píldora (FROM / TO + ×) */
+/* Date range — pill-style bar (FROM / TO + ×) */
 .date-range-pill{position:relative;min-width:0}
 .date-range-pill-track{
   display:flex;

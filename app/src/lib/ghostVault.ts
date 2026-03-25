@@ -9,31 +9,63 @@ import type { VaultTx } from '../types/activity'
 
 type FujiRpcFn = typeof fujiRpcCall
 
+/** `.env` values like `60_000` must not use `parseInt` alone — it parses as `60`. */
+function normalizeEnvIntString(raw: string | undefined): string {
+  if (raw == null) return ''
+  return String(raw).replace(/_/g, '').trim()
+}
+
 function parseEnvPositiveInt(
   raw: string | undefined,
   fallback: number
 ): number {
-  if (raw == null || String(raw).trim() === '') return fallback
-  const n = Number.parseInt(String(raw), 10)
+  const s = normalizeEnvIntString(raw)
+  if (s === '') return fallback
+  const n = Number.parseInt(s, 10)
   return Number.isFinite(n) && n > 0 ? n : fallback
 }
 
-/** Máx. llamadas JSON-RPC seguidas antes de pausar (`fetchVaultActivityForFirstTokens`). */
+function parseEnvPositiveIntMin(
+  raw: string | undefined,
+  fallback: number,
+  min: number
+): number {
+  return Math.max(min, parseEnvPositiveInt(raw, fallback))
+}
+
+const GHOST_VAULT_MAX_BATCHES_FALLBACK = 128
+/** Safety clamp so a typo in env does not schedule millions of RPC rounds. */
+const GHOST_VAULT_MAX_BATCHES_HARD_CAP = 10_000
+
+function parseGhostVaultMaxBatchesFromEnv(): number {
+  const n = parseEnvPositiveInt(
+    import.meta.env.VITE_GHOST_VAULT_MAX_BATCHES,
+    GHOST_VAULT_MAX_BATCHES_FALLBACK
+  )
+  return Math.min(GHOST_VAULT_MAX_BATCHES_HARD_CAP, Math.max(1, n))
+}
+
+/**
+ * Max consecutive JSON-RPC calls before pausing (`fetchVaultActivityForFirstTokens`).
+ * Public RPC defaults are conservative; raise with a dedicated endpoint.
+ */
 export const GHOST_VAULT_SCAN_RPC_BURST = parseEnvPositiveInt(
   import.meta.env.VITE_GHOST_VAULT_RPC_BURST,
-  12
+  5
 )
-/** Pausa tras agotar el burst (ms). */
+/** Pause after burst is exhausted (ms). */
 export const GHOST_VAULT_SCAN_RPC_PAUSE_MS = parseEnvPositiveInt(
   import.meta.env.VITE_GHOST_VAULT_RPC_PAUSE_MS,
-  5000
+  7500
 )
 
 function scanCacheTtlMs(): number {
   const raw = import.meta.env.VITE_GHOST_VAULT_SCAN_CACHE_MS
-  if (raw === undefined || String(raw).trim() === '') return 12_000
-  const n = Number.parseInt(String(raw), 10)
-  if (!Number.isFinite(n)) return 12_000
+  /** Default 60s so Dashboard polls (often 10s) hit cache instead of full log scans. */
+  const s = normalizeEnvIntString(raw)
+  if (s === '') return 60_000
+  const n = Number.parseInt(s, 10)
+  if (!Number.isFinite(n)) return 60_000
   return Math.max(0, n)
 }
 
@@ -47,21 +79,75 @@ function masterSeedCacheKey(seed: Uint8Array): string {
   return bytesToHex(keccak256(seed))
 }
 
+function getVaultActivityCacheKey(
+  masterSeed: Uint8Array,
+  vault: string,
+  fromBlock: string
+): string {
+  return `${vault}|${fromBlock}|${masterSeedCacheKey(masterSeed)}`
+}
+
+/**
+ * Largest token index with `DepositLocked` or `MintFulfilled` implied by activity rows
+ * (same notion as scanning batches for last-used).
+ */
+function lastUsedFromVaultActivityRows(rows: VaultTx[]): number {
+  let last = -1
+  for (const r of rows) {
+    if (r.tokenIndex === undefined || r.tokenIndex < 0) continue
+    if (r.type !== 'Deposit' && r.type !== 'Pending' && r.type !== 'Redeem')
+      continue
+    if (r.tokenIndex > last) last = r.tokenIndex
+  }
+  return last
+}
+
 type ScanCacheEntry = { at: number; rows: VaultTx[] }
 const vaultActivityCache = new Map<string, ScanCacheEntry>()
 let inflightActivityKey: string | null = null
 let inflightActivityPromise: Promise<VaultTx[]> | null = null
 
-/**
- * Invalida el caché de `fetchVaultActivityForFirstTokens` (p. ej. tras un depósito confirmado).
- */
-export function invalidateVaultActivityCache(): void {
-  vaultActivityCache.clear()
+/** Dev or `VITE_GHOST_VAULT_ACTIVITY_DEBUG=true` — enables {@link ghostVaultActivityDebug}. */
+export function isGhostVaultActivityDebug(): boolean {
+  return (
+    import.meta.env.DEV === true ||
+    import.meta.env.VITE_GHOST_VAULT_ACTIVITY_DEBUG === 'true'
+  )
+}
+
+export function ghostVaultActivityDebug(...args: unknown[]): void {
+  if (!isGhostVaultActivityDebug()) return
+  console.log('[GhostVault activity]', ...args)
 }
 
 /**
- * Cola serial: como máximo `burst` llamadas a `fujiRpcCall`; luego espera `pauseMs`.
- * Evita ráfagas que disparen rate limits del proveedor.
+ * Invalidates the `fetchVaultActivityForFirstTokens` cache (e.g. after a confirmed deposit).
+ */
+export function invalidateVaultActivityCache(): void {
+  ghostVaultActivityDebug('invalidateVaultActivityCache: cleared')
+  vaultActivityCache.clear()
+}
+
+/** Dispatched after deposit/redeem so UIs refetch activity without waiting for the poll interval. */
+export const GHOST_VAULT_ACTIVITY_REFRESH_EVENT = 'ghost:vault-activity-refresh'
+
+let vaultActivityRefreshDebounce: number | null = null
+
+/** Clears activity cache and notifies listeners (e.g. Dashboard) to refetch soon (debounced to avoid duplicate scans). */
+export function requestVaultActivityRefresh(): void {
+  invalidateVaultActivityCache()
+  if (vaultActivityRefreshDebounce != null) {
+    window.clearTimeout(vaultActivityRefreshDebounce)
+  }
+  vaultActivityRefreshDebounce = window.setTimeout(() => {
+    vaultActivityRefreshDebounce = null
+    window.dispatchEvent(new Event(GHOST_VAULT_ACTIVITY_REFRESH_EVENT))
+  }, 350)
+}
+
+/**
+ * Serial queue: at most `burst` calls to `fujiRpcCall`, then wait `pauseMs`.
+ * Avoids bursts that hit provider rate limits.
  */
 function createVaultScanRpcLimiter(burst: number, pauseMs: number): FujiRpcFn {
   let used = 0
@@ -91,8 +177,8 @@ export const GHOST_VAULT_ADDRESS =
   '0x0cd5b34e58c579105A3c080Bb3170d032a544352'
 
 /**
- * Bloque del despliegue del vault por defecto (`GHOST_VAULT_ADDRESS`): no tiene sentido
- * pedir `eth_getLogs` antes — solo RPC de más. Ajustar si cambiás de contrato.
+ * Default vault deployment block (`GHOST_VAULT_ADDRESS`): no point querying
+ * `eth_getLogs` earlier — extra RPC only. Update if you change contracts.
  */
 export const GHOST_VAULT_SCAN_FROM_BLOCK_HEX = '0x329896c' // 53053804
 
@@ -110,11 +196,30 @@ export const GHOST_VAULT_TOKEN_BATCH_SIZE = 5
  */
 export const GHOST_VAULT_MIN_NEW_DEPOSIT_TOKEN_INDEX = 2
 
-/** Default cap: `maxBatches * GHOST_VAULT_TOKEN_BATCH_SIZE` token indices scanned upward. */
-export const GHOST_VAULT_DEFAULT_MAX_BATCHES = 1
+/**
+ * Upper bound on batches for activity scan and {@link findLastUsedVaultTokenIndex} /
+ * {@link getNextVaultTokenIndexForDeposit} (each batch = {@link GHOST_VAULT_TOKEN_BATCH_SIZE} indices).
+ * Default 128 → token indices 0…639 max when every batch is non-empty.
+ * Override: `VITE_GHOST_VAULT_MAX_BATCHES` (clamped 1…10000).
+ */
+export const GHOST_VAULT_ACTIVITY_MAX_BATCHES = parseGhostVaultMaxBatchesFromEnv()
 
-/** Intervalo entre refrescos agregados al vault vía HTTP RPC (Dashboard, Redeem, gas en modal). */
-export const GHOST_VAULT_RPC_POLL_MS = 30_000
+/**
+ * Default batch cap for {@link findLastUsedVaultTokenIndex} / {@link getNextVaultTokenIndexForDeposit}.
+ * Must cover every batch that can hold on-chain activity, or `lastUsed` stops at index 4 (batch 0 only)
+ * and the next deposit can reuse an existing `depositId` → `DepositIdAlreadyUsed` on-chain.
+ */
+export const GHOST_VAULT_DEFAULT_MAX_BATCHES = GHOST_VAULT_ACTIVITY_MAX_BATCHES
+
+/**
+ * Interval between vault refreshes over HTTP RPC (Dashboard, Redeem, modal gas).
+ * Override with `VITE_GHOST_VAULT_RPC_POLL_MS` (min 2000 ms).
+ */
+export const GHOST_VAULT_RPC_POLL_MS = parseEnvPositiveIntMin(
+  import.meta.env.VITE_GHOST_VAULT_RPC_POLL_MS,
+  10_000,
+  2000
+)
 
 /** Highest token index we are willing to allocate without raising `maxBatches`. */
 export function ghostVaultMaxScannedTokenIndex(
@@ -159,9 +264,9 @@ export function depositIdToTopic(depositId: string): string {
 }
 
 /**
- * Derivación que usa el escáner para alinear con `DepositLocked` / `MintFulfilled`:
- * mismo `depositId` que en cadena (topic1) ⇔ `getDepositId(deriveTokenSecrets(seed, tokenIndex))`.
- * Útil para depurar “hay evento pero no aparece en la app”.
+ * Derivation the scanner uses to align with `DepositLocked` / `MintFulfilled`:
+ * same on-chain `depositId` (topic1) ⇔ `getDepositId(deriveTokenSecrets(seed, tokenIndex))`.
+ * Useful to debug “event exists but row missing in the app”.
  */
 export function vaultDerivedAddressesForIndices(
   masterSeed: Uint8Array,
@@ -186,7 +291,7 @@ type RpcLog = {
   blockNumber?: string
   transactionHash?: string
   topics?: string[]
-  /** Cuerpo ABI del evento (p. ej. `uint256[2]` en `MintFulfilled`). */
+  /** ABI event body (e.g. `uint256[2]` in `MintFulfilled`). */
   data?: string
 }
 
@@ -195,7 +300,7 @@ function parseHexBlock(n: string | undefined): number {
   return Number.parseInt(n, 16)
 }
 
-/** Filtro `eth_getLogs` (sin tocar `fromBlock` / `toBlock` en el caller parcial). */
+/** `eth_getLogs` filter partial (caller supplies `fromBlock` / `toBlock`). */
 type EthGetLogsPartialFilter = {
   address: string
   topics: (string | string[])[]
@@ -215,7 +320,7 @@ function looksLikeBlockRangeRpcError(err: unknown): boolean {
   return /too many blocks|block range|maximum is set/i.test(msg)
 }
 
-/** Avalanche: `eth_blockNumber` puede ir por delante del último bloque aceptado para `eth_getLogs`. */
+/** Avalanche: `eth_blockNumber` may be ahead of the last block accepted for `eth_getLogs`. */
 function parseLastAcceptedBlockFromRpcError(err: unknown): bigint | null {
   const msg = err instanceof Error ? err.message : String(err)
   const m = msg.match(/last accepted block (\d+)/i)
@@ -232,8 +337,8 @@ async function ethGetLogsOnce(
 }
 
 /**
- * Recorre [fromBlock … toBlock] en ventanas de a lo sumo `maxSpan` bloques (inclusive).
- * Necesario en el RPC público Fuji (~2048) y en planes free de otros proveedores (~10).
+ * Walks [fromBlock … toBlock] in windows of at most `maxSpan` blocks (inclusive).
+ * Needed on public Fuji RPC (~2048) and free tiers of other providers (~10).
  */
 async function ethGetLogsChunked(
   rpc: FujiRpcFn,
@@ -348,9 +453,9 @@ async function blockHexToDateIso(
 }
 
 /**
- * `eth_getLogs` para varios `depositId`: intenta un filtro con OR en `topics[1]`.
- * Varios RPC (p. ej. públicos) devuelven `[]` sin error si no soportan bien el OR;
- * en ese caso repetimos **una query por `depositId`** (misma cola serial `rpc`).
+ * `eth_getLogs` for several `depositId`s: tries an OR filter on `topics[1]`.
+ * Some RPCs (e.g. public) return `[]` without error if OR is flaky;
+ * then we fall back to **one query per `depositId`** (same serial `rpc` queue).
  */
 async function fetchLogsForDepositIds(
   vault: string,
@@ -366,7 +471,7 @@ async function fetchLogsForDepositIds(
   }
 
   async function fetchPerTopic1(): Promise<RpcLog[]> {
-    /** Secuencial para no disparar N `eth_getLogs` en paralelo contra el mismo RPC. */
+    /** Sequential to avoid N parallel `eth_getLogs` against the same RPC. */
     const out: RpcLog[] = []
     for (const t1 of topic1List) {
       const chunk = await ethGetLogsAutoChunk(
@@ -412,7 +517,7 @@ function latestLogByDepositId(logs: RpcLog[]): Map<string, RpcLog> {
 }
 
 /**
- * Lee `MintFulfilled` para un `depositId` y devuelve S′ (G1) como enteros del evento.
+ * Reads `MintFulfilled` for a `depositId` and returns S′ (G1) as integers from the event.
  */
 export async function fetchMintFulfilledSPrime(
   depositId: string,
@@ -457,38 +562,54 @@ async function spentNullifierIsSet(
   }
 }
 
-function batchAllHaveDepositLocked(
+/** True if any derived `depositId` in this batch has `DepositLocked` or `MintFulfilled` on-chain. */
+function batchHasAnyVaultActivity(
   depositIds: string[],
-  lockedById: Map<string, RpcLog>
+  lockedById: Map<string, RpcLog>,
+  fulfilledById: Map<string, RpcLog>
 ): boolean {
-  return depositIds.every((id) => lockedById.has(normalizeAddress(id)))
+  return depositIds.some((id) => {
+    const n = normalizeAddress(id)
+    return lockedById.has(n) || fulfilledById.has(n)
+  })
 }
 
 export type GhostVaultFetchOptions = {
   contractAddress?: string
-  /** Hex; por defecto {@link GHOST_VAULT_SCAN_FROM_BLOCK_HEX}. */
+  /** Hex; defaults to {@link GHOST_VAULT_SCAN_FROM_BLOCK_HEX}. */
   fromBlock?: string
   networkLabel?: string
-  /** Solo `findLastUsedVaultTokenIndex` / `getNextVaultTokenIndexForDeposit`. Ignorado en `fetchVaultActivityForFirstTokens`. */
+  /**
+   * `findLastUsedVaultTokenIndex` / `getNextVaultTokenIndexForDeposit`: default {@link GHOST_VAULT_DEFAULT_MAX_BATCHES}.
+   * `fetchVaultActivityForFirstTokens`: optional cap (clamped to {@link GHOST_VAULT_ACTIVITY_MAX_BATCHES}).
+   */
   maxBatches?: number
-  /** Si es true, no usa el caché de actividad (sigue deduplicando peticiones en vuelo). */
+  /** If true, skips activity cache (still dedupes identical in-flight requests). */
   skipCache?: boolean
+  /**
+   * Called after each scanned batch with merged sorted rows so far (faster first paint).
+   * Also invoked once on cache hit with the full cached list.
+   */
+  onProgress?: (rows: VaultTx[]) => void
 }
 
 /**
  * Scans token indices in windows of {@link GHOST_VAULT_TOKEN_BATCH_SIZE}:
- * deriva `depositId` con `deriveTokenSecrets(masterSeed, i)` (misma `masterSeed` que en la app:
- * firma `personal_sign` o `VITE_GHOST_MASTER_SEED_HEX`; **no** es la clave privada EVM cruda salvo en dev).
- * Cruza eventos **`DepositLocked`** (depósito), **`MintFulfilled`** (mint entregado; no existe `MintLocked` en el contrato),
- * y `spentNullifiers(nullifier)` donde `nullifier = spend.address`.
+ * derives `depositId` with `deriveTokenSecrets(masterSeed, i)` (same `masterSeed` as the app:
+ * `personal_sign` or `VITE_GHOST_MASTER_SEED_HEX`; **not** the raw EVM private key except in dev).
+ * Joins **`DepositLocked`** (deposit), **`MintFulfilled`** (mint delivered; there is no `MintLocked` on the contract),
+ * and `spentNullifiers(nullifier)` where `nullifier = spend.address`.
  *
- * - **Pending:** `DepositLocked` para ese `depositId` y aún no `MintFulfilled`.
- * - **Deposited (mint cumplido):** `DepositLocked` + `MintFulfilled`, y `spentNullifiers` falso.
- * - **Redeemed:** `spentNullifiers(spend.address)` verdadero (solo se consulta si hay `MintFulfilled`, para ahorrar RPC).
+ * - **Pending:** `DepositLocked` for that `depositId` but no `MintFulfilled` yet.
+ * - **Deposited (mint fulfilled):** `DepositLocked` + `MintFulfilled`, and `spentNullifiers` false.
+ * - **Redeemed:** `spentNullifiers(spend.address)` true (only queried if `MintFulfilled` exists, to save RPC).
  *
- * Continúa al siguiente lote de 5 solo si **todos** los índices del lote tienen `DepositLocked` (modelo secuencial).
+ * Scans batches of 5 indices until **two consecutive** batches have **no** `DepositLocked` or
+ * `MintFulfilled` (so a single empty batch still scans higher indices — avoids gaps at 0–4 hiding 5+).
  *
- * **RPC:** cola con burst/pausa; caché TTL + deduplicación de peticiones simultáneas idénticas.
+ * **RPC:** burst/pause queue; cache TTL + dedupe of identical concurrent requests.
+ *
+ * **`onProgress`:** after each batch with at least one row, receives merged sorted rows so far (faster UI).
  */
 export async function fetchVaultActivityForFirstTokens(
   masterSeed: Uint8Array,
@@ -498,20 +619,36 @@ export async function fetchVaultActivityForFirstTokens(
     options?.contractAddress ?? GHOST_VAULT_ADDRESS
   )
   const fromBlock = options?.fromBlock ?? GHOST_VAULT_SCAN_FROM_BLOCK_HEX
-  const cacheKey = `${vault}|${fromBlock}|${masterSeedCacheKey(masterSeed)}`
+  const cacheKey = getVaultActivityCacheKey(masterSeed, vault, fromBlock)
   const ttl = scanCacheTtlMs()
   const now = Date.now()
 
   if (!options?.skipCache && ttl > 0) {
     const hit = vaultActivityCache.get(cacheKey)
     if (hit && now - hit.at < ttl) {
+      ghostVaultActivityDebug('cache hit', {
+        ageMs: now - hit.at,
+        ttlMs: ttl,
+        rowCount: hit.rows.length,
+        tokenIndices: hit.rows.map((r) => r.tokenIndex),
+      })
+      options?.onProgress?.(hit.rows)
       return hit.rows
     }
   }
 
   if (inflightActivityKey === cacheKey && inflightActivityPromise) {
+    ghostVaultActivityDebug('awaiting inflight fetch (deduped)')
     return inflightActivityPromise
   }
+
+  ghostVaultActivityDebug('fetch start', {
+    skipCache: options?.skipCache ?? false,
+    ttlMs: ttl,
+    vault,
+    fromBlock,
+    cacheKeyPrefix: `${vault.slice(0, 10)}…|${fromBlock}`,
+  })
 
   inflightActivityKey = cacheKey
   inflightActivityPromise = fetchVaultActivityForFirstTokensImpl(
@@ -534,6 +671,48 @@ export async function fetchVaultActivityForFirstTokens(
   }
 }
 
+type VaultRowDraft = {
+  row: Omit<VaultTx, 'dateIso' | 'time'>
+  blockHex?: string
+}
+
+function sortVaultRowsCompare(a: VaultTx, b: VaultTx): number {
+  const ba = a.blockNumber ?? -1
+  const bb = b.blockNumber ?? -1
+  if (bb !== ba) return bb - ba
+  return b.id.localeCompare(a.id)
+}
+
+function mergeVaultRowsSorted(a: VaultTx[], b: VaultTx[]): VaultTx[] {
+  return [...a, ...b].sort(sortVaultRowsCompare)
+}
+
+async function finalizeDraftsToRows(
+  drafts: VaultRowDraft[],
+  rpc: FujiRpcFn
+): Promise<VaultTx[]> {
+  const blockDateCache = new Map<string, string>()
+  const dateIsos: string[] = []
+  for (const d of drafts) {
+    const hex = d.blockHex
+    if (!hex) {
+      dateIsos.push(new Date().toISOString().slice(0, 10))
+      continue
+    }
+    let iso = blockDateCache.get(hex)
+    if (!iso) {
+      iso = await blockHexToDateIso(hex, rpc)
+      blockDateCache.set(hex, iso)
+    }
+    dateIsos.push(iso)
+  }
+  return drafts.map((d, i) => ({
+    ...d.row,
+    dateIso: dateIsos[i]!,
+    time: dateIsos[i]!,
+  }))
+}
+
 async function fetchVaultActivityForFirstTokensImpl(
   masterSeed: Uint8Array,
   options: GhostVaultFetchOptions | undefined,
@@ -545,17 +724,27 @@ async function fetchVaultActivityForFirstTokensImpl(
     GHOST_VAULT_SCAN_RPC_BURST,
     GHOST_VAULT_SCAN_RPC_PAUSE_MS
   )
+  const maxBatches =
+    options?.maxBatches != null && options.maxBatches > 0
+      ? Math.min(options.maxBatches, GHOST_VAULT_ACTIVITY_MAX_BATCHES)
+      : GHOST_VAULT_ACTIVITY_MAX_BATCHES
 
-  type RowDraft = {
-    row: Omit<VaultTx, 'dateIso' | 'time'>
-    blockHex?: string
-  }
-  const drafts: RowDraft[] = []
+  ghostVaultActivityDebug('scan batches', {
+    burst: GHOST_VAULT_SCAN_RPC_BURST,
+    pauseMs: GHOST_VAULT_SCAN_RPC_PAUSE_MS,
+    batchSize: GHOST_VAULT_TOKEN_BATCH_SIZE,
+    maxBatches,
+    note: 'stop after 2 consecutive batches with no DepositLocked / MintFulfilled',
+  })
 
-  for (let b = 0; ; b++) {
+  let mergedRows: VaultTx[] = []
+  /** Stop only after 2 consecutive batches with no logs — one empty batch can be a gap (0–4 unused, 5+ used). */
+  let consecutiveEmptyBatches = 0
+
+  for (let b = 0; b < maxBatches; b++) {
     const indices = batchTokenIndices(b)
-    // Comparación con cadena: depositId derivado ⇔ topic1 del log (ver `latestLogByDepositId`).
-    // Depuración: `vaultDerivedAddressesForIndices(masterSeed, indices)`.
+    // On-chain match: derived depositId ⇔ log topic1 (see `latestLogByDepositId`).
+    // Debug: `vaultDerivedAddressesForIndices(masterSeed, indices)`.
     const secretsList = indices.map((tokenIndex) =>
       deriveTokenSecrets(masterSeed, tokenIndex)
     )
@@ -598,6 +787,21 @@ async function fetchVaultActivityForFirstTokensImpl(
       }
     }
 
+    const lockedFlags = indices.map((_, j) =>
+      lockedById.has(normalizeAddress(depositIds[j]!))
+    )
+    const fulfilledFlags = indices.map((_, j) =>
+      fulfilledById.has(normalizeAddress(depositIds[j]!))
+    )
+    ghostVaultActivityDebug(`batch ${b}`, {
+      tokenIndices: indices,
+      depositLocked: lockedFlags,
+      mintFulfilled: fulfilledFlags,
+      spentNullifier: spentFlags,
+    })
+
+    const batchDrafts: VaultRowDraft[] = []
+
     for (let j = 0; j < indices.length; j++) {
       const tokenIndex = indices[j]!
       const secrets = secretsList[j]!
@@ -613,7 +817,7 @@ async function fetchVaultActivityForFirstTokensImpl(
         const blockHex = refLog?.blockNumber
         const bn = parseHexBlock(blockHex)
         const txh = refLog?.transactionHash ?? '—'
-        drafts.push({
+        batchDrafts.push({
           blockHex,
           row: {
             id: `vault-redeemed-${tokenIndex}`,
@@ -634,7 +838,7 @@ async function fetchVaultActivityForFirstTokensImpl(
       if (fLog) {
         const bn = parseHexBlock(fLog.blockNumber)
         const txh = fLog.transactionHash ?? '—'
-        drafts.push({
+        batchDrafts.push({
           blockHex: fLog.blockNumber,
           row: {
             id: `vault-deposit-${tokenIndex}`,
@@ -655,7 +859,7 @@ async function fetchVaultActivityForFirstTokensImpl(
       if (lLog) {
         const bn = parseHexBlock(lLog.blockNumber)
         const txh = lLog.transactionHash ?? '—'
-        drafts.push({
+        batchDrafts.push({
           blockHex: lLog.blockNumber,
           row: {
             id: `vault-pending-${tokenIndex}`,
@@ -672,46 +876,58 @@ async function fetchVaultActivityForFirstTokensImpl(
       }
     }
 
-    if (!batchAllHaveDepositLocked(depositIds, lockedById)) break
+    if (batchDrafts.length > 0) {
+      const batchRows = await finalizeDraftsToRows(batchDrafts, rpc)
+      mergedRows = mergeVaultRowsSorted(mergedRows, batchRows)
+      options?.onProgress?.(mergedRows)
+    }
+
+    const batchAny = batchHasAnyVaultActivity(
+      depositIds,
+      lockedById,
+      fulfilledById
+    )
+    if (batchAny) {
+      consecutiveEmptyBatches = 0
+    } else {
+      consecutiveEmptyBatches += 1
+      if (consecutiveEmptyBatches >= 2) {
+        ghostVaultActivityDebug(
+          'scan stop: two consecutive batches with no DepositLocked / MintFulfilled',
+          { batchIndex: b, tokenIndices: indices }
+        )
+        break
+      }
+    }
+
+    if (b === maxBatches - 1) {
+      ghostVaultActivityDebug('scan stop: reached maxBatches cap', {
+        maxBatches,
+        lastBatchTokenIndices: indices,
+      })
+    }
   }
 
-  const blockDateCache = new Map<string, string>()
-  const dateIsos: string[] = []
-  for (const d of drafts) {
-    const hex = d.blockHex
-    if (!hex) {
-      dateIsos.push(new Date().toISOString().slice(0, 10))
-      continue
-    }
-    let iso = blockDateCache.get(hex)
-    if (!iso) {
-      iso = await blockHexToDateIso(hex, rpc)
-      blockDateCache.set(hex, iso)
-    }
-    dateIsos.push(iso)
-  }
-
-  const rows: VaultTx[] = drafts.map((d, i) => ({
-    ...d.row,
-    dateIso: dateIsos[i]!,
-    time: dateIsos[i]!,
-  }))
-
-  rows.sort((a, b) => {
-    const ba = a.blockNumber ?? -1
-    const bb = b.blockNumber ?? -1
-    if (bb !== ba) return bb - ba
-    return b.id.localeCompare(a.id)
+  ghostVaultActivityDebug('scan done', {
+    rowCount: mergedRows.length,
+    rows: mergedRows.map((r) => ({
+      tokenIndex: r.tokenIndex,
+      type: r.type,
+      historyLabel: r.historyLabel,
+    })),
   })
 
-  return rows
+  return mergedRows
 }
 
 /**
  * Largest token index that already has `DepositLocked` or `MintFulfilled` for its
- * derived `depositId`. Returns `-1` if none. Scans in batches of
- * {@link GHOST_VAULT_TOKEN_BATCH_SIZE}; stops at the first batch with **no** such
- * activity (monotonic frontier, privacy-pool style).
+ * derived `depositId`. Returns `-1` if none.
+ *
+ * **RPC:** Reuses the same in-memory cache and in-flight request as
+ * {@link fetchVaultActivityForFirstTokens} (no duplicate `eth_getLogs` sweep when
+ * Dashboard already scanned). On cache miss, delegates to that scan (one burst-limited
+ * pass with the same stop rule as before).
  */
 export async function findLastUsedVaultTokenIndex(
   masterSeed: Uint8Array,
@@ -724,38 +940,35 @@ export async function findLastUsedVaultTokenIndex(
     options?.contractAddress ?? GHOST_VAULT_ADDRESS
   )
   const fromBlock = options?.fromBlock ?? GHOST_VAULT_SCAN_FROM_BLOCK_HEX
-  const maxBatches =
-    options?.maxBatches ?? GHOST_VAULT_DEFAULT_MAX_BATCHES
+  const cacheKey = getVaultActivityCacheKey(masterSeed, vault, fromBlock)
+  const ttl = scanCacheTtlMs()
+  const now = Date.now()
 
-  let lastUsed = -1
-
-  for (let b = 0; b < maxBatches; b++) {
-    const indices = batchTokenIndices(b)
-    const depositIds = indices.map((tokenIndex) =>
-      getDepositId(deriveTokenSecrets(masterSeed, tokenIndex))
-    )
-
-    const [lockedRaw, fulfilledRaw] = await Promise.all([
-      fetchLogsForDepositIds(vault, DEPOSIT_LOCKED_TOPIC, depositIds, fromBlock),
-      fetchLogsForDepositIds(vault, MINT_FULFILLED_TOPIC, depositIds, fromBlock),
-    ])
-    const lockedById = latestLogByDepositId(lockedRaw)
-    const fulfilledById = latestLogByDepositId(fulfilledRaw)
-
-    let batchAny = false
-    for (let j = 0; j < indices.length; j++) {
-      const id = normalizeAddress(depositIds[j]!)
-      if (lockedById.has(id) || fulfilledById.has(id)) {
-        batchAny = true
-        const idx = indices[j]!
-        if (idx > lastUsed) lastUsed = idx
-      }
+  if (ttl > 0) {
+    const hit = vaultActivityCache.get(cacheKey)
+    if (hit && now - hit.at < ttl) {
+      const lastUsed = lastUsedFromVaultActivityRows(hit.rows)
+      ghostVaultActivityDebug('findLastUsedVaultTokenIndex: cache hit', {
+        lastUsed,
+      })
+      return lastUsed
     }
-
-    if (!batchAny) break
   }
 
-  return lastUsed
+  if (inflightActivityKey === cacheKey && inflightActivityPromise) {
+    ghostVaultActivityDebug(
+      'findLastUsedVaultTokenIndex: awaiting inflight activity fetch'
+    )
+    const rows = await inflightActivityPromise
+    return lastUsedFromVaultActivityRows(rows)
+  }
+
+  const rows = await fetchVaultActivityForFirstTokens(masterSeed, {
+    contractAddress: options?.contractAddress,
+    fromBlock: options?.fromBlock,
+    maxBatches: options?.maxBatches,
+  })
+  return lastUsedFromVaultActivityRows(rows)
 }
 
 /**
@@ -797,12 +1010,12 @@ export async function fetchPendingDepositsFromEvents(
   return all.filter((x) => x.type === 'Pending')
 }
 
-/** Disparar tras firmar / borrar semilla derivada (refresco actividad, gas, etc.). */
+/** Fire after signing / clearing derived seed (refresh activity, gas, etc.). */
 export const GHOST_MASTER_SEED_CHANGED_EVENT = 'ghost:master-seed-changed'
 
 /**
- * Solo `VITE_GHOST_MASTER_SEED_HEX` (opcional, p. ej. CI / dev sin MetaMask).
- * En la app normal el `masterSeed` sale de `personal_sign` vía `GhostMasterSeedProvider`.
+ * Only `VITE_GHOST_MASTER_SEED_HEX` (optional, e.g. CI / dev without a wallet).
+ * In normal use `masterSeed` comes from `personal_sign` via `GhostMasterSeedProvider`.
  */
 export function getGhostMasterSeedFromEnv(): Uint8Array | null {
   const raw = import.meta.env.VITE_GHOST_MASTER_SEED_HEX as string | undefined

@@ -411,7 +411,7 @@ This means a user can recover their vault tokens on any device by connecting the
 
 ### On-chain interaction
 
-All RPC calls go through `fujiJsonRpc.ts` which routes to a Vite dev proxy (`/fuji-rpc` → Infura Fuji) during development, avoiding CORS issues. In production builds it calls the RPC URL directly (configurable via `VITE_FUJI_RPC_URL`).
+All RPC calls go through `fujiJsonRpc.ts`, which uses `VITE_FUJI_RPC_URL` when set, otherwise the bundled Infura Fuji HTTPS URL (same in dev and production). If the browser hits CORS errors locally, configure the provider to allow your origin or point `VITE_FUJI_RPC_URL` at an endpoint that does.
 
 The deposit transaction is the only write operation — it uses MetaMask's `eth_sendTransaction` with pre-built calldata (same ABI encoding as the Python/TypeScript CLI clients). The app polls `eth_getTransactionReceipt` via HTTP RPC (not MetaMask) with a 30-second interval to avoid rate limits.
 

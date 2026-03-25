@@ -22,6 +22,8 @@ import {
 } from '../lib/historyQuery'
 import {
   fetchVaultActivityForFirstTokens,
+  ghostVaultActivityDebug,
+  GHOST_VAULT_ACTIVITY_REFRESH_EVENT,
   GHOST_VAULT_RPC_POLL_MS,
 } from '../lib/ghostVault'
 import { sendVaultRedeemTransaction } from '../lib/sendVaultRedeem'
@@ -30,7 +32,7 @@ import { mergeVaultRowsWithRedeemDraft } from '../lib/vaultRedeemMerge'
 import type { LayoutOutletContext } from '../layoutOutletContext'
 import type { ActivityKind, HistoryFilterType, VaultTx } from '../types/activity'
 
-/** Coincide con `GHOST_VAULT_DEPOSIT_AMOUNT_LABEL` (0.01 AVAX por depósito). */
+/** Matches `GHOST_VAULT_DEPOSIT_AMOUNT_LABEL` (0.01 AVAX per deposit). */
 const VAULT_DENOMINATION_AVAX = 0.01
 
 function kindToClass(k: ActivityKind) {
@@ -98,8 +100,7 @@ export function Dashboard() {
     network,
     account,
     homeBalanceMain,
-    homeBalanceUsd,
-    openMetaMaskAccountPicker,
+    openWalletAccountPicker,
   } = useWallet()
   const { openDepositModal, showToast } =
     useOutletContext<LayoutOutletContext>()
@@ -120,6 +121,8 @@ export function Dashboard() {
   const [filterOpen, setFilterOpen] = useState(false)
   const filterWrapRef = useRef<HTMLDivElement>(null)
   const [vaultChainRows, setVaultChainRows] = useState<VaultTx[]>([])
+  /** First fetch after mount / seed change streams rows per batch; later polls update once at the end. */
+  const vaultActivityIncrementalRef = useRef(true)
 
   const seedRef = useRef(effectiveMasterSeed)
   const networkRef = useRef(network)
@@ -152,6 +155,7 @@ export function Dashboard() {
     }
 
     setVaultChainRows([])
+    vaultActivityIncrementalRef.current = true
 
     async function loadVault() {
       if (cancelled) return
@@ -162,10 +166,25 @@ export function Dashboard() {
         return
       }
       try {
+        const useIncremental = vaultActivityIncrementalRef.current
+        ghostVaultActivityDebug('Dashboard poll → fetchVaultActivityForFirstTokens')
         const rows = await fetchVaultActivityForFirstTokens(seed, {
           networkLabel: net,
+          onProgress:
+            useIncremental && !cancelled
+              ? (r) => {
+                  if (!cancelled) setVaultChainRows(r)
+                }
+              : undefined,
         })
-        if (!cancelled) setVaultChainRows(rows)
+        ghostVaultActivityDebug('Dashboard poll ← rows', {
+          count: rows.length,
+          tokenIndices: rows.map((r) => r.tokenIndex),
+        })
+        if (!cancelled) {
+          setVaultChainRows(rows)
+          vaultActivityIncrementalRef.current = false
+        }
       } catch (e) {
         console.error('GhostVault activity fetch', e)
         if (!cancelled) setVaultChainRows([])
@@ -178,9 +197,15 @@ export function Dashboard() {
       void loadVault()
     }, GHOST_VAULT_RPC_POLL_MS)
 
+    const onVaultActivityRefresh = () => {
+      void loadVault()
+    }
+    window.addEventListener(GHOST_VAULT_ACTIVITY_REFRESH_EVENT, onVaultActivityRefresh)
+
     return () => {
       cancelled = true
       window.clearInterval(intervalId)
+      window.removeEventListener(GHOST_VAULT_ACTIVITY_REFRESH_EVENT, onVaultActivityRefresh)
     }
   }, [network, seedRevision, account, !!effectiveMasterSeed])
 
@@ -194,7 +219,7 @@ export function Dashboard() {
     return () => document.removeEventListener('mousedown', onDown)
   }, [filterOpen])
 
-  /** Incluye fila sintética si hay borrador de redeem y la cuenta activa es la de ejecución (≠ prepareAccount). */
+  /** Includes a synthetic row if there is a redeem draft and the active account is the executor (≠ prepareAccount). */
   const displayRows = useMemo(
     () =>
       mergeVaultRowsWithRedeemDraft(vaultChainRows, redemptionDraft, account),
@@ -240,7 +265,7 @@ export function Dashboard() {
       return
     }
     if (!account) {
-      showToast('Connect MetaMask first.', 'error')
+      showToast('Connect your wallet first.', 'error')
       return
     }
     if (network !== 'Fuji') {
@@ -274,7 +299,7 @@ export function Dashboard() {
 
     const ethereum = getEthereum()
     if (!ethereum) {
-      showToast('MetaMask is not installed', 'error')
+      showToast('No Ethereum wallet found', 'error')
       return
     }
 
@@ -294,19 +319,20 @@ export function Dashboard() {
         const rows = await fetchVaultActivityForFirstTokens(seed, {
           networkLabel: network,
           skipCache: true,
+          onProgress: (r) => setVaultChainRows(r),
         })
         setVaultChainRows(rows)
       }
     } catch (err: unknown) {
       const e = err as { code?: number; message?: string }
       if (e?.code === 4001) {
-        showToast('Transaction cancelled in MetaMask', 'error')
+        showToast('Transaction cancelled in your wallet', 'error')
         return
       }
       const msg =
         typeof e?.message === 'string' ? e.message : 'Could not complete redeem'
       if (/user rejected|denied/i.test(msg)) {
-        showToast('Transaction cancelled in MetaMask', 'error')
+        showToast('Transaction cancelled in your wallet', 'error')
       } else {
         showToast(msg, 'error')
       }
@@ -316,7 +342,6 @@ export function Dashboard() {
   }
 
   const balStr = homeBalanceMain ?? '—'
-  const usdStr = homeBalanceUsd ?? '—'
 
   return (
     <div className="page-inner page-inner--home">
@@ -333,14 +358,11 @@ export function Dashboard() {
             <div className="balance-amount">
               {privacyOn ? '••••' : balStr}
             </div>
-            <div className="balance-usd">
-              {privacyOn ? '••••' : usdStr}
-            </div>
           </div>
           <div className="balance-stats-col">
             <div className="stat-block">
               <div className="stat-block-row">
-                <span className="stat-block-label valid">VALID</span>
+                <span className="stat-block-label valid">AVAILABLE</span>
                 <span className="stat-block-num valid">
                   {privacyOn ? '••' : homeStats.validCount}
                 </span>
@@ -567,7 +589,7 @@ export function Dashboard() {
               className="modal-sub-label"
               style={{ marginBottom: 16, lineHeight: 1.45 }}
             >
-              In MetaMask, switch to the account that will{' '}
+              In your wallet, switch to the account that will{' '}
               <strong>pay gas</strong> and <strong>receive</strong> the 0.01 AVAX
               (e.g. Account 2). When you come back to this page,{' '}
               <strong>Redeem here</strong> will appear on the mint row — tap it
@@ -580,14 +602,14 @@ export function Dashboard() {
               disabled={changeWalletPickerPending || network !== 'Fuji'}
               onClick={() => {
                 setChangeWalletPickerPending(true)
-                void openMetaMaskAccountPicker().finally(() =>
+                void openWalletAccountPicker().finally(() =>
                   setChangeWalletPickerPending(false)
                 )
               }}
             >
               {changeWalletPickerPending
-                ? 'MetaMask…'
-                : 'Choose account in MetaMask'}
+                ? 'Wallet…'
+                : 'Choose account in your wallet'}
             </button>
             <button
               type="button"

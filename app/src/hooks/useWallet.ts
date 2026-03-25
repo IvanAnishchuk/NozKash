@@ -8,7 +8,7 @@ import {
 } from '../lib/ethereum'
 
 /** Interval for `eth_getBalance` while a wallet account is selected (keeps AVAX in sync after txs). */
-export const WALLET_BALANCE_POLL_MS = 12_000
+export const WALLET_BALANCE_POLL_MS = 6_000
 
 /** Dispatched after deposit/redeem so every `useWallet()` instance refetches (hooks are not shared). */
 export const WALLET_BALANCE_REFRESH_EVENT = 'ghost:wallet-balance-refresh'
@@ -54,7 +54,7 @@ function parseAccounts(accs: unknown): string[] {
 export function useWallet() {
   const [accounts, setAccounts] = useState<string[]>([])
   const [account, setAccount] = useState<string | null>(null)
-  /** Hex con prefijo 0x, minúsculas; null hasta primer lectura del proveedor. */
+  /** Hex with 0x prefix, lowercase; null until first provider read. */
   const [chainIdHex, setChainIdHex] = useState<string | null>(null)
   const [network, setNetwork] = useState<NetworkLabel>('Wrong Network')
   const [balanceWeiHex, setBalanceWeiHex] = useState<string | null>(null)
@@ -163,7 +163,7 @@ export function useWallet() {
 
         const list = parseAccounts(accs)
         setAccounts(list)
-        /** MetaMask devuelve la cuenta seleccionada en primer lugar; no conservar `prev` si sigue en la lista (provoca balance desincronizado al cambiar de cuenta en la extensión). */
+        /** The wallet returns the selected account first; always use list[0] (keeping stale `prev` desyncs balance when switching accounts in the extension). */
         setAccount(list.length > 0 ? list[0] : null)
         const normalized = normalizeChainId(chainId)
         setChainIdHex(normalized)
@@ -202,7 +202,7 @@ export function useWallet() {
   const connectWallet = useCallback(async () => {
     const ethereum = getEthereumProvider()
     if (!ethereum) {
-      window.alert('MetaMask is not installed.')
+      window.alert('No Ethereum wallet found. Install a browser wallet extension.')
       return
     }
 
@@ -241,7 +241,7 @@ export function useWallet() {
           params: [{ eth_accounts: {} }],
         })
       } catch {
-        /* Older MetaMask or other provider: still clear the UI */
+        /* Older wallets or other providers: still clear the UI */
       }
     }
     setAccounts([])
@@ -250,19 +250,19 @@ export function useWallet() {
 
   /**
    * Same flow as Add deposit / Redeem: Fuji → `wallet_requestPermissions` (pick
-   * accounts in MetaMask) → `eth_requestAccounts` → active account from `eth_accounts`.
+   * accounts in the wallet) → `eth_requestAccounts` → active account from `eth_accounts`.
    */
-  const openMetaMaskAccountPicker = useCallback(async (): Promise<boolean> => {
+  const openWalletAccountPicker = useCallback(async (): Promise<boolean> => {
     const ethereum = getEthereum()
     if (!ethereum) {
-      window.alert('MetaMask is not installed.')
+      window.alert('No Ethereum wallet found. Install a browser wallet extension.')
       return false
     }
     try {
       const okChain = await ensureFuji(ethereum)
       if (!okChain) {
         window.alert(
-          'Switch to Avalanche Fuji (43113) in MetaMask to change account.'
+          'Switch to Avalanche Fuji (43113) in your wallet to change account.'
         )
         return false
       }
@@ -301,7 +301,7 @@ export function useWallet() {
       await refreshNetwork()
       return true
     } catch (err) {
-      console.error('openMetaMaskAccountPicker failed', err)
+      console.error('openWalletAccountPicker failed', err)
       return false
     }
   }, [refreshNetwork])
@@ -309,7 +309,7 @@ export function useWallet() {
   return {
     connectWallet,
     disconnectWallet,
-    openMetaMaskAccountPicker,
+    openWalletAccountPicker,
     accounts,
     account,
     chainIdHex,

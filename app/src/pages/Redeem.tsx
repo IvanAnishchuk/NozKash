@@ -14,6 +14,7 @@ import {
 import { ensureFuji, getEthereum } from '../lib/ethereum'
 import {
   fetchVaultActivityForFirstTokens,
+  GHOST_VAULT_ACTIVITY_REFRESH_EVENT,
   GHOST_VAULT_DEPOSIT_AMOUNT_LABEL,
   GHOST_VAULT_RPC_POLL_MS,
 } from '../lib/ghostVault'
@@ -35,7 +36,7 @@ type RedeemableRow = {
 }
 
 export function Redeem() {
-  const { network, accounts, account, openMetaMaskAccountPicker } =
+  const { network, accounts, account, openWalletAccountPicker } =
     useWallet()
   const { effectiveMasterSeed, seedRevision } = useGhostMasterSeed()
   const { showToast } = useOutletContext<LayoutOutletContext>()
@@ -68,7 +69,7 @@ export function Redeem() {
     if (!effectiveMasterSeed) {
       setTokens([])
       setLoadError(
-        'Conectá la wallet y aceptá la firma del vault (válida mientras sigas conectado), o definí VITE_GHOST_MASTER_SEED_HEX (dev).'
+        'Connect your wallet and accept the vault signature (valid while connected), or set VITE_GHOST_MASTER_SEED_HEX (dev).'
       )
       setLoading(false)
       return
@@ -78,8 +79,6 @@ export function Redeem() {
     setTokens([])
     setLoadError(null)
     setLoading(true)
-
-    let firstTick = true
 
     async function load(isInitial: boolean) {
       const seed = seedRef.current
@@ -110,7 +109,7 @@ export function Redeem() {
       } catch (e) {
         if (!cancelled && isInitial) {
           setLoadError(
-            e instanceof Error ? e.message : 'No se pudo cargar el vault'
+            e instanceof Error ? e.message : 'Could not load vault activity'
           )
           setTokens([])
         }
@@ -119,14 +118,21 @@ export function Redeem() {
       }
     }
 
+    void load(true)
+
     const intervalId = window.setInterval(() => {
-      void load(firstTick)
-      firstTick = false
+      void load(false)
     }, GHOST_VAULT_RPC_POLL_MS)
+
+    const onVaultActivityRefresh = () => {
+      void load(false)
+    }
+    window.addEventListener(GHOST_VAULT_ACTIVITY_REFRESH_EVENT, onVaultActivityRefresh)
 
     return () => {
       cancelled = true
       window.clearInterval(intervalId)
+      window.removeEventListener(GHOST_VAULT_ACTIVITY_REFRESH_EVENT, onVaultActivityRefresh)
     }
   }, [network, seedRevision, account, !!effectiveMasterSeed])
 
@@ -144,12 +150,12 @@ export function Redeem() {
   const handlePrepareRedeem = () => {
     const seed = effectiveMasterSeed
     if (!seed) {
-      showToast('Hace falta la semilla del vault (firmá en MetaMask o usá env).', 'error')
+      showToast('Vault seed required (sign with your wallet or use env).', 'error')
       return
     }
     const t = tokens.find((x) => x.id === selectedId)
     if (!t) {
-      showToast('Elegí un token con mint cumplido.', 'error')
+      showToast('Pick a token with mint fulfilled.', 'error')
       return
     }
     setPreparePending(true)
@@ -164,12 +170,12 @@ export function Redeem() {
         `Token #${draft.tokenIndex} · depositId ${addrPickLabel(draft.depositId)} · nullifier ${addrPickLabel(draft.spendAddress)}`
       )
       showToast(
-        'Paso 1 listo: claves spend/blind guardadas en este navegador. Cambiá a la cuenta que paga el gas y usá “Enviar transacción”.',
+        'Step 1 done: spend/blind keys saved in this browser. Switch to the account that pays gas and use “Send transaction”.',
         'info'
       )
     } catch (e) {
       showToast(
-        e instanceof Error ? e.message : 'No se pudo guardar el borrador de redeem',
+        e instanceof Error ? e.message : 'Could not save redeem draft',
         'error'
       )
     } finally {
@@ -179,18 +185,18 @@ export function Redeem() {
 
   const handleSendRedeemTx = async () => {
     if (!isEthAddress(recipient)) {
-      showToast('Indicá una dirección Ethereum válida (0x + 40 hex).', 'error')
+      showToast('Enter a valid Ethereum address (0x + 40 hex).', 'error')
       return
     }
     const draft = loadRedemptionDraft()
     if (!draft) {
-      showToast('Primero usá “Paso 1: guardar claves” con el token elegido.', 'error')
+      showToast('First use “Step 1: save keys” for the selected token.', 'error')
       return
     }
     const seed = effectiveMasterSeed
     if (seed && !redemptionDraftMatchesSecrets(draft, seed)) {
       showToast(
-        'El borrador no coincide con la semilla actual. Volvé a preparar el redeem.',
+        'Draft does not match the current seed. Prepare redeem again.',
         'error'
       )
       return
@@ -198,7 +204,7 @@ export function Redeem() {
 
     const ethereum = getEthereum()
     if (!ethereum) {
-      showToast('MetaMask no está disponible', 'error')
+      showToast('No Ethereum wallet available', 'error')
       return
     }
 
@@ -206,7 +212,7 @@ export function Redeem() {
     try {
       const okChain = await ensureFuji(ethereum)
       if (!okChain) {
-        showToast('Cambiá a Avalanche Fuji (43113) en MetaMask.', 'error')
+        showToast('Switch to Avalanche Fuji (43113) in your wallet.', 'error')
         return
       }
 
@@ -219,19 +225,19 @@ export function Redeem() {
 
       setStoredDraftSummary(null)
       requestWalletBalanceRefresh()
-      showToast(`Redeem confirmado · ${txShort(txHash)}`, 'success')
+      showToast(`Redeem confirmed · ${txShort(txHash)}`, 'success')
     } catch (err: unknown) {
       const e = err as { code?: number; message?: string }
       if (e?.code === 4001) {
-        showToast('Transacción cancelada en MetaMask', 'error')
+        showToast('Transaction cancelled in your wallet', 'error')
         return
       }
       const msg = typeof e?.message === 'string' ? e.message : ''
       if (/user rejected|denied/i.test(msg)) {
-        showToast('Transacción cancelada en MetaMask', 'error')
+        showToast('Transaction cancelled in your wallet', 'error')
       } else {
         showToast(
-          msg || 'No se pudo enviar el redeem',
+          msg || 'Could not send redeem transaction',
           'error'
         )
       }
@@ -248,7 +254,7 @@ export function Redeem() {
   const openAccountPicker = async () => {
     setPickerPending(true)
     try {
-      await openMetaMaskAccountPicker()
+      await openWalletAccountPicker()
     } finally {
       setPickerPending(false)
     }
@@ -274,7 +280,7 @@ export function Redeem() {
           REDEEM
         </div>
         <div className="modal-sub-label" style={{ marginBottom: 0 }}>
-          Tokens con MintFulfilled · {netLabel}
+          Tokens with MintFulfilled · {netLabel}
         </div>
       </div>
 
@@ -284,7 +290,7 @@ export function Redeem() {
         </div>
         {loading && (
           <div className="modal-sub-label" style={{ marginBottom: 8 }}>
-            Cargando…
+            Loading…
           </div>
         )}
         {loadError && (
@@ -294,7 +300,7 @@ export function Redeem() {
         )}
         {!loading && !loadError && tokens.length === 0 && (
           <div className="modal-sub-label">
-            Ningún depósito con mint cumplido para esta semilla.
+            No deposits with mint fulfilled for this seed.
           </div>
         )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -333,16 +339,16 @@ export function Redeem() {
 
       <div className="deposit-info" style={{ marginTop: 12 }}>
         <div className="type-row" style={{ marginBottom: 8 }}>
-          <span className="type-label">Destino · a qué cuenta va el redeem</span>
+          <span className="type-label">Destination · account that receives the redeem</span>
         </div>
         <p
           className="modal-sub-label"
           style={{ marginBottom: 10, fontSize: 11, lineHeight: 1.45 }}
         >
-          Elegí una de las cuentas de MetaMask o escribí otra dirección. Esa
-          dirección es el <strong>recipient</strong> del contrato: recibe los
-          0.01 AVAX. La firma ECDSA del redeem la genera la app con la clave{' '}
-          <strong>spend</strong> (nullifier), no la clave blind.
+          Pick a connected wallet account or enter another address. That address is the
+          contract <strong>recipient</strong>: it receives the 0.01 AVAX. The app
+          builds the redeem ECDSA signature with the <strong>spend</strong> key
+          (nullifier), not the blind key.
         </p>
         {accounts.length > 0 ? (
           <div
@@ -367,7 +373,7 @@ export function Redeem() {
                 style={{ fontFamily: 'var(--mono)', fontSize: 11 }}
               >
                 {addrPickLabel(a)}
-                {account?.toLowerCase() === a.toLowerCase() ? ' · activa' : ''}
+                {account?.toLowerCase() === a.toLowerCase() ? ' · active' : ''}
               </button>
             ))}
           </div>
@@ -380,12 +386,12 @@ export function Redeem() {
           onClick={() => void openAccountPicker()}
         >
           {pickerPending
-            ? 'MetaMask…'
-            : 'Elegir otra cuenta en MetaMask (más direcciones)'}
+            ? 'Wallet…'
+            : 'Choose another account in your wallet (more addresses)'}
         </button>
         <div className="type-row" style={{ marginBottom: 6 }}>
           <span className="type-label" style={{ fontSize: 11 }}>
-            Dirección manual
+            Manual address
           </span>
         </div>
         <input
@@ -405,40 +411,37 @@ export function Redeem() {
 
       <div className="deposit-info" style={{ marginTop: 12 }}>
         <div className="modal-title" style={{ fontSize: 11, marginBottom: 8 }}>
-          Flujo en dos pasos
+          Two-step flow
         </div>
         <div className="modal-sub-label" style={{ fontSize: 11, lineHeight: 1.45 }}>
-          <strong>Paso 1</strong> (cuenta que tiene la semilla del vault): guardá en{' '}
-          <code style={{ fontSize: 10 }}>localStorage</code> por token: clave
-          privada <strong>blind</strong>, clave privada <strong>spend</strong>, y
-          dirección <strong>spend</strong> (nullifier on-chain). El depósito del
-          token se enlaza por <code>depositId</code> (= dirección blind), igual que
-          en <code>DepositLocked</code>.
+          <strong>Step 1</strong> (account that holds the vault seed): save per token
+          in <code style={{ fontSize: 10 }}>localStorage</code>: <strong>blind</strong>{' '}
+          private key, <strong>spend</strong> private key, and <strong>spend</strong>{' '}
+          address (on-chain nullifier). The token deposit is tied by{' '}
+          <code>depositId</code> (= blind address), same as <code>DepositLocked</code>.
         </div>
         <div
           className="modal-sub-label"
           style={{ fontSize: 11, lineHeight: 1.45, marginTop: 8 }}
         >
-          <strong>Paso 2</strong> (otra cuenta en MetaMask, p. ej. quien paga gas):
-          la app lee S′ del evento <code>MintFulfilled</code> (no de{' '}
-          <code>DepositLocked</code> — ese evento lleva el punto ciego{' '}
-          <code>B</code>). Con <code>r</code> derivado de la clave{' '}
-          <strong>blind</strong> se calcula{' '}
-          <code>unblindSignature(S′, r)</code> →{' '}
-          <code>unblindedSignatureS</code>. La firma ECDSA{' '}
-          <code>spendSignature</code> debe ser{' '}
-          <code>generateRedemptionProof(spendPriv)</code> — clave{' '}
-          <strong>spend</strong>, no blind — para que <code>ecrecover</code> coincida
-          con <code>nullifier</code> (= dirección spend guardada).{' '}
-          <code>recipient</code> suele ser la cuenta destino (p. ej. Account 2).
+          <strong>Step 2</strong> (another wallet account, e.g. gas payer): the app
+          reads S′ from <code>MintFulfilled</code> (not <code>DepositLocked</code>{' '}
+          — that event carries blinded point <code>B</code>). With <code>r</code>{' '}
+          from the <strong>blind</strong> key, compute{' '}
+          <code>unblindSignature(S′, r)</code> → <code>unblindedSignatureS</code>. The
+          ECDSA <code>spendSignature</code> must be{' '}
+          <code>generateRedemptionProof(spendPriv)</code> — <strong>spend</strong>{' '}
+          key, not blind — so <code>ecrecover</code> matches{' '}
+          <code>nullifier</code> (= saved spend address). <code>recipient</code> is
+          usually the destination account (e.g. Account 2).
         </div>
         <div
           className="modal-sub-label"
           style={{ fontSize: 11, lineHeight: 1.45, marginTop: 8 }}
         >
-          Enviá la tx <code>redeem(recipient, spendSignature, nullifier,
-          unblindedSignatureS)</code>: MetaMask solo firma la transacción EVM; el
-          calldata se arma en la app con el borrador.
+          Send <code>redeem(recipient, spendSignature, nullifier,
+          unblindedSignatureS)</code>: your wallet only signs the EVM transaction;
+          calldata is built in the app from the draft.
         </div>
         {storedDraftSummary ? (
           <div
@@ -449,7 +452,7 @@ export function Redeem() {
               color: 'var(--text2)',
             }}
           >
-            Borrador: {storedDraftSummary}
+            Draft: {storedDraftSummary}
           </div>
         ) : null}
       </div>
@@ -467,7 +470,9 @@ export function Redeem() {
           network !== 'Fuji'
         }
       >
-        {preparePending ? 'Guardando…' : 'Paso 1: guardar claves (spend + blind)'}
+        {preparePending
+          ? 'Saving…'
+          : 'Step 1: save keys (spend + blind)'}
       </button>
 
       <button
@@ -482,7 +487,7 @@ export function Redeem() {
           network !== 'Fuji'
         }
       >
-        {sendPending ? 'MetaMask…' : 'Paso 2: enviar redeem (MetaMask)'}
+        {sendPending ? 'Wallet…' : 'Step 2: send redeem (confirm in wallet)'}
       </button>
     </div>
   )

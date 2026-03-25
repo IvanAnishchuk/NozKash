@@ -3,11 +3,11 @@ import type { VaultTx } from '../types/activity'
 import { GHOST_VAULT_DEPOSIT_AMOUNT_LABEL } from './ghostVault'
 
 /**
- * Si el usuario pasó a la cuenta que envía el redeem (p. ej. Account 2) pero la
- * actividad se derivó con la semilla de otra cuenta (Account 1), el escaneo con
- * la semilla actual no encuentra el mismo `depositId` y la fila desaparece.
- * Insertamos una fila sintética para el token del borrador para que sigan
- * visibles "Start redeem" / "Redeem here".
+ * If the user switched to the account that sends redeem (e.g. Account 2) but
+ * activity was derived with another account’s seed (Account 1), scanning with the
+ * current seed no longer finds the same `depositId` and the row disappears.
+ * We insert a synthetic row for the draft’s token so "Start redeem" / "Redeem here"
+ * stay visible.
  */
 export function mergeVaultRowsWithRedeemDraft(
   rows: VaultTx[],

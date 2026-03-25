@@ -34,15 +34,13 @@ export function Layout() {
   const {
     connectWallet,
     disconnectWallet,
-    openMetaMaskAccountPicker,
+    openWalletAccountPicker,
     account,
     accounts,
-    selectAccount,
     network,
   } = useWallet()
 
   const [dropdownOpen, setDropdownOpen] = useState(false)
-  const [walletSearch, setWalletSearch] = useState('')
   const [balancesByAddr, setBalancesByAddr] = useState<Record<string, string>>(
     {}
   )
@@ -98,7 +96,7 @@ export function Layout() {
   const walletRows: MmRow[] = useMemo(() => {
     return accounts.map((addr, i) => ({
       address: addr,
-      name: `Account ${i + 1}`,
+      name: 'Connected wallet',
       addrShort: truncateAddr(addr),
       bal: balancesByAddr[addr] ?? '…',
       color: AVATAR_PALETTE[i % AVATAR_PALETTE.length],
@@ -106,16 +104,10 @@ export function Layout() {
     }))
   }, [accounts, balancesByAddr])
 
-  const filteredWallets = useMemo(() => {
-    const q = walletSearch.toLowerCase()
-    if (!q) return walletRows
-    return walletRows.filter(
-      (w) =>
-        w.name.toLowerCase().includes(q) ||
-        w.addrShort.toLowerCase().includes(q) ||
-        w.address.toLowerCase().includes(q)
-    )
-  }, [walletRows, walletSearch])
+  const activeWallet = useMemo(
+    () => walletRows.find((w) => w.address === account) ?? null,
+    [walletRows, account]
+  )
 
   const accountIndex = account ? accounts.findIndex((a) => a === account) : -1
   const pillColor =
@@ -123,7 +115,11 @@ export function Layout() {
       ? AVATAR_PALETTE[accountIndex % AVATAR_PALETTE.length]
       : '#3D0F18'
   const pillName =
-    accountIndex >= 0 ? `Account ${accountIndex + 1}` : 'Wallet'
+    account && accountIndex >= 0
+      ? truncateAddr(account)
+      : accounts[0]
+        ? `Connect ${truncateAddr(accounts[0])}`
+        : 'Connect Wallet'
   const pillInitials = account ? addrInitials(account) : 'MM'
 
   useEffect(() => {
@@ -203,7 +199,7 @@ export function Layout() {
                 onClick={() => connectWallet()}
               >
                 <span className="wallet-name" style={{ maxWidth: 120 }}>
-                  Connect Wallet
+                  {pillName}
                 </span>
               </button>
             ) : (
@@ -256,18 +252,10 @@ export function Layout() {
           className={`wallet-dropdown ${dropdownOpen ? '' : 'hidden'}`}
         >
           <div className="wd-header">
-            <span className="wd-title">MY ACCOUNTS</span>
-          </div>
-          <div className="wd-search-wrap">
-            <input
-              className="wd-search"
-              placeholder="Search accounts..."
-              value={walletSearch}
-              onChange={(e) => setWalletSearch(e.target.value)}
-            />
+            <span className="wd-title">CONNECTED ACCOUNT</span>
           </div>
           <div className="wd-list">
-            {filteredWallets.length === 0 ? (
+            {!activeWallet ? (
               <div
                 className="wd-item"
                 style={{
@@ -277,68 +265,50 @@ export function Layout() {
                   fontFamily: 'var(--mono)',
                 }}
               >
-                No accounts match
+                No connected account
               </div>
             ) : (
-              filteredWallets.map((w) => (
+              <div
+                key={activeWallet.address}
+                className="wd-item active-wallet"
+                style={{ cursor: 'default' }}
+                role="status"
+                aria-live="polite"
+                tabIndex={-1}
+              >
                 <div
-                  key={w.address}
-                  className={`wd-item ${
-                    w.address === account ? 'active-wallet' : ''
-                  }`}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => {
-                    selectAccount(w.address)
-                    setDropdownOpen(false)
-                    showToast(`Active: ${w.name}`, 'success')
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      selectAccount(w.address)
-                      setDropdownOpen(false)
-                      showToast(`Active: ${w.name}`, 'success')
-                    }
+                  className="wd-avatar"
+                  style={{
+                    background: activeWallet.color,
+                    color: 'rgba(255,255,255,.8)',
+                    fontSize: 10,
                   }}
                 >
-                  <div
-                    className="wd-avatar"
-                    style={{
-                      background: w.color,
-                      color: 'rgba(255,255,255,.8)',
-                      fontSize: 10,
-                    }}
-                  >
-                    {w.initials}
-                  </div>
-                  <div className="wd-info">
-                    <div className="wd-wname">{w.name}</div>
-                    <div className="wd-addr">{w.addrShort}</div>
-                  </div>
-                  <div className="wd-bal">
-                    {privacyOn ? '••••' : w.bal}
-                  </div>
-                  {w.address === account ? (
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                      <circle
-                        cx="8"
-                        cy="8"
-                        r="7"
-                        stroke="var(--history-accent)"
-                        strokeWidth="1.5"
-                      />
-                      <path
-                        d="M5 8l2 2 4-4"
-                        stroke="var(--history-accent)"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                  ) : (
-                    <div style={{ width: 16 }} />
-                  )}
+                  {activeWallet.initials}
                 </div>
-              ))
+                <div className="wd-info">
+                  <div className="wd-wname">{activeWallet.name}</div>
+                  <div className="wd-addr">{activeWallet.addrShort}</div>
+                </div>
+                <div className="wd-bal">
+                  {privacyOn ? '••••' : activeWallet.bal}
+                </div>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <circle
+                    cx="8"
+                    cy="8"
+                    r="7"
+                    stroke="var(--history-accent)"
+                    strokeWidth="1.5"
+                  />
+                  <path
+                    d="M5 8l2 2 4-4"
+                    stroke="var(--history-accent)"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </div>
             )}
           </div>
           <div className="wd-divider" />
@@ -348,17 +318,17 @@ export function Layout() {
             tabIndex={0}
             onClick={async () => {
               setDropdownOpen(false)
-              const ok = await openMetaMaskAccountPicker()
+              const ok = await openWalletAccountPicker()
               if (ok) {
-                showToast('Accounts updated from MetaMask', 'success')
+                showToast('Accounts updated from your wallet', 'success')
               }
             }}
             onKeyDown={async (e) => {
               if (e.key === 'Enter') {
                 setDropdownOpen(false)
-                const ok = await openMetaMaskAccountPicker()
+                const ok = await openWalletAccountPicker()
                 if (ok) {
-                  showToast('Accounts updated from MetaMask', 'success')
+                  showToast('Accounts updated from your wallet', 'success')
                 }
               }
             }}
@@ -376,7 +346,7 @@ export function Layout() {
             </div>
             <div className="wd-action-text-col">
               <span className="wd-action-label">Change account</span>
-              <span className="wd-action-sub">Open MetaMask · add or select</span>
+              <span className="wd-action-sub">Open your wallet · add or select</span>
             </div>
           </div>
           <div
@@ -409,7 +379,7 @@ export function Layout() {
             </div>
             <div className="wd-action-text-col">
               <span className="wd-action-label">Disconnect</span>
-              <span className="wd-action-sub">Revoke site access in MetaMask</span>
+              <span className="wd-action-sub">Revoke site access in your wallet</span>
             </div>
           </div>
         </div>

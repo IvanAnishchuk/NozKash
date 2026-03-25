@@ -48,29 +48,51 @@ export function normalizeChainId(chainId: unknown): string | null {
   return chainId.toLowerCase()
 }
 
-/** ~5 min de ventana con pocas consultas: (intentos − 1) × intervalo ≈ 5 min. */
-const RECEIPT_POLL_INTERVAL_MS = 30_000
+/**
+ * Delay **between** each `eth_getTransactionReceipt` poll (ms). This is the “poll interval.”
+ * Shorter = more RPC traffic, faster detection once the tx mines.
+ */
+const RECEIPT_POLL_INTERVAL_MS = 10_000
+/**
+ * How many times to **call** `eth_getTransactionReceipt` before throwing.
+ * Worst-case wait if the receipt never appears: `(maxAttempts − 1) × RECEIPT_POLL_INTERVAL_MS`
+ * (waits only happen *after* failed attempts; e.g. 11 attempts → 10 sleeps → ~30s at 3000ms).
+ */
 const RECEIPT_POLL_MAX_ATTEMPTS = 11
 
 /**
- * Polls Fuji via HTTP RPC (no MetaMask).
- * Intervalo largo para no saturar el proveedor; hasta ~5 min de espera.
+ * Polls for a mined receipt. Prefer `options.ethereum` so the wallet’s RPC is used
+ * (avoids stacking `eth_getTransactionReceipt` on the same Infura key as vault scans).
+ * Falls back to {@link fujiRpcCall} when no provider is passed.
+ *
+ * Used only here: deposit modal (`DepositConfirmModal`) and redeem (`sendVaultRedeem.ts`).
  */
 export async function waitForTransactionReceipt(
-  txHash: string
+  txHash: string,
+  options?: { ethereum?: EthereumProvider }
 ): Promise<{ status?: string }> {
-  for (let i = 0; i < RECEIPT_POLL_MAX_ATTEMPTS; i++) {
-    const receipt = await fujiRpcCall<{ status?: string } | null>(
+  const poll = async (): Promise<{ status?: string } | null> => {
+    if (options?.ethereum) {
+      const r = await options.ethereum.request({
+        method: 'eth_getTransactionReceipt',
+        params: [txHash],
+      })
+      return r as { status?: string } | null
+    }
+    return fujiRpcCall<{ status?: string } | null>(
       'eth_getTransactionReceipt',
       [txHash]
     )
+  }
+  for (let i = 0; i < RECEIPT_POLL_MAX_ATTEMPTS; i++) {
+    const receipt = await poll()
     if (receipt) return receipt
     if (i < RECEIPT_POLL_MAX_ATTEMPTS - 1) {
       await new Promise((r) => window.setTimeout(r, RECEIPT_POLL_INTERVAL_MS))
     }
   }
   throw new Error(
-    'Timed out waiting for confirmation (~5 min, sparse RPC polling)'
+    `Timed out waiting for confirmation (${RECEIPT_POLL_MAX_ATTEMPTS} receipt checks, ${RECEIPT_POLL_INTERVAL_MS}ms between checks)`
   )
 }
 

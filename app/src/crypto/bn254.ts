@@ -1,4 +1,4 @@
-/** Reexporta la implementación en `bn254-crypto.ts`. */
+/** Re-exports the implementation from `bn254-crypto.ts`. */
 export {
   FIELD_MODULUS,
   CURVE_ORDER,

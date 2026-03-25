@@ -9,7 +9,7 @@ import { fujiRpcCall } from './fujiJsonRpc'
 import {
   fetchMintFulfilledSPrime,
   GHOST_VAULT_ADDRESS,
-  invalidateVaultActivityCache,
+  requestVaultActivityRefresh,
 } from './ghostVault'
 
 export type EthereumRequester = {
@@ -20,8 +20,8 @@ export type EthereumRequester = {
 }
 
 /**
- * Envía `GhostVault.redeem` con el borrador local (claves spend/blind) y `recipient`.
- * Cierra el borrador e invalida el caché de actividad si confirma.
+ * Sends `GhostVault.redeem` using the local draft (spend/blind keys) and `recipient`.
+ * Clears the draft and invalidates activity cache on success.
  */
 function redeemDebug(msg: string, data?: Record<string, unknown>) {
   const on =
@@ -36,10 +36,10 @@ export async function sendVaultRedeemTransaction(params: {
   recipient: string
   draft: RedemptionDraftV1
   /**
-   * Si hay semilla, se comprueba alineación **solo** cuando quien firma la tx
-   * es la misma cuenta que preparó el borrador (Account 1). Si la tx la envía
-   * otra cuenta (Account 2), la semilla actual es distinta — el borrador ya
-   * trae spend/blind en localStorage y no se valida contra `masterSeed`.
+   * When `masterSeed` is present, alignment is checked **only** if the account
+   * signing the tx is the same as the one that prepared the draft (Account 1).
+   * If another account (Account 2) sends the tx, the in-memory seed differs — the
+   * draft already carries spend/blind in localStorage and is not validated against `masterSeed`.
    */
   masterSeed?: Uint8Array | null
 }): Promise<{ txHash: string }> {
@@ -110,7 +110,7 @@ export async function sendVaultRedeemTransaction(params: {
   try {
     await fujiRpcCall('eth_call', [sendParams, 'latest'])
   } catch {
-    /* opcional */
+    /* optional simulation */
   }
 
   const hash = (await ethereum.request({
@@ -118,12 +118,13 @@ export async function sendVaultRedeemTransaction(params: {
     params: [sendParams],
   })) as string
 
-  const receipt = await waitForTransactionReceipt(hash)
+  /* Prefer wallet RPC for receipt polling so Infura isn’t hit during the same redeem flow as `fetchMintFulfilledSPrime` + vault refresh. */
+  const receipt = await waitForTransactionReceipt(hash, { ethereum })
   if (receipt.status === '0x0') {
     throw new Error('Transaction reverted')
   }
 
   clearRedemptionDraft()
-  invalidateVaultActivityCache()
+  requestVaultActivityRefresh()
   return { txHash: hash }
 }

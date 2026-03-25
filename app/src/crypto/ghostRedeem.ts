@@ -19,20 +19,20 @@ import {
 const LS_KEY = 'ghost:redemption-draft-v1' as const
 
 /**
- * Borrador local para el paso 2 del redeem (p. ej. otra cuenta MetaMask).
- * - `spendPrivHex` + `spendAddress`: ECDSA + nullifier (no usar la clave blind para eso).
- * - `blindPrivHex`: escalar `r` para `unblindSignature` sobre S′ de `MintFulfilled`.
+ * Local draft for redeem step 2 (e.g. another wallet account).
+ * - `spendPrivHex` + `spendAddress`: ECDSA + nullifier (do not use the blind key for that).
+ * - `blindPrivHex`: scalar `r` for `unblindSignature` on S′ from `MintFulfilled`.
  */
 export type RedemptionDraftV1 = {
   v: 1
   tokenIndex: number
   depositId: string
-  /** Nullifier = dirección del par spend (debe coincidir con `ecrecover` del redeem). */
+  /** Nullifier = spend pair address (must match `ecrecover` on redeem). */
   spendAddress: string
   blindPrivHex: `0x${string}`
   spendPrivHex: `0x${string}`
   savedAt: number
-  /** Cuenta MetaMask que guardó el borrador (Paso 1). El redeem on-chain suele hacerse con otra cuenta. */
+  /** Wallet account that saved the draft (step 1). On-chain redeem is often sent from another account. */
   prepareAccount?: string
 }
 
@@ -51,7 +51,7 @@ function bytesToHex(bytes: Uint8Array): string {
     .join('')
 }
 
-/** Debe coincidir con `ghost-library` / contrato (nullifier = address(spend·G)). */
+/** Must match `ghost-library` / contract (nullifier = address(spend·G)). */
 function addressFromSpendPriv(priv: Uint8Array): string {
   const pub = secp256k1.getPublicKey(priv, false)
   const hash = keccak256(pub.subarray(1))
@@ -97,7 +97,7 @@ function concatBytes(...parts: Uint8Array[]): Uint8Array {
   return out
 }
 
-/** Primeros 4 bytes de `keccak256("redeem(address,bytes,address,uint256[2])")`. */
+/** First 4 bytes of `keccak256("redeem(address,bytes,address,uint256[2])")`. */
 const REDEEM_SELECTOR = keccak256(
   new TextEncoder().encode('redeem(address,bytes,address,uint256[2])')
 ).subarray(0, 4)
@@ -105,7 +105,7 @@ const REDEEM_SELECTOR = keccak256(
 export const GHOST_VAULT_REDEEM_SELECTOR_HEX = hex0x(REDEEM_SELECTOR)
 
 /**
- * ABI `redeem(address,bytes,address,uint256[2])` — igual que `GhostVault.redeem` en Solidity.
+ * ABI `redeem(address,bytes,address,uint256[2])` — same as `GhostVault.redeem` in Solidity.
  */
 export function encodeGhostVaultRedeemCalldata(
   recipient: string,
@@ -140,7 +140,7 @@ export function encodeGhostVaultRedeemCalldata(
   ) as `0x${string}`
 }
 
-/** 65 bytes: r (32) ‖ s (32) ‖ v (1), con v = 27 ó 28 (EVM `ecrecover`). */
+/** 65 bytes: r (32) ‖ s (32) ‖ v (1), with v = 27 or 28 (EVM `ecrecover`). */
 export function packSpendSignature65(proof: RedemptionProof): Uint8Array {
   const v = proof.recoveryBit + 27
   const out = new Uint8Array(65)
@@ -178,7 +178,7 @@ export function buildRedemptionDraftFromSeed(
 }
 
 /**
- * Home · paso 1: guardar claves en `localStorage` para este token (misma cuenta que tiene la semilla).
+ * Home · step 1: save keys in `localStorage` for this token (account that holds the seed).
  */
 export function canStartHomeRedeem(
   item: { type: string; tokenIndex?: number },
@@ -192,7 +192,7 @@ export function canStartHomeRedeem(
 }
 
 /**
- * Home · paso 2: enviar tx `redeem` (MetaMask firma la transacción; suele ser otra cuenta que la del paso 1).
+ * Home · step 2: send `redeem` tx (wallet signs the transaction; often a different account than step 1).
  */
 export function isHomeRedeemReady(
   item: { type: string; tokenIndex?: number },
@@ -208,7 +208,7 @@ export function isHomeRedeemReady(
   return true
 }
 
-/** Comprueba que el borrador coincide con la derivación actual desde la semilla. */
+/** Returns whether the draft matches derivation from the current seed. */
 export function redemptionDraftMatchesSecrets(
   draft: RedemptionDraftV1,
   masterSeed: Uint8Array
@@ -274,7 +274,7 @@ export type BuildRedeemCalldataInput = {
 }
 
 /**
- * Ensambla calldata de `redeem`: S = unblind(S′, r), ECDSA con clave **spend** (nullifier).
+ * Builds `redeem` calldata: S = unblind(S′, r), ECDSA with **spend** key (nullifier).
  */
 export async function buildGhostVaultRedeemCalldata(
   input: BuildRedeemCalldataInput

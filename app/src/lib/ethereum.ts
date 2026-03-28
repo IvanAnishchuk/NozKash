@@ -22,6 +22,13 @@ function normalizeHexChainId(raw: string | undefined): string {
   return s.startsWith('0x') ? s : `0x${s}`
 }
 
+/** Non-throwing guard so invalid `VITE_CHAIN_ID` cannot crash the bundle at import time. */
+function isValidHexChainId(chainId: string): boolean {
+  const s = chainId.trim().toLowerCase()
+  if (!s.startsWith('0x') || s.length <= 2) return false
+  return /^0x[0-9a-f]+$/.test(s)
+}
+
 /**
  * Wallet / app target chain (`eth_chainId`), lowercase hex.
  * Set `VITE_CHAIN_ID` (e.g. `0xaa36a7` or `aa36a7`).
@@ -41,8 +48,17 @@ export function isTargetEthereumSepolia(): boolean {
   return TARGET_CHAIN_ID === ETHEREUM_SEPOLIA_CHAIN_ID_HEX
 }
 
-/** Decimal string for UI / errors (e.g. `11155111`). */
-export const TARGET_CHAIN_ID_DECIMAL = BigInt(TARGET_CHAIN_ID).toString()
+/** Decimal string for UI / errors (e.g. `11155111`). Invalid hex falls back to Sepolia. */
+export const TARGET_CHAIN_ID_DECIMAL = (() => {
+  try {
+    if (!isValidHexChainId(TARGET_CHAIN_ID)) {
+      return BigInt('0xaa36a7').toString()
+    }
+    return BigInt(TARGET_CHAIN_ID).toString()
+  } catch {
+    return BigInt('0xaa36a7').toString()
+  }
+})()
 
 /**
  * Short label when the wallet is on the target chain (activity subtitles, etc.).

@@ -10,6 +10,7 @@ import { useWallet, WALLET_BALANCE_POLL_MS } from '../hooks/useWallet'
 import {
   getEthereum,
   isTargetEthereumSepolia,
+  NATIVE_CURRENCY_SYMBOL,
   SEPOLIA_ETH_FAUCET_GCP_URL,
   weiHexToNativeLabel,
 } from '../lib/ethereum'
@@ -89,7 +90,7 @@ export function Layout() {
             method: 'eth_getBalance',
             params: [addr, 'latest'],
           })) as string
-          next[addr] = weiHexToNativeLabel(hex, 'ETH', 4)
+          next[addr] = weiHexToNativeLabel(hex, NATIVE_CURRENCY_SYMBOL, 4)
         } catch {
           next[addr] = '—'
         }

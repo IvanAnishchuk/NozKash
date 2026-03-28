@@ -235,6 +235,7 @@ contract GhostVaultTest is Test {
 
         assertTrue(vault.depositFulfilled(blindId));
         assertFalse(vault.depositPending(blindId));
+        assertEq(vault.depositors(blindId), address(0), "depositor mapping cleared after announce");
     }
 
     function test_announce_revertsNotMintAuthority() public {

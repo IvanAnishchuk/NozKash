@@ -394,7 +394,7 @@ The app is a single-page wallet with four routes:
 
 **`DepositConfirmModal`** — The deposit flow: amount selection (fixed 0.001 ETH denomination), real-time gas estimation via the configured RPC, calldata construction using `buildGhostVaultDepositCalldata()` (derives secrets → blinds → ABI-encodes `deposit(address,uint256[2])`), and `eth_sendTransaction` through MetaMask. Includes pre-flight checks: `DENOMINATION()` view call, `depositPending()` collision check, and `eth_call` simulation before broadcasting.
 
-**`useWallet`** — Hook managing MetaMask connection, account switching (`wallet_requestPermissions`), chain enforcement (auto-switches to Fuji 43113), and balance polling.
+**`useWallet`** — Hook managing MetaMask connection, account switching (`wallet_requestPermissions`), chain enforcement (auto-switches to the target chain from `VITE_CHAIN_ID`), and balance polling.
 
 **`ghostVault.ts`** — On-chain scanner that fetches `DepositLocked` and `MintFulfilled` events via `eth_getLogs`, matches them against derived `depositId`s, checks `spentNullifiers`, and assembles the activity feed. Handles RPC rate limiting (burst queue with pause), block range chunking (Avalanche public RPC caps at ~2048 blocks per query), and `last accepted block` edge cases.
 
@@ -426,7 +426,10 @@ Override with `VITE_GHOST_VAULT_ADDRESS` in `.env`.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `VITE_GHOST_MASTER_SEED_HEX` | — | Dev shortcut: 64-char hex seed, bypasses `personal_sign` |
-| `VITE_FUJI_RPC_URL` | Infura Fuji | HTTPS JSON-RPC endpoint for reads |
+| `VITE_CHAIN_ID` | Sepolia `0xaa36a7` | Target `eth_chainId` (hex) |
+| `VITE_PUBLIC_RPC_URL` / `VITE_ETHEREUM_RPC_URL` | — | HTTPS JSON-RPC for reads (`chainRpcCall`) |
+| `VITE_PUBLIC_WS_RPC_URL` / `VITE_ETHEREUM_WS_RPC_URL` | — | Optional WebSocket for live vault logs |
+| `VITE_FUJI_RPC_URL` / `VITE_FUJI_WS_RPC_URL` | — | Legacy aliases still read by `chainPublicRpc.ts` |
 | `VITE_GHOST_VAULT_ADDRESS` | `0x0cd5…4352` | Deployed GhostVault contract |
 
 ---

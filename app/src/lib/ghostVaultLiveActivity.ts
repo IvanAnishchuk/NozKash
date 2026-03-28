@@ -436,8 +436,8 @@ export function startGhostVaultActivityLive(params: {
     processedLogIds.add(logId)
 
     const bn = parseHexBlock(bnHex)
-    if (bn <= lastAppliedBlock) return
-    lastAppliedBlock = bn
+    if (bn < lastAppliedBlock) return
+    lastAppliedBlock = Math.max(lastAppliedBlock, bn)
 
     const st = upsertDepositState(depositId)
     st.depositLocked = {
@@ -464,8 +464,8 @@ export function startGhostVaultActivityLive(params: {
     processedLogIds.add(logId)
 
     const bn = parseHexBlock(bnHex)
-    if (bn <= lastAppliedBlock) return
-    lastAppliedBlock = bn
+    if (bn < lastAppliedBlock) return
+    lastAppliedBlock = Math.max(lastAppliedBlock, bn)
 
     const st = upsertDepositState(depositId)
     st.mintFulfilled = {
@@ -509,8 +509,8 @@ export function startGhostVaultActivityLive(params: {
     processedLogIds.add(logId)
 
     const bn = parseHexBlock(bnHex)
-    if (bn <= lastAppliedBlock) return
-    lastAppliedBlock = bn
+    if (bn < lastAppliedBlock) return
+    lastAppliedBlock = Math.max(lastAppliedBlock, bn)
 
     const st = upsertDepositState(depositId)
     st.refunded = {

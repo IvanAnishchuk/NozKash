@@ -1265,7 +1265,7 @@ export async function findLastUsedVaultTokenIndex(
 /**
  * Next token index for a **new** deposit: lowest free index >=
  * {@link GHOST_VAULT_MIN_NEW_DEPOSIT_TOKEN_INDEX}.
- * Reuses gaps (e.g. if index 2 is used and 0/1 are free, picks 0 or 1 by min bound).
+ * Reuses gaps only at or above this minimum (e.g. with min index 2, if 2 is free and 3 is used, picks 2).
  */
 export async function getNextVaultTokenIndexForDeposit(
   masterSeed: Uint8Array,

@@ -90,7 +90,7 @@ export function DepositConfirmModal({ open, onClose, onToast }: Props) {
   const { network, account } = useWallet()
   const { effectiveMasterSeed, requestUnlockViaSign } =
     useGhostMasterSeed()
-  const [gasLabel] = useState('—')
+  const gasLabel = '—'
   const [pending, setPending] = useState(false)
   const [amountAvax, setAmountAvax] = useState<string>(DEFAULT_AMOUNT)
 

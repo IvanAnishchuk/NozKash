@@ -155,6 +155,7 @@ contract GhostVault {
 
     /**
      * @notice Called by the Mint to deliver the blind signature S' on-chain.
+     * @dev Clears `depositors[depositId]` once fulfilled so the depositor↔id link is not kept on-chain (refund is impossible after announce anyway).
      */
     function announce(
         address             depositId,
@@ -166,6 +167,7 @@ contract GhostVault {
 
         announced[depositId] = true;
         awaitingFulfillment[depositId] = false;
+        delete depositors[depositId];
         emit MintFulfilled(depositId, S_prime);
     }
 
@@ -201,6 +203,7 @@ contract GhostVault {
     ) external {
         bytes32 txHash = redemptionMessageHash(recipient);
         address recoveredNullifier = recoverSigner(txHash, spendSignature);
+        if (recoveredNullifier == address(0)) revert InvalidECDSA();
         if (recoveredNullifier != nullifier) revert InvalidECDSA();
 
         if (spentNullifiers[nullifier]) revert AlreadySpent();

@@ -1,5 +1,6 @@
 import { keccak256 } from 'ethereum-cryptography/keccak'
 import { initBN254, formatG1ForSolidity } from './bn254'
+import { isGhostVaultDebugEnabled } from '../lib/ghostDebug'
 import {
   blindToken,
   deriveTokenSecrets,
@@ -179,37 +180,41 @@ export async function buildGhostVaultDepositCalldata(
     new Uint8Array([...masterSeed, ...indexBe])
   )
 
-  console.log('[GhostVault deposit debug] derivation inputs + keypairs', {
-    tokenIndex,
-    masterSeedHex: hex0x(masterSeed),
-    tokenIndexU32BE_Hex: hex0x(indexBe),
-    baseMaterialHex: hex0x(baseMaterial),
-    spend: {
-      privHex: hex0x(secrets.spend.priv),
-      pubHex: secrets.spend.pubHex,
-      address: secrets.spend.address,
-      addressBytesHex: hex0x(secrets.spend.addressBytes),
-    },
-    blind: {
-      privHex: hex0x(secrets.blind.priv),
-      pubHex: secrets.blind.pubHex,
-      address: secrets.blind.address,
-      addressBytesHex: hex0x(secrets.blind.addressBytes),
-    },
-  })
+  if (isGhostVaultDebugEnabled()) {
+    console.log('[GhostVault deposit debug] derivation inputs + keypairs', {
+      tokenIndex,
+      masterSeedHex: hex0x(masterSeed),
+      tokenIndexU32BE_Hex: hex0x(indexBe),
+      baseMaterialHex: hex0x(baseMaterial),
+      spend: {
+        privHex: hex0x(secrets.spend.priv),
+        pubHex: secrets.spend.pubHex,
+        address: secrets.spend.address,
+        addressBytesHex: hex0x(secrets.spend.addressBytes),
+      },
+      blind: {
+        privHex: hex0x(secrets.blind.priv),
+        pubHex: secrets.blind.pubHex,
+        address: secrets.blind.address,
+        addressBytesHex: hex0x(secrets.blind.addressBytes),
+      },
+    })
+  }
 
   const { depositId, data, r, bxDec, byDec } =
     await assembleGhostVaultDeposit(secrets)
 
-  console.log('[GhostVault deposit debug] deposit(address,uint256[2]) payload', {
-    tokenIndex,
-    rDecimal: r.toString(),
-    rHex: '0x' + r.toString(16),
-    Bx_uint256_decimalString: bxDec,
-    By_uint256_decimalString: byDec,
-    depositId,
-    calldata: data,
-  })
+  if (isGhostVaultDebugEnabled()) {
+    console.log('[GhostVault deposit debug] deposit(address,uint256[2]) payload', {
+      tokenIndex,
+      rDecimal: r.toString(),
+      rHex: '0x' + r.toString(16),
+      Bx_uint256_decimalString: bxDec,
+      By_uint256_decimalString: byDec,
+      depositId,
+      calldata: data,
+    })
+  }
 
   return { depositId, data }
 }

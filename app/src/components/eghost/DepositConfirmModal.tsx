@@ -29,6 +29,7 @@ import {
   GHOST_VAULT_DEPOSIT_SELECTOR_HEX,
   parseGhostVaultDepositCalldataArgs,
 } from '../../crypto/ghostDeposit'
+import { isGhostVaultDebugEnabled } from '../../lib/ghostDebug'
 
 /** Quick amounts; only `SUPPORTED_DEPOSIT_ETH` is enabled until arbitrary amounts ship. */
 const DEPOSIT_PRESETS = ['0.001', '0.01', '0.1', '1'] as const
@@ -185,7 +186,9 @@ export function DepositConfirmModal({ open, onClose, onToast }: Props) {
           blindedPointB: ['?', '?'],
           depositId: builtDepositId,
         }
-        console.warn('[GhostVault deposit debug] parse calldata failed', e)
+        if (isGhostVaultDebugEnabled()) {
+          console.warn('[GhostVault deposit debug] parse calldata failed', e)
+        }
       }
       const chainId = (await ethereum.request({
         method: 'eth_chainId',
@@ -203,7 +206,9 @@ export function DepositConfirmModal({ open, onClose, onToast }: Props) {
           'latest',
         ])
       } catch (denErr) {
-        console.warn('[GhostVault deposit debug] DENOMINATION() eth_call failed', denErr)
+        if (isGhostVaultDebugEnabled()) {
+          console.warn('[GhostVault deposit debug] DENOMINATION() eth_call failed', denErr)
+        }
       }
       try {
         const pendHex = await chainRpcCall<string>('eth_call', [
@@ -215,7 +220,9 @@ export function DepositConfirmModal({ open, onClose, onToast }: Props) {
         ])
         depositPendingView = BigInt(pendHex) !== 0n
       } catch (pendErr) {
-        console.warn('[GhostVault deposit debug] depositPending eth_call failed', pendErr)
+        if (isGhostVaultDebugEnabled()) {
+          console.warn('[GhostVault deposit debug] depositPending eth_call failed', pendErr)
+        }
       }
 
       const onChainDenomWei =
@@ -223,38 +230,44 @@ export function DepositConfirmModal({ open, onClose, onToast }: Props) {
           ? BigInt(onChainDenominationWeiHex)
           : null
 
-      console.log('[GhostVault deposit debug] before eth_sendTransaction', {
-        tokenIndex,
-        chainId,
-        vaultTo: GHOST_VAULT_ADDRESS,
-        txValueWeiHex: sendParams.value,
-        txValueWeiDecimal: txValueWei.toString(),
-        calldataSelector,
-        expectedDepositSelector: GHOST_VAULT_DEPOSIT_SELECTOR_HEX,
-        selectorMatchesDepositAbi,
-        onChainDenominationWeiHex,
-        onChainDenominationWeiDecimal:
-          onChainDenomWei != null ? onChainDenomWei.toString() : null,
-        txValueMatchesOnChainDenomination:
-          onChainDenomWei != null ? txValueWei === onChainDenomWei : null,
-        depositPending_view: depositPendingView,
-        eth_sendTransaction: { method: 'eth_sendTransaction' as const, params: [sendParams] },
-        deposit_blindedPointB_uint256_decimal: depositFnArgs.blindedPointB,
-        deposit_depositId: depositFnArgs.depositId,
-        depositId_from_build_matches_calldata:
-          builtDepositId.toLowerCase() === depositFnArgs.depositId.toLowerCase(),
-      })
+      if (isGhostVaultDebugEnabled()) {
+        console.log('[GhostVault deposit debug] before eth_sendTransaction', {
+          tokenIndex,
+          chainId,
+          vaultTo: GHOST_VAULT_ADDRESS,
+          txValueWeiHex: sendParams.value,
+          txValueWeiDecimal: txValueWei.toString(),
+          calldataSelector,
+          expectedDepositSelector: GHOST_VAULT_DEPOSIT_SELECTOR_HEX,
+          selectorMatchesDepositAbi,
+          onChainDenominationWeiHex,
+          onChainDenominationWeiDecimal:
+            onChainDenomWei != null ? onChainDenomWei.toString() : null,
+          txValueMatchesOnChainDenomination:
+            onChainDenomWei != null ? txValueWei === onChainDenomWei : null,
+          depositPending_view: depositPendingView,
+          eth_sendTransaction: { method: 'eth_sendTransaction' as const, params: [sendParams] },
+          deposit_blindedPointB_uint256_decimal: depositFnArgs.blindedPointB,
+          deposit_depositId: depositFnArgs.depositId,
+          depositId_from_build_matches_calldata:
+            builtDepositId.toLowerCase() === depositFnArgs.depositId.toLowerCase(),
+        })
+      }
 
       try {
         await chainRpcCall<string>('eth_call', [sendParams, 'latest'])
-        console.log(
-          '[GhostVault deposit debug] eth_call (same as tx): ok — no revert on this RPC'
-        )
+        if (isGhostVaultDebugEnabled()) {
+          console.log(
+            '[GhostVault deposit debug] eth_call (same as tx): ok — no revert on this RPC'
+          )
+        }
       } catch (simErr) {
-        console.warn(
-          '[GhostVault deposit debug] eth_call (same as tx): revert / error (useful detail if the node returns it)',
-          simErr
-        )
+        if (isGhostVaultDebugEnabled()) {
+          console.warn(
+            '[GhostVault deposit debug] eth_call (same as tx): revert / error (useful detail if the node returns it)',
+            simErr
+          )
+        }
       }
 
       const hash = (await ethereum.request({

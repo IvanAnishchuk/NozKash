@@ -6,6 +6,7 @@ import {
 } from '../crypto/ghost-library'
 import { TARGET_NETWORK_LABEL } from './ethereum'
 import { chainRpcCall } from './chainPublicRpc'
+import { isGhostVaultDebugEnabled } from './ghostDebug'
 import type { VaultTx } from '../types/activity'
 
 type ChainRpcFn = typeof chainRpcCall
@@ -150,12 +151,9 @@ const vaultActivityCache = new Map<string, ScanCacheEntry>()
 let inflightActivityKey: string | null = null
 let inflightActivityPromise: Promise<VaultTx[]> | null = null
 
-/** Dev or `VITE_GHOST_VAULT_ACTIVITY_DEBUG=true` — enables {@link ghostVaultActivityDebug}. */
+/** Dev or `VITE_GHOST_DEBUG=true` — enables {@link ghostVaultActivityDebug}. */
 export function isGhostVaultActivityDebug(): boolean {
-  return (
-    import.meta.env.DEV === true ||
-    import.meta.env.VITE_GHOST_VAULT_ACTIVITY_DEBUG === 'true'
-  )
+  return isGhostVaultDebugEnabled()
 }
 
 export function ghostVaultActivityDebug(...args: unknown[]): void {

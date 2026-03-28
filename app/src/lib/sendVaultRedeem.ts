@@ -10,6 +10,7 @@ import {
   waitForTransactionReceipt,
 } from './ethereum'
 import { chainRpcCall } from './chainPublicRpc'
+import { isGhostVaultDebugEnabled } from './ghostDebug'
 import {
   fetchMintFulfilledSPrime,
   GHOST_VAULT_ADDRESS,
@@ -28,10 +29,7 @@ export type EthereumRequester = {
  * Clears the draft and invalidates activity cache on success.
  */
 function redeemDebug(msg: string, data?: Record<string, unknown>) {
-  const on =
-    import.meta.env.DEV ||
-    import.meta.env.VITE_GHOST_REDEEM_DEBUG === 'true'
-  if (!on) return
+  if (!isGhostVaultDebugEnabled()) return
   console.log('[GhostVault redeem]', msg, data ?? '')
 }
 

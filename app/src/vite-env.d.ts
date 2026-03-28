@@ -57,10 +57,11 @@ interface ImportMetaEnv {
   readonly VITE_GHOST_REDEEM_PREPARE_ACCOUNT?: string
   /** Optional: only this account sees "Redeem here" (Account 2 / who signs the tx). */
   readonly VITE_GHOST_REDEEM_EXECUTOR_ACCOUNT?: string
-  /** `true` — log `[GhostVault redeem]` to console (in addition to `import.meta.env.DEV`). */
-  readonly VITE_GHOST_REDEEM_DEBUG?: string
-  /** `true` — log `[GhostVault activity]` (vault scan / cache); also on in `import.meta.env.DEV`. */
-  readonly VITE_GHOST_VAULT_ACTIVITY_DEBUG?: string
+  /**
+   * `true` — verbose GhostVault console logs: deposit debug, activity scan, redeem.
+   * Off in production builds unless set at build time. Also on in `import.meta.env.DEV`.
+   */
+  readonly VITE_GHOST_DEBUG?: string
 }
 
 interface ImportMeta {

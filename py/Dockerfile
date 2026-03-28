@@ -5,7 +5,8 @@
 #
 # On a GCE VM you can clone the repo, cd into it, and run the same build command.
 #
-# Run (env vars documented in mint_server.py header):
+# Run (env vars documented in mint_server.py header).
+# Note: Typer exposes a single command at the root — do not pass a literal "run" argv.
 #   docker run --rm --env-file .env nozkash-mint-server
 
 FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
@@ -22,4 +23,4 @@ WORKDIR /app/py
 
 ENV PYTHONUNBUFFERED=1
 
-CMD ["uv", "run", "python", "mint_server.py", "run"]
+CMD ["uv", "run", "mint_server.py"]

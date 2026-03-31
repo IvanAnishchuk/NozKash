@@ -30,7 +30,7 @@ from eth_utils import keccak
 
 # ── Build selector → name mapping from ABI ────────────────────────────────────
 
-_ABI_PATH = Path(__file__).resolve().parent / ".." / "sol" / "ghost_vault_abi.json"
+_ABI_PATH = Path(__file__).resolve().parent / ".." / "abi" / "ghost_vault_abi.json"
 _abi = json.loads(_ABI_PATH.read_text())
 
 # keccak256("ErrorName()")[:4] → "ErrorName"

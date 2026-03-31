@@ -1,0 +1,52 @@
+{
+  "MASTER_SEED": "04e91cd9086abecd62bcb0d4cd8d89ed0e4b1d8f7a3f48a0028911fb97449143",
+  "TOKEN_INDEX": 255,
+  "MINT_BLS_PRIVKEY": "0x22a923974563c9736312491e019d0758e5cac3f9b407df4903febf9f838e2305",
+  "PK_MINT": {
+    "X_real": "671b5cfe1af8fa107e8770d79a961192bfbeaa33513c9f8e350622bab11ce34",
+    "X_imag": "a0370874fe6480faf4fda338d0f9c265551ebf930c733244134899b1c0a9a4d",
+    "Y_real": "262fe5d2da1b0a1821d9e72f11ef03280537c3d48d3d4b3678841da14d44e51",
+    "Y_imag": "1bc9f7c64cb6c64261ae1bf99ec18c5006cb520d46c6d2000c8ad93986bd2574"
+  },
+  "SPEND_KEYPAIR": {
+    "priv": "fb7c8a68992570d634e75bcd0a48e10e86446fbe8afcefc600b365cb75c1fcf3",
+    "pub": "0x04c58228ead7e6915e8bcdd62e2f3b068d7c2a629d54f099dbdc5d93d31bae9d86d11e200ec8bb5db302e7d5e37137db5ce98ccc96bb160acc888b581d0c63ec07",
+    "address": "0xce0dc7d184a20155fed6d5685ac7e8ddbf8551ef"
+  },
+  "BLIND_KEYPAIR": {
+    "priv": "b6a8dd31c8c0a1df03e0623ad6904428112e8d85fe4b18663ba35a60e4939083",
+    "pub": "0x04110da138c993bc17be5db447fe3ec76bce132b5bc2d2e33a11019326e8ffea9c3e4ecdc5fef65a14ef47fbbba101eb957d5285102b14a6907f255473789b19f2",
+    "address": "0x23769acb0aad886fb61ed45e557f21a3d5b8ff62",
+    "r": "0x257bf1d9252bc161daef9117520c3b109892d4ac911ec6b26ffd79a514939080"
+  },
+  "Y_HASH_TO_CURVE": {
+    "X": "1a59b0910e5b931db545a7c360aaa9015c84795ca9b2bc2829a04f14b5df7464",
+    "Y": "c59c1c8bb17955cc9f54bd73e8c36bcfa773de63b7e84a22e73bfc10d3344b2"
+  },
+  "B_BLINDED": {
+    "X": "53f9d7d7c9bca8b6328dc24a0afccf32a983c5ff26e44757273ad861643e81c",
+    "Y": "18ec4427421d968ec35513dfe67ec3510eefbb8f603521e8c577e188c9a7c5ae"
+  },
+  "S_PRIME": {
+    "X": "2030055b52d2f7f68f24312852273993b1cbadbebe4b4e3ef572859ccc341861",
+    "Y": "23c3719de6a9845cbb24991c2223f2f11e215f966911f469f1c10668ca5523d"
+  },
+  "S_UNBLINDED": {
+    "X": "ec5e471aac8f413a8968578591c3a3674395a54be73a01fb0ed41bd283b10e6",
+    "Y": "57e4c18e62be7a07de8b0593426f53445b5ee2a72ac80a3d97f88afa329d417"
+  },
+  "EIP712": {
+    "chain_id": 43113,
+    "contract_address": "0x0cd5b34e58c579105A3c080Bb3170d032a544352",
+    "deadline": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+  },
+  "REDEEM_TX": {
+    "recipient": "0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7",
+    "S_x": "0xec5e471aac8f413a8968578591c3a3674395a54be73a01fb0ed41bd283b10e6",
+    "S_y": "0x57e4c18e62be7a07de8b0593426f53445b5ee2a72ac80a3d97f88afa329d417",
+    "msg_hash": "b2dbf465d95f86fc95f39b9b58a3dd1c6af032a9ac656d1316ec2179857d944e",
+    "compact_hex": "fadcc84a4948a3290807ce3e4c2a449ce7fb07b30bd5c571dae4661f34f1880d41b6f4220e585e334b92d3608bde959e3ba07c2c0bc0eebc30e487f5a81fa59b",
+    "recovery_bit": 0,
+    "spend_signature": "fadcc84a4948a3290807ce3e4c2a449ce7fb07b30bd5c571dae4661f34f1880d41b6f4220e585e334b92d3608bde959e3ba07c2c0bc0eebc30e487f5a81fa59b1b"
+  }
+}

@@ -342,7 +342,7 @@ export const MINT_FULFILLED_TOPIC =
 export const REFUNDED_TOPIC =
   '0x51ebc7481979ebbd2e5cf0be7bb298c0a8dfe2c94e2b37ec845b412b2b93df52'
 
-/** `spentNullifiers(address)` getter (`abi.json`). */
+/** `spentNullifiers(address)` getter (`abi/ghost_vault_abi.json`). */
 const SPENT_NULLIFIERS_SELECTOR = '0x2b2ba6e8'
 /** `depositPending(address)` getter. */
 const DEPOSIT_PENDING_SELECTOR = '0xd7d82302'

@@ -21,7 +21,7 @@ from ghost_library import Scalar, G2Point, _mul_g2
 # VECTOR DISCOVERY
 # ==============================================================================
 
-VECTORS_DIR = Path(__file__).parent / "test_vectors"
+VECTORS_DIR = Path(__file__).resolve().parent.parent / "test_vectors"
 
 
 def load_all_vectors() -> list[tuple[str, dict]]:
@@ -31,7 +31,8 @@ def load_all_vectors() -> list[tuple[str, dict]]:
     """
     if not VECTORS_DIR.exists():
         return []
-    files = sorted(VECTORS_DIR.rglob("*.json"))
+    # Only collect token_*.json inside keypair subdirectories (skip manifest.json etc.)
+    files = sorted(f for f in VECTORS_DIR.rglob("token_*.json") if f.parent != VECTORS_DIR)
     return [
         (f"{f.parent.name}/{f.stem}", json.loads(f.read_text()))
         for f in files

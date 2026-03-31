@@ -6,10 +6,11 @@ for multiple (mint keypair, token index) combinations. Each vector file is
 a self-contained JSON snapshot of every intermediate value produced during
 one run of the protocol, suitable for cross-language parity testing.
 
-Output layout:
+Output layout (writes to repo-root ``test_vectors/`` by default):
     test_vectors/
+        manifest.json                          — lists keypair dirs + indices
         <seed_prefix>_<sk_prefix>/
-            token_<index>.json   — one file per token index tested
+            token_<index>.json                 — one file per token index tested
 
 Usage:
     uv run generate_vectors.py                   # default: 3 keypairs × 6 indices
@@ -27,7 +28,7 @@ from ghost_library import Scalar, G2Point, _mul_g2
 import ghost_library as gl
 from ghost_library import serialize_g1
 
-VECTORS_DIR = Path("test_vectors")
+VECTORS_DIR = Path(__file__).resolve().parent.parent / "test_vectors"
 
 
 def compute_vector(master_seed_hex: str, sk_int: int, token_index: int) -> dict:
@@ -205,16 +206,27 @@ def main():
     args = parser.parse_args()
 
     indices = sorted(set(args.indices))
+    out_dir = args.out
+
+    # Clean stale keypair directories (but not manifest.json or other non-dir entries)
+    if out_dir.exists():
+        for child in list(out_dir.iterdir()):
+            if child.is_dir():
+                import shutil
+                shutil.rmtree(child)
 
     print(f"Generating {args.keypairs} keypair(s) × {len(indices)} index/indices "
           f"= {args.keypairs * len(indices)} vector files\n")
 
+    keypair_dirs: list[str] = []
     total = 0
     for kp_num in range(1, args.keypairs + 1):
         master_seed_hex, sk_int = generate_keypair()
         seed_prefix = master_seed_hex[:8]
         sk_prefix   = hex(sk_int)[-8:]
-        kp_dir      = args.out / f"{seed_prefix}_{sk_prefix}"
+        kp_name     = f"{seed_prefix}_{sk_prefix}"
+        kp_dir      = out_dir / kp_name
+        keypair_dirs.append(kp_name)
 
         print(f"[{kp_num}/{args.keypairs}] seed={seed_prefix}...  sk=...{sk_prefix}")
 
@@ -224,7 +236,13 @@ def main():
             print(f"    token_{idx:>5}  →  {path}")
             total += 1
 
-    print(f"\n✅ {total} vector files written to {args.out}/")
+    # Write manifest so consumers (e.g. Foundry tests) can discover all keypair suites.
+    manifest = {"keypairs": keypair_dirs, "indices": indices}
+    manifest_path = out_dir / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2))
+
+    print(f"\n✅ {total} vector files written to {out_dir}/")
+    print(f"   manifest: {manifest_path}")
 
 
 if __name__ == "__main__":

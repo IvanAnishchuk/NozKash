@@ -390,7 +390,7 @@ def load_config() -> ClientConfig:
 
 # ── Contract ABI ───────────────────────────────────────────────────────────────
 
-_ABI_PATH = Path(__file__).resolve().parent / ".." / "sol" / "ghost_vault_abi.json"
+_ABI_PATH = Path(__file__).resolve().parent / ".." / "abi" / "ghost_vault_abi.json"
 GHOST_VAULT_ABI = json.loads(_ABI_PATH.read_text())
 
 

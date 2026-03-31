@@ -5,6 +5,7 @@ libs = ["lib"]
 fs_permissions = [
     { access = "read", path = "test" },
     { access = "read", path = "scripts" },
+    { access = "read", path = "../test_vectors" },
 ]
 
 # `forge test --fork-url sepolia|avalanche-fuji`, `cast rpc --rpc avalanche-fuji`, etc.

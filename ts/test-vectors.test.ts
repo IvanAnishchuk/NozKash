@@ -18,7 +18,7 @@ interface VectorFile {
 }
 
 function loadAllVectors(): VectorFile[] {
-    const vectorsDir = resolve('./test_vectors');
+    const vectorsDir = resolve('../test_vectors');
     if (!existsSync(vectorsDir)) return [];
 
     const results: VectorFile[] = [];

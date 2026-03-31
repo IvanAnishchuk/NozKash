@@ -5,8 +5,19 @@ import { DepositConfirmModal } from './eghost/DepositConfirmModal'
 import { EgcNavbarLogo } from './eghost/EgcNavbarLogo'
 import { SplashScreen } from './eghost/SplashScreen'
 import { usePrivacy } from '../context/usePrivacy'
+import { loadRedemptionDraft } from '../crypto/ghostRedeem'
 import { useWallet, WALLET_BALANCE_POLL_MS } from '../hooks/useWallet'
-import { getEthereum, weiHexToNativeLabel } from '../lib/ethereum'
+import {
+  getEthereum,
+  isTargetEthereumSepolia,
+  NATIVE_CURRENCY_SYMBOL,
+  SEPOLIA_ETH_FAUCET_GCP_URL,
+  weiHexToNativeLabel,
+} from '../lib/ethereum'
+import {
+  invalidateVaultActivityCache,
+  requestVaultActivityRefresh,
+} from '../lib/ghostVault'
 import type { LayoutOutletContext } from '../layoutOutletContext'
 
 const AVATAR_PALETTE = ['#3D0F18', '#1A1A3D', '#003D2A', '#4B0082'] as const
@@ -34,15 +45,12 @@ export function Layout() {
   const {
     connectWallet,
     disconnectWallet,
-    openMetaMaskAccountPicker,
     account,
     accounts,
-    selectAccount,
     network,
   } = useWallet()
 
   const [dropdownOpen, setDropdownOpen] = useState(false)
-  const [walletSearch, setWalletSearch] = useState('')
   const [balancesByAddr, setBalancesByAddr] = useState<Record<string, string>>(
     {}
   )
@@ -55,6 +63,8 @@ export function Layout() {
 
   const pillRef = useRef<HTMLDivElement | null>(null)
   const dropRef = useRef<HTMLDivElement | null>(null)
+  /** Tracks last connected account for redeem draft → origin refresh. */
+  const prevAccountForRedeemDraftRef = useRef<string | null>(null)
 
   const showToast = useCallback(
     (msg: string, type: 'success' | 'error' | 'info' = 'success') => {
@@ -80,7 +90,7 @@ export function Layout() {
             method: 'eth_getBalance',
             params: [addr, 'latest'],
           })) as string
-          next[addr] = weiHexToNativeLabel(hex, 'AVAX', 4)
+          next[addr] = weiHexToNativeLabel(hex, NATIVE_CURRENCY_SYMBOL, 4)
         } catch {
           next[addr] = '—'
         }
@@ -98,7 +108,7 @@ export function Layout() {
   const walletRows: MmRow[] = useMemo(() => {
     return accounts.map((addr, i) => ({
       address: addr,
-      name: `Account ${i + 1}`,
+      name: 'Connected wallet',
       addrShort: truncateAddr(addr),
       bal: balancesByAddr[addr] ?? '…',
       color: AVATAR_PALETTE[i % AVATAR_PALETTE.length],
@@ -106,16 +116,10 @@ export function Layout() {
     }))
   }, [accounts, balancesByAddr])
 
-  const filteredWallets = useMemo(() => {
-    const q = walletSearch.toLowerCase()
-    if (!q) return walletRows
-    return walletRows.filter(
-      (w) =>
-        w.name.toLowerCase().includes(q) ||
-        w.addrShort.toLowerCase().includes(q) ||
-        w.address.toLowerCase().includes(q)
-    )
-  }, [walletRows, walletSearch])
+  const activeWallet = useMemo(
+    () => walletRows.find((w) => w.address === account) ?? null,
+    [walletRows, account]
+  )
 
   const accountIndex = account ? accounts.findIndex((a) => a === account) : -1
   const pillColor =
@@ -123,7 +127,11 @@ export function Layout() {
       ? AVATAR_PALETTE[accountIndex % AVATAR_PALETTE.length]
       : '#3D0F18'
   const pillName =
-    accountIndex >= 0 ? `Account ${accountIndex + 1}` : 'Wallet'
+    account && accountIndex >= 0
+      ? truncateAddr(account)
+      : accounts[0]
+        ? `Connect ${truncateAddr(accounts[0])}`
+        : 'Connect Wallet'
   const pillInitials = account ? addrInitials(account) : 'MM'
 
   useEffect(() => {
@@ -137,6 +145,31 @@ export function Layout() {
     document.addEventListener('click', onDoc)
     return () => document.removeEventListener('click', onDoc)
   }, [dropdownOpen])
+
+  /**
+   * After redeem step 2 (executor wallet), switching back to the prepare/origin wallet
+   * should refresh vault activity + next-token index for that account’s seed. We always
+   * invalidate here so the origin view is not stuck on stale cache (incl. when WS live
+   * mode skips invalidate on generic refresh).
+   */
+  useEffect(() => {
+    const draft = loadRedemptionDraft()
+    const prep = draft?.prepareAccount?.toLowerCase()
+    const curr = account?.toLowerCase() ?? null
+    const prev = prevAccountForRedeemDraftRef.current
+
+    if (
+      prep &&
+      prev != null &&
+      prev !== prep &&
+      curr === prep
+    ) {
+      invalidateVaultActivityCache()
+      requestVaultActivityRefresh()
+    }
+
+    prevAccountForRedeemDraftRef.current = curr
+  }, [account])
 
   const eyeBorderStyle = privacyOn
     ? { borderColor: 'rgba(0,229,160,.3)' as const }
@@ -154,7 +187,20 @@ export function Layout() {
         )}
 
         <div className="navbar">
-          <EgcNavbarLogo />
+          <div className="navbar-left">
+            <EgcNavbarLogo />
+            {isTargetEthereumSepolia() ? (
+              <a
+                className="navbar-sepolia-faucet-link"
+                href={SEPOLIA_ETH_FAUCET_GCP_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Get Sepolia ETH (opens Google Cloud faucet in a new tab)"
+              >
+                Sepolia ETH
+              </a>
+            ) : null}
+          </div>
           <div className="navbar-right">
             <button
               type="button"
@@ -203,7 +249,7 @@ export function Layout() {
                 onClick={() => connectWallet()}
               >
                 <span className="wallet-name" style={{ maxWidth: 120 }}>
-                  Connect Wallet
+                  {pillName}
                 </span>
               </button>
             ) : (
@@ -256,18 +302,10 @@ export function Layout() {
           className={`wallet-dropdown ${dropdownOpen ? '' : 'hidden'}`}
         >
           <div className="wd-header">
-            <span className="wd-title">MY ACCOUNTS</span>
-          </div>
-          <div className="wd-search-wrap">
-            <input
-              className="wd-search"
-              placeholder="Search accounts..."
-              value={walletSearch}
-              onChange={(e) => setWalletSearch(e.target.value)}
-            />
+            <span className="wd-title">CONNECTED ACCOUNT</span>
           </div>
           <div className="wd-list">
-            {filteredWallets.length === 0 ? (
+            {!activeWallet ? (
               <div
                 className="wd-item"
                 style={{
@@ -277,108 +315,53 @@ export function Layout() {
                   fontFamily: 'var(--mono)',
                 }}
               >
-                No accounts match
+                No connected account
               </div>
             ) : (
-              filteredWallets.map((w) => (
+              <div
+                key={activeWallet.address}
+                className="wd-item active-wallet"
+                style={{ cursor: 'default' }}
+                role="status"
+                aria-live="polite"
+                tabIndex={-1}
+              >
                 <div
-                  key={w.address}
-                  className={`wd-item ${
-                    w.address === account ? 'active-wallet' : ''
-                  }`}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => {
-                    selectAccount(w.address)
-                    setDropdownOpen(false)
-                    showToast(`Active: ${w.name}`, 'success')
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      selectAccount(w.address)
-                      setDropdownOpen(false)
-                      showToast(`Active: ${w.name}`, 'success')
-                    }
+                  className="wd-avatar"
+                  style={{
+                    background: activeWallet.color,
+                    color: 'rgba(255,255,255,.8)',
+                    fontSize: 10,
                   }}
                 >
-                  <div
-                    className="wd-avatar"
-                    style={{
-                      background: w.color,
-                      color: 'rgba(255,255,255,.8)',
-                      fontSize: 10,
-                    }}
-                  >
-                    {w.initials}
-                  </div>
-                  <div className="wd-info">
-                    <div className="wd-wname">{w.name}</div>
-                    <div className="wd-addr">{w.addrShort}</div>
-                  </div>
-                  <div className="wd-bal">
-                    {privacyOn ? '••••' : w.bal}
-                  </div>
-                  {w.address === account ? (
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                      <circle
-                        cx="8"
-                        cy="8"
-                        r="7"
-                        stroke="var(--history-accent)"
-                        strokeWidth="1.5"
-                      />
-                      <path
-                        d="M5 8l2 2 4-4"
-                        stroke="var(--history-accent)"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                  ) : (
-                    <div style={{ width: 16 }} />
-                  )}
+                  {activeWallet.initials}
                 </div>
-              ))
+                <div className="wd-info">
+                  <div className="wd-wname">{activeWallet.name}</div>
+                  <div className="wd-addr">{activeWallet.addrShort}</div>
+                </div>
+                <div className="wd-bal">
+                  {privacyOn ? '••••' : activeWallet.bal}
+                </div>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <circle
+                    cx="8"
+                    cy="8"
+                    r="7"
+                    stroke="var(--history-accent)"
+                    strokeWidth="1.5"
+                  />
+                  <path
+                    d="M5 8l2 2 4-4"
+                    stroke="var(--history-accent)"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </div>
             )}
           </div>
           <div className="wd-divider" />
-          <div
-            className="wd-action"
-            role="button"
-            tabIndex={0}
-            onClick={async () => {
-              setDropdownOpen(false)
-              const ok = await openMetaMaskAccountPicker()
-              if (ok) {
-                showToast('Accounts updated from MetaMask', 'success')
-              }
-            }}
-            onKeyDown={async (e) => {
-              if (e.key === 'Enter') {
-                setDropdownOpen(false)
-                const ok = await openMetaMaskAccountPicker()
-                if (ok) {
-                  showToast('Accounts updated from MetaMask', 'success')
-                }
-              }
-            }}
-          >
-            <div className="wd-action-icon">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M17 1l4 4-4 4M3 11V9a4 4 0 014-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 01-4 4H3"
-                  stroke="var(--text2)"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </div>
-            <div className="wd-action-text-col">
-              <span className="wd-action-label">Change account</span>
-              <span className="wd-action-sub">Open MetaMask · add or select</span>
-            </div>
-          </div>
           <div
             className="wd-action danger"
             role="button"
@@ -409,7 +392,7 @@ export function Layout() {
             </div>
             <div className="wd-action-text-col">
               <span className="wd-action-label">Disconnect</span>
-              <span className="wd-action-sub">Revoke site access in MetaMask</span>
+              <span className="wd-action-sub">Revoke site access in your wallet</span>
             </div>
           </div>
         </div>

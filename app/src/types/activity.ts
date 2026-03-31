@@ -1,8 +1,13 @@
-/** Fila de actividad GhostVault / historial (solo datos on-chain o derivados). */
+/** GhostVault activity / history row (on-chain or derived data only). */
 
-export type ActivityKind = 'Deposit' | 'Redeem' | 'Pending'
+export type ActivityKind = 'Deposit' | 'Redeem' | 'Pending' | 'Refunded'
 
-export type HistoryFilterType = 'all' | 'deposit' | 'redeem' | 'pending'
+export type HistoryFilterType =
+  | 'all'
+  | 'deposit'
+  | 'redeem'
+  | 'pending'
+  | 'refunded'
 
 export interface VaultTx {
   id: string
@@ -15,6 +20,6 @@ export interface VaultTx {
   historyLabel: string
   historySub: string
   blockNumber?: number
-  /** Índice de token cuando la fila viene del vault escaneado. */
+  /** Token index when the row comes from scanned vault activity. */
   tokenIndex?: number
 }

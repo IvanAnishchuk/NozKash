@@ -13,9 +13,9 @@ function envAddr(
 }
 
 /**
- * **Start redeem** — visible en la cuenta que prepara (Account 1), incluso después
- * de guardar claves, para que el usuario siga viendo la fila mientras cambia de wallet.
- * En la cuenta ejecutora (Account 2) no se muestra.
+ * **Start redeem** — shown on the preparing account (Account 1), even after
+ * saving keys, so the user still sees the row while switching wallets.
+ * Hidden on the executor account (Account 2).
  */
 export function isStartRedeemVisible(
   account: string | null,
@@ -37,9 +37,9 @@ export function isStartRedeemVisible(
 }
 
 /**
- * **Redeem here** — en la cuenta que envía la tx on-chain (Account 2).
- * - `isReady` suele venir de `isHomeRedeemReady` (connected ≠ prepareAccount).
- * - Si `VITE_GHOST_REDEEM_EXECUTOR_ACCOUNT` está definido, solo esa dirección ve el botón.
+ * **Redeem here** — on the account that sends the on-chain tx (Account 2).
+ * - `isReady` usually comes from `isHomeRedeemReady` (connected ≠ prepareAccount).
+ * - If `VITE_GHOST_REDEEM_EXECUTOR_ACCOUNT` is set, only that address sees the button.
  */
 export function shouldShowRedeemHere(
   account: string | null,

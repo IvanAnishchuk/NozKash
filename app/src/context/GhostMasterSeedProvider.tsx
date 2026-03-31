@@ -22,7 +22,7 @@ import {
 type WalletUnlock = {
   seed: Uint8Array
   account: string
-  /** eth_chainId normalizado minúsculas */
+  /** eth_chainId normalized to lowercase */
   chainId: string
 }
 
@@ -51,9 +51,9 @@ export type GhostMasterSeedContextValue = {
   effectiveMasterSeed: Uint8Array | null
   hasSignedUnlock: boolean
   seedRevision: number
-  /** Si falló el auto al conectar; persiste solo en memoria mientras la wallet sigue conectada. */
+  /** Manual re-sign after auto-unlock failed; seed stays in memory only while the wallet stays connected. */
   requestUnlockViaSign: (forAccount?: string) => Promise<Uint8Array | null>
-  /** Borra la semilla en memoria (p. ej. otra cuenta en el mismo dispositivo). */
+  /** Clears the in-memory seed (e.g. another account on the same device). */
   clearSignedUnlock: () => Promise<void>
 }
 
@@ -74,7 +74,7 @@ export function GhostMasterSeedProvider({ children }: { children: ReactNode }) {
     window.dispatchEvent(new Event(GHOST_MASTER_SEED_CHANGED_EVENT))
   }, [])
 
-  /** Sin env: semilla solo en RAM; al desconectar (`account` null) se borra. Sin localStorage. */
+  /** Without env override: seed only in RAM; cleared on disconnect (`account` null). Not persisted to localStorage. */
   useEffect(() => {
     if (getGhostMasterSeedFromEnv()) {
       setUnlock(null)
@@ -187,7 +187,7 @@ export function GhostMasterSeedProvider({ children }: { children: ReactNode }) {
 export function useGhostMasterSeed(): GhostMasterSeedContextValue {
   const ctx = useContext(GhostMasterSeedContext)
   if (!ctx) {
-    throw new Error('useGhostMasterSeed debe usarse dentro de GhostMasterSeedProvider')
+    throw new Error('useGhostMasterSeed must be used within GhostMasterSeedProvider')
   }
   return ctx
 }

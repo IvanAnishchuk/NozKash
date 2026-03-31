@@ -4,12 +4,17 @@ import {
   redemptionDraftMatchesSecrets,
   type RedemptionDraftV1,
 } from '../crypto/ghostRedeem'
-import { ensureFuji, waitForTransactionReceipt } from './ethereum'
-import { fujiRpcCall } from './fujiJsonRpc'
+import {
+  ensureTargetChain,
+  targetChainMismatchUserMessage,
+  waitForTransactionReceipt,
+} from './ethereum'
+import { chainRpcCall } from './chainPublicRpc'
+import { isGhostVaultDebugEnabled } from './ghostDebug'
 import {
   fetchMintFulfilledSPrime,
   GHOST_VAULT_ADDRESS,
-  invalidateVaultActivityCache,
+  requestVaultActivityRefresh,
 } from './ghostVault'
 
 export type EthereumRequester = {
@@ -20,15 +25,17 @@ export type EthereumRequester = {
 }
 
 /**
- * Envía `GhostVault.redeem` con el borrador local (claves spend/blind) y `recipient`.
- * Cierra el borrador e invalida el caché de actividad si confirma.
+ * Sends `GhostVault.redeem` using the local draft (spend/blind keys) and `recipient`.
+ * Clears the draft and invalidates activity cache on success.
  */
 function redeemDebug(msg: string, data?: Record<string, unknown>) {
-  const on =
-    import.meta.env.DEV ||
-    import.meta.env.VITE_GHOST_REDEEM_DEBUG === 'true'
-  if (!on) return
+  if (!isGhostVaultDebugEnabled()) return
   console.log('[GhostVault redeem]', msg, data ?? '')
+}
+
+function encodeUint256Arg(n: number): `0x${string}` {
+  const hex = BigInt(n).toString(16).padStart(64, '0')
+  return (`0x${hex}`) as `0x${string}`
 }
 
 export async function sendVaultRedeemTransaction(params: {
@@ -36,10 +43,10 @@ export async function sendVaultRedeemTransaction(params: {
   recipient: string
   draft: RedemptionDraftV1
   /**
-   * Si hay semilla, se comprueba alineación **solo** cuando quien firma la tx
-   * es la misma cuenta que preparó el borrador (Account 1). Si la tx la envía
-   * otra cuenta (Account 2), la semilla actual es distinta — el borrador ya
-   * trae spend/blind en localStorage y no se valida contra `masterSeed`.
+   * When `masterSeed` is present, alignment is checked **only** if the account
+   * signing the tx is the same as the one that prepared the draft (Account 1).
+   * If another account (Account 2) sends the tx, the in-memory seed differs — the
+   * draft already carries spend/blind in localStorage and is not validated against `masterSeed`.
    */
   masterSeed?: Uint8Array | null
 }): Promise<{ txHash: string }> {
@@ -60,6 +67,12 @@ export async function sendVaultRedeemTransaction(params: {
     isExecutorAccount,
     hasMasterSeed: Boolean(masterSeed?.length),
   })
+  redeemDebug('draft', {
+    tokenIndex: draft.tokenIndex,
+    depositId: draft.depositId.toLowerCase(),
+    nullifier: draft.spendAddress.toLowerCase(),
+    savedAtMs: draft.savedAt,
+  })
 
   if (masterSeed && !isExecutorAccount) {
     const ok = redemptionDraftMatchesSecrets(draft, masterSeed)
@@ -73,9 +86,9 @@ export async function sendVaultRedeemTransaction(params: {
     )
   }
 
-  const okChain = await ensureFuji(ethereum)
+  const okChain = await ensureTargetChain(ethereum)
   if (!okChain) {
-    throw new Error('Switch to Avalanche Fuji (43113)')
+    throw new Error(targetChainMismatchUserMessage())
   }
 
   const mint = await fetchMintFulfilledSPrime(draft.depositId, {
@@ -84,11 +97,48 @@ export async function sendVaultRedeemTransaction(params: {
   if (!mint) {
     throw new Error('No MintFulfilled log for this depositId')
   }
+  try {
+    // `uint256[4] public pkMint` generates getter: pkMint(uint256) -> uint256
+    // selector: keccak256("pkMint(uint256)")[:4] = 0x14f2a9c2
+    const selector = '0x14f2a9c2'
+    const limbs: string[] = []
+    for (let i = 0; i < 4; i++) {
+      const limbHex = await chainRpcCall<string>('eth_call', [
+        {
+          to: GHOST_VAULT_ADDRESS,
+          data: `${selector}${encodeUint256Arg(i).slice(2)}`,
+        },
+        'latest',
+      ])
+      limbs.push(limbHex)
+    }
+    redeemDebug('contract pkMint limbs', {
+      pkMint0: limbs[0],
+      pkMint1: limbs[1],
+      pkMint2: limbs[2],
+      pkMint3: limbs[3],
+    })
+  } catch (e) {
+    redeemDebug('contract pkMint eth_call failed', {
+      error: e instanceof Error ? e.message : String(e),
+    })
+  }
+  redeemDebug('mint log found', {
+    tokenIndex: draft.tokenIndex,
+    depositId: draft.depositId.toLowerCase(),
+    sx: mint.sx.toString(10),
+    sy: mint.sy.toString(10),
+  })
 
   const data = await buildGhostVaultRedeemCalldata({
     draft,
     recipient: r,
     mintFulfilled: mint,
+  })
+  redeemDebug('calldata built', {
+    tokenIndex: draft.tokenIndex,
+    selector: data.slice(0, 10).toLowerCase(),
+    bytes: Math.max(0, (data.length - 2) / 2),
   })
 
   const accs = (await ethereum.request({
@@ -108,9 +158,9 @@ export async function sendVaultRedeemTransaction(params: {
   }
 
   try {
-    await fujiRpcCall('eth_call', [sendParams, 'latest'])
+    await chainRpcCall('eth_call', [sendParams, 'latest'])
   } catch {
-    /* opcional */
+    /* optional simulation */
   }
 
   const hash = (await ethereum.request({
@@ -118,12 +168,13 @@ export async function sendVaultRedeemTransaction(params: {
     params: [sendParams],
   })) as string
 
-  const receipt = await waitForTransactionReceipt(hash)
+  /* Prefer wallet RPC for receipt polling so Infura isn’t hit during the same redeem flow as `fetchMintFulfilledSPrime` + vault refresh. */
+  const receipt = await waitForTransactionReceipt(hash, { ethereum })
   if (receipt.status === '0x0') {
     throw new Error('Transaction reverted')
   }
 
   clearRedemptionDraft()
-  invalidateVaultActivityCache()
+  requestVaultActivityRefresh()
   return { txHash: hash }
 }

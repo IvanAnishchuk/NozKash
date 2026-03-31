@@ -2,12 +2,12 @@
 
 ## [1.0.0] — 2026-03-20
 
-Primera versión estable etiquetada (**v1.0** / `v1.0.0`).
+First stable tagged release (**v1.0** / `v1.0.0`).
 
-### Incluye
+### Included
 
-- Shell eGhostCash (tema CSS, splash, navegación HOME).
-- Balance mock por cuenta, privacidad (ojo), dropdown de cuentas y MetaMask (Avalanche Fuji 43113).
-- **Add deposit**: botón a ancho completo, modal de confirmación (Amount, USD, claims, red, gas, privacidad) → MetaMask → toast de confirmación.
-- Historial y datos mock alineados al prototipo HTML.
-- Rutas: `/`, `/deposit`, `/redeem`, `/recovery` (actividad y filtros en HOME).
+- eGhostCash shell (CSS theme, splash, HOME navigation).
+- Per-account balance mock, privacy toggle, account dropdown, MetaMask (Avalanche Fuji 43113).
+- **Add deposit**: full-width button, confirmation modal (amount, claims, network, gas, privacy) → MetaMask → confirmation toast.
+- History and mock data aligned with the HTML prototype.
+- Routes: `/`, `/deposit`, `/redeem`, `/recovery` (activity and filters on HOME).

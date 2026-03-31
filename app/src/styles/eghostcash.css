@@ -6,7 +6,7 @@
   --text:#F0EEF8;--text2:#8A88A0;--text3:#4A4860;
   --border:#2A2838;--border2:#3A3850;
   --mono:'Space Mono',monospace;--sans:'DM Sans',sans-serif;
-  /* Filtros de actividad + botón Redeem (mismo acento azul) */
+  /* Activity filters + Redeem button (same blue accent) */
   --history-accent:#79B8FF;
   --history-accent-dim:rgba(56,139,253,.22);
   --history-accent-border:rgba(88,166,255,.42);
@@ -29,7 +29,10 @@
 
 /* NAVBAR */
 .navbar{padding:10px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);gap:8px;min-height:58px}
-.navbar-right{display:flex;align-items:center;gap:8px}
+.navbar-left{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
+.navbar-sepolia-faucet-link{font-size:10px;font-family:var(--mono);font-weight:500;color:var(--history-accent);text-decoration:none;white-space:nowrap;line-height:1.2;min-width:0;overflow:hidden;text-overflow:ellipsis;max-width:7.5rem}
+.navbar-sepolia-faucet-link:hover{text-decoration:underline;color:var(--history-accent)}
+.navbar-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
 .navbar-logo{display:flex;align-items:center;flex-shrink:0;line-height:0}
 .navbar-logo svg{width:130px;height:42px}
 .navbar-logo .nzkm-logo-bg{fill:var(--bg)}
@@ -98,7 +101,7 @@
   overflow:visible;
   z-index:5;
 }
-/* Área fija (como antes con el icono HOME): fantasma pequeño centrado con aire y sombra visible */
+/* Fixed area (like before with HOME icon): small centered ghost with padding and visible shadow */
 .bottom-nav-ghost{
   display:flex;
   align-items:center;
@@ -114,7 +117,7 @@
   height:auto;
   overflow:visible;
 }
-/* Animaciones del fantasma (evitan <style> dentro del SVG y nombres globales genéricos) */
+/* Ghost animations (avoid <style> inside SVG and generic global names) */
 .bn-ghost-wrap{
   transform-origin:40px 48px;
   animation:bn-ghost-float 3s ease-in-out infinite;
@@ -187,7 +190,7 @@
 /* Home: activity header + type filter popover */
 .home-activity-block{margin-top:4px}
 .home-activity-title{margin-bottom:6px}
-/* Home: barra de fechas (píldora) + embudo */
+/* Home: date bar (pill) + funnel */
 .home-date-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:10px;min-width:0}
 .home-date-toolbar .date-range-pill--toolbar{flex:1;min-width:0}
 .home-filter-wrap{position:relative;flex-shrink:0}
@@ -209,6 +212,7 @@
 .activity-icon.deposit{background:var(--green-dim)}
 .activity-icon.redeem{background:var(--red-dim)}
 .activity-icon.pending{background:var(--yellow-dim)}
+.activity-icon.refunded{background:var(--surface2)}
 .activity-text{min-width:0;flex:1}
 .activity-type{font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .activity-time{font-size:11px;color:var(--text3);font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -217,7 +221,8 @@
 .activity-amount.deposit{color:var(--green)}
 .activity-amount.redeem{color:var(--red2)}
 .activity-amount.pending{color:var(--yellow)}
-/* Ancho del Redeem = al del monto (columna max-content + botón estirado) */
+.activity-amount.refunded{color:var(--text2)}
+/* Redeem column width matches amount (max-content column + stretched button) */
 .activity-right-col{
   display:grid;
   grid-template-columns:max-content;
@@ -269,7 +274,7 @@
   color:var(--text);
 }
 
-/* Rango de fechas — barra tipo píldora (FROM / TO + ×) */
+/* Date range — pill-style bar (FROM / TO + ×) */
 .date-range-pill{position:relative;min-width:0}
 .date-range-pill-track{
   display:flex;

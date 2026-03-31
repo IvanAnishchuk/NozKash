@@ -1,20 +1,20 @@
-# Hackathon — subir a GitHub e integrar al equipo
+# Hackathon — push to GitHub and onboard the team
 
-Tu repo local ya está en la rama **`main`** con un commit inicial. Falta crear el remoto en GitHub y hacer **push** (vos usás **SSH**).
+Your local repo is already on **`main`** with an initial commit. You still need to create the GitHub remote and **push** (this guide uses **SSH**).
 
-## 1. Crear el repositorio en GitHub
+## 1. Create the repository on GitHub
 
-### Opción A — desde la web (simple)
+### Option A — from the web (simple)
 
-1. Entrá a **[github.com/new](https://github.com/new)**.
-2. **Repository name:** por ejemplo **`aleph-hackathon-m2026`** (repo del equipo en GitHub).
-3. **Público** suele ser lo habitual en hackathons (o privado si el evento lo pide).
-4. **No marques** “Add a README” ni .gitignore (el proyecto ya los tiene).
-5. Crear repositorio.
+1. Open **[github.com/new](https://github.com/new)**.
+2. **Repository name:** e.g. **`aleph-hackathon-m2026`** (team repo on GitHub).
+3. **Public** is common for hackathons (or private if the event requires it).
+4. **Do not** check “Add a README” or .gitignore (this project already has them).
+5. Create repository.
 
-### Opción B — con GitHub CLI
+### Option B — with GitHub CLI
 
-En tu Mac (con `gh auth login` ya hecho):
+On your Mac (with `gh auth login` done):
 
 ```bash
 gh config set git_protocol ssh
@@ -22,11 +22,11 @@ cd ~/nozkash
 gh repo create aleph-hackathon-m2026 --public --source=. --remote=origin --push
 ```
 
-Cambiá `--public` por `--private` si lo necesitás. Si el repo **ya existe** en la web, solo añadí el remoto (paso 2) y hacé `git push`.
+Change `--public` to `--private` if needed. If the repo **already exists** on the web, only add the remote (step 2) and run `git push`.
 
-## 2. Enlazar `origin` y subir (SSH)
+## 2. Link `origin` and push (SSH)
 
-Repo del equipo: **`Simonethg/aleph-hackathon-m2026`**.
+Team repo: **`Simonethg/aleph-hackathon-m2026`**.
 
 **HTTPS:**
 
@@ -36,28 +36,28 @@ git remote add origin https://github.com/Simonethg/aleph-hackathon-m2026.git
 git push -u origin main
 ```
 
-Si `origin` ya existe:
+If `origin` already exists:
 
 ```bash
 git remote set-url origin https://github.com/Simonethg/aleph-hackathon-m2026.git
 git push -u origin main
 ```
 
-**SSH (si preferís):**
+**SSH (if you prefer):**
 
 ```bash
 git remote set-url origin git@github.com:Simonethg/aleph-hackathon-m2026.git
 git push -u origin main
 ```
 
-## 3. Invitar a tus compañeros
+## 3. Invite teammates
 
-En GitHub: repo → **Settings** → **Collaborators** (o **Manage access**) → **Add people**.
+On GitHub: repo → **Settings** → **Collaborators** (or **Manage access**) → **Add people**.
 
-Les mandás el enlace del repo:  
+Share the repo link:  
 `https://github.com/Simonethg/aleph-hackathon-m2026`
 
-## 4. Qué hacen tus compañeros la primera vez
+## 4. First-time setup for teammates
 
 ```bash
 git clone https://github.com/Simonethg/aleph-hackathon-m2026.git
@@ -66,7 +66,7 @@ npm install
 npm run dev
 ```
 
-o por SSH:
+or via SSH:
 
 ```bash
 git clone git@github.com:Simonethg/aleph-hackathon-m2026.git
@@ -75,19 +75,18 @@ npm install
 npm run dev
 ```
 
+## 5. Minimal workflow to avoid conflicts
 
-## 5. Flujo mínimo para no pisarse
+1. Before you start: `git pull origin main`.
+2. Each person commits locally and runs `git push`.
+3. If two people touched the same lines: the second runs `git pull` (or `git pull --rebase origin main`), resolves conflicts if any, then `git push` again.
 
-1. Antes de empezar: `git pull origin main`.
-2. Cada uno commitea en su máquina y hace `git push`.
-3. Si dos tocaron lo mismo: el segundo hace `git pull` (o `git pull --rebase origin main`), resuelve conflictos si aparecen, y vuelve a `git push`.
+For more structure, use task branches (`feature/name`) and **Pull Requests** on GitHub; for a short hackathon, **everything on `main`** with a clean `pull` before work is often enough.
 
-Para más orden, podés usar ramas por tarea (`feature/nombre`) y **Pull Requests** en GitHub; para un hackathon corto, a veces basta **todo en `main`** con buen `pull` antes de trabajar.
+## 6. Variables and secrets
 
-## 6. Variables y secretos
-
-Si más adelante usan API keys o RPC, **no las suban al repo**. Usen `.env` local (y añadan `.env` al `.gitignore` si aún no está) o los **Secrets** de GitHub Actions si automatizan deploy.
+If you later use API keys or RPC URLs, **do not commit them**. Use a local `.env` (and add `.env` to `.gitignore` if needed) or **GitHub Actions Secrets** if you automate deploy.
 
 ---
 
-**Resumen:** creá el repo vacío en GitHub → `git remote add origin git@github.com:USUARIO/REPO.git` → `git push -u origin main` → invitá colaboradores → el equipo clona e instala con `npm install`.
+**Summary:** create an empty repo on GitHub → `git remote add origin git@github.com:USER/REPO.git` → `git push -u origin main` → invite collaborators → team clones and runs `npm install`.

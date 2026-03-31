@@ -1,6 +1,6 @@
-# Conectar este proyecto con GitHub
+# Connect this project to GitHub
 
-Tu identidad en Git (commits) debe coincidir con la de tu cuenta de GitHub:
+Your Git identity (commits) should match your GitHub account:
 
 ```bash
 cd ~/nozkash
@@ -9,21 +9,21 @@ git config user.name "Simonethg"
 git config user.email "simonethfernandez@gmail.com"
 ```
 
-Usá `--global` en lugar de configurar solo en esta carpeta si querés el mismo nombre y correo en todos tus repos:
+Use `--global` instead of repo-only config if you want the same name and email in all repos:
 
 ```bash
 git config --global user.name "Simonethg"
 git config --global user.email "simonethfernandez@gmail.com"
 ```
 
-## 1. Inicializar Git (si aún no hay repo válido)
+## 1. Initialize Git (if there is no valid repo yet)
 
-En **Terminal.app** o **iTerm** (no hace falta que sea dentro de Cursor):
+In **Terminal.app** or **iTerm** (does not have to be inside Cursor):
 
 ```bash
 cd ~/nozkash
 
-# Si .git está roto o vacío, borrarlo y empezar de nuevo:
+# If .git is broken or empty, remove it and start over:
 rm -rf .git
 
 git init
@@ -31,35 +31,35 @@ git add -A
 git commit -m "chore: initial commit v1.0.0 (eGhostCash wallet)"
 ```
 
-`node_modules` y `dist` están en `.gitignore` y no se suben.
+`node_modules` and `dist` are in `.gitignore` and are not pushed.
 
-## 2. Iniciar sesión en GitHub (CLI)
+## 2. Sign in to GitHub (CLI)
 
-Si tenés [GitHub CLI](https://cli.github.com/) (`gh`):
+If you have [GitHub CLI](https://cli.github.com/) (`gh`):
 
 ```bash
 gh auth login
 ```
 
-Elegí **GitHub.com**, **HTTPS** o **SSH** según prefieras, y completá el login en el navegador.
+Choose **GitHub.com**, **HTTPS** or **SSH** as you prefer, and finish login in the browser.
 
-## 3. Crear el repositorio remoto y subir el código
+## 3. Create the remote repository and push
 
-### Opción A — con `gh` (recomendado)
+### Option A — with `gh` (recommended)
 
-Desde la carpeta del proyecto:
+From the project folder:
 
 ```bash
 cd ~/nozkash
 gh repo create nozkash --private --source=. --remote=origin --push
 ```
 
-Podés cambiar `nozkash` por el nombre de repo que quieras en GitHub. Quita `--private` si querés el repo **público**.
+You can change `nozkash` to any repo name on GitHub. Remove `--private` for a **public** repo.
 
-### Opción B — manual en github.com
+### Option B — manual on github.com
 
-1. Entrá a [github.com/new](https://github.com/new) y creá un repo **sin** README ni `.gitignore` (repo vacío).
-2. En la terminal:
+1. Open [github.com/new](https://github.com/new) and create a repo **without** README or `.gitignore` (empty repo).
+2. In the terminal:
 
 ```bash
 cd ~/nozkash
@@ -68,12 +68,12 @@ git branch -M main
 git push -u origin main
 ```
 
-Sustituí `Simonethg` y `NOMBRE_DEL_REPO` por tu usuario y el nombre del repo.
+Replace `Simonethg` and `NOMBRE_DEL_REPO` with your username and repo name.
 
-## 4. Verificar el correo en GitHub
+## 4. Verify email on GitHub
 
-En GitHub: **Settings → Emails** — asegurate de que `simonethfernandez@gmail.com` esté añadido y verificado para que los commits se asocien bien a tu perfil.
+On GitHub: **Settings → Emails** — make sure `simonethfernandez@gmail.com` is added and verified so commits link to your profile.
 
 ---
 
-Si algo falla al hacer `git init` dentro de Cursor, usá siempre la **Terminal del sistema** en la carpeta del proyecto (p. ej. `~/nozkash`).
+If `git init` fails inside Cursor, use the **system terminal** in the project folder (e.g. `~/nozkash`).

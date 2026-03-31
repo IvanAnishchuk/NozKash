@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import {
-  ensureFuji,
+  ensureTargetChain,
+  targetChainMismatchUserMessage,
   getEthereum,
   parseEthAddressList,
 } from '../lib/ethereum'
@@ -11,7 +12,7 @@ type ShowToast = (msg: string, type?: ToastType) => void
 export type RedeemPhase = 'idle' | 'account' | 'sign'
 
 /**
- * Redeem: 1) Fuji + `wallet_requestPermissions` (MetaMask: pick/share account)
+ * Redeem: 1) Target chain + `wallet_requestPermissions` (wallet: pick/share account)
  *         2) `personal_sign` → success/error toast.
  */
 export function useRedeemSign(showToast: ShowToast) {
@@ -22,7 +23,7 @@ export function useRedeemSign(showToast: ShowToast) {
     async (itemId: string, message: string) => {
       const ethereum = getEthereum()
       if (!ethereum) {
-        showToast('MetaMask is not installed', 'error')
+        showToast('No Ethereum wallet found', 'error')
         return
       }
 
@@ -30,17 +31,14 @@ export function useRedeemSign(showToast: ShowToast) {
       setRedeemPhase('account')
 
       try {
-        const okChain = await ensureFuji(ethereum)
+        const okChain = await ensureTargetChain(ethereum)
         if (!okChain) {
-          showToast(
-            'Switch to Avalanche Fuji (43113) in MetaMask to redeem',
-            'error'
-          )
+          showToast(targetChainMismatchUserMessage(), 'error')
           return
         }
 
         showToast(
-          'Redeem · step 1/2: in MetaMask confirm which account to use (pick from the list and Accept)',
+          'Redeem · step 1/2: in your wallet confirm which account to use (pick from the list and Accept)',
           'info'
         )
 
@@ -52,7 +50,7 @@ export function useRedeemSign(showToast: ShowToast) {
         } catch (permErr: unknown) {
           const pe = permErr as { code?: number; message?: string }
           if (pe.code === 4001) {
-            showToast('Account selection cancelled in MetaMask', 'error')
+            showToast('Account selection cancelled in your wallet', 'error')
             return
           }
           /* Wallets without wallet_requestPermissions: fall through to requestAccounts */
@@ -64,21 +62,21 @@ export function useRedeemSign(showToast: ShowToast) {
             await ethereum.request({ method: 'eth_requestAccounts' })
           )
         } catch {
-          showToast('Could not get MetaMask accounts', 'error')
+          showToast('Could not get wallet accounts', 'error')
           return
         }
 
         if (accs.length === 0) {
-          showToast('No connected account in MetaMask', 'error')
+          showToast('No connected account in your wallet', 'error')
           return
         }
 
-        /* Active account is usually first in MetaMask; brief delay before signing */
+        /* Active account is usually first from the wallet; brief delay before signing */
         await new Promise((r) => window.setTimeout(r, 300))
 
         setRedeemPhase('sign')
         showToast(
-          'Redeem · step 2/2: sign the message in MetaMask to confirm',
+          'Redeem · step 2/2: sign the message in your wallet to confirm',
           'info'
         )
 
@@ -87,7 +85,7 @@ export function useRedeemSign(showToast: ShowToast) {
         )
         const from = fresh[0] ?? accs[0]
         if (!from) {
-          showToast('No account selected in MetaMask', 'error')
+          showToast('No account selected in your wallet', 'error')
           return
         }
 
@@ -99,12 +97,12 @@ export function useRedeemSign(showToast: ShowToast) {
       } catch (err: unknown) {
         const e = err as { code?: number; message?: string }
         if (e?.code === 4001) {
-          showToast('Signature cancelled in MetaMask', 'error')
+          showToast('Signature cancelled in your wallet', 'error')
           return
         }
         const msg = typeof e?.message === 'string' ? e.message : ''
         if (/user rejected|denied/i.test(msg)) {
-          showToast('Signature cancelled in MetaMask', 'error')
+          showToast('Signature cancelled in your wallet', 'error')
         } else {
           showToast('Could not complete Redeem', 'error')
         }

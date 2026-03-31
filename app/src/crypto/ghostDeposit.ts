@@ -1,5 +1,6 @@
 import { keccak256 } from 'ethereum-cryptography/keccak'
 import { initBN254, formatG1ForSolidity } from './bn254'
+import { isGhostVaultDebugEnabled } from '../lib/ghostDebug'
 import {
   blindToken,
   deriveTokenSecrets,
@@ -35,7 +36,7 @@ function hex0x(bytes: Uint8Array): string {
   )
 }
 
-/** Igual que `deriveTokenSecrets`: índice en 4 bytes big-endian. */
+/** Same as `deriveTokenSecrets`: index as 4-byte big-endian. */
 function tokenIndexU32BE(tokenIndex: number): Uint8Array {
   const buf = new ArrayBuffer(4)
   new DataView(buf).setUint32(0, tokenIndex, false)
@@ -47,20 +48,20 @@ export function evmSelector4(signature: string): `0x${string}` {
   return hex0x(h) as `0x${string}`
 }
 
-/** Misma firma que `GhostVault.deposit` en Solidity (probada con Python). */
+/** Same function signature as `GhostVault.deposit` in Solidity (verified with Python). */
 const DEPOSIT_ABI_SIG = 'deposit(address,uint256[2])' as const
 const DEPOSIT_SELECTOR_BYTES = keccak256(
   new TextEncoder().encode(DEPOSIT_ABI_SIG)
 ).subarray(0, 4)
 
-/** Primeros 4 bytes del calldata de `deposit` — para comprobar que coincide con el contrato. */
+/** First 4 bytes of `deposit` calldata — sanity-check against the contract. */
 export const GHOST_VAULT_DEPOSIT_SELECTOR_HEX = hex0x(
   DEPOSIT_SELECTOR_BYTES
 ) as `0x${string}`
 
 /**
- * ABI `deposit(address,uint256[2])`: palabra 0 = `depositId` (address en 32 bytes),
- * palabras 1–2 = `blindedPointB` (uint256 BE).
+ * ABI `deposit(address,uint256[2])`: word 0 = `depositId` (address in 32 bytes),
+ * words 1–2 = `blindedPointB` (uint256 BE).
  */
 export function encodeGhostVaultDepositCalldata(
   depositId: string,
@@ -93,7 +94,7 @@ export function encodeGhostVaultDepositCalldata(
   ) as `0x${string}`
 }
 
-/** Decodifica el cuerpo ABI de `deposit(address,uint256[2])` (sin el selector). */
+/** Decodes the ABI body of `deposit(address,uint256[2])` (without the selector). */
 export function parseGhostVaultDepositCalldataArgs(data: `0x${string}`): {
   blindedPointB: [string, string]
   depositId: string
@@ -110,7 +111,7 @@ export function parseGhostVaultDepositCalldataArgs(data: `0x${string}`): {
   return { blindedPointB: [bx, by], depositId }
 }
 
-/** `depositPending(address)` — lectura view para depurar “ya hay depósito con este depositId”. */
+/** `depositPending(address)` — view read to debug “deposit already exists for this depositId”. */
 export function encodeDepositPendingCalldata(depositId: string): `0x${string}` {
   const sel = keccak256(
     new TextEncoder().encode('depositPending(address)')
@@ -127,13 +128,13 @@ export function encodeDepositPendingCalldata(depositId: string): `0x${string}` {
 }
 
 /**
- * `GhostVault.deposit(depositId, blindedPointB)` — payload criptográfico (orden Solidity).
+ * `GhostVault.deposit(depositId, blindedPointB)` — cryptographic payload (Solidity order).
  *
- * - `depositId`: dirección de **`secrets.blind`** (mismo `getDepositId`).
- * - `blindedPointB`: coordenadas de **`B`** donde
- *   `blindToken(spendAddressBytes, r)` con
- *   `spendAddressBytes` = dirección de **`secrets.spend`** (20 bytes),
- *   `r` = escalar BN254 derivado del material privado de **`secrets.blind`** (`getR`).
+ * - `depositId`: address of **`secrets.blind`** (same as `getDepositId`).
+ * - `blindedPointB`: coordinates of **`B`** from
+ *   `blindToken(spendAddressBytes, r)` with
+ *   `spendAddressBytes` = address of **`secrets.spend`** (20 bytes),
+ *   `r` = BN254 scalar from **`secrets.blind`** private material (`getR`).
  */
 async function assembleGhostVaultDeposit(secrets: TokenSecrets): Promise<{
   depositId: string
@@ -165,9 +166,9 @@ export async function buildGhostVaultDepositFromSecrets(
 }
 
 /**
- * Igual que {@link buildGhostVaultDepositFromSecrets}, con
+ * Same as {@link buildGhostVaultDepositFromSecrets}, with
  * `secrets = deriveTokenSecrets(masterSeed, tokenIndex)`.
- * `masterSeed` debe ser **32 bytes** (p. ej. clave privada EVM en bruto).
+ * `masterSeed` must be **32 bytes** (e.g. raw EVM private key).
  */
 export async function buildGhostVaultDepositCalldata(
   masterSeed: Uint8Array,
@@ -179,37 +180,41 @@ export async function buildGhostVaultDepositCalldata(
     new Uint8Array([...masterSeed, ...indexBe])
   )
 
-  console.log('[GhostVault deposit debug] derivation inputs + keypairs', {
-    tokenIndex,
-    masterSeedHex: hex0x(masterSeed),
-    tokenIndexU32BE_Hex: hex0x(indexBe),
-    baseMaterialHex: hex0x(baseMaterial),
-    spend: {
-      privHex: hex0x(secrets.spend.priv),
-      pubHex: secrets.spend.pubHex,
-      address: secrets.spend.address,
-      addressBytesHex: hex0x(secrets.spend.addressBytes),
-    },
-    blind: {
-      privHex: hex0x(secrets.blind.priv),
-      pubHex: secrets.blind.pubHex,
-      address: secrets.blind.address,
-      addressBytesHex: hex0x(secrets.blind.addressBytes),
-    },
-  })
+  if (isGhostVaultDebugEnabled()) {
+    console.log('[GhostVault deposit debug] derivation inputs + keypairs', {
+      tokenIndex,
+      masterSeedHex: hex0x(masterSeed),
+      tokenIndexU32BE_Hex: hex0x(indexBe),
+      baseMaterialHex: hex0x(baseMaterial),
+      spend: {
+        privHex: hex0x(secrets.spend.priv),
+        pubHex: secrets.spend.pubHex,
+        address: secrets.spend.address,
+        addressBytesHex: hex0x(secrets.spend.addressBytes),
+      },
+      blind: {
+        privHex: hex0x(secrets.blind.priv),
+        pubHex: secrets.blind.pubHex,
+        address: secrets.blind.address,
+        addressBytesHex: hex0x(secrets.blind.addressBytes),
+      },
+    })
+  }
 
   const { depositId, data, r, bxDec, byDec } =
     await assembleGhostVaultDeposit(secrets)
 
-  console.log('[GhostVault deposit debug] deposit(address,uint256[2]) payload', {
-    tokenIndex,
-    rDecimal: r.toString(),
-    rHex: '0x' + r.toString(16),
-    Bx_uint256_decimalString: bxDec,
-    By_uint256_decimalString: byDec,
-    depositId,
-    calldata: data,
-  })
+  if (isGhostVaultDebugEnabled()) {
+    console.log('[GhostVault deposit debug] deposit(address,uint256[2]) payload', {
+      tokenIndex,
+      rDecimal: r.toString(),
+      rHex: '0x' + r.toString(16),
+      Bx_uint256_decimalString: bxDec,
+      By_uint256_decimalString: byDec,
+      depositId,
+      calldata: data,
+    })
+  }
 
   return { depositId, data }
 }

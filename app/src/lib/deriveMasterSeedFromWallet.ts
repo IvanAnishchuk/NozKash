@@ -3,8 +3,8 @@ import { keccak256 } from 'ethereum-cryptography/keccak'
 export const GHOST_MASTER_DERIVATION_MSG_VERSION = 'v1'
 
 /**
- * Mensaje EIP-191 que el usuario firma con MetaMask.
- * Incluye cuenta y chain para atar el `masterSeed` derivado a ese contexto.
+ * EIP-191 message the user signs with their wallet.
+ * Includes account and chain so the derived `masterSeed` is bound to that context.
  */
 export function buildGhostDerivationSignMessage(
   walletAddress: string,
@@ -13,13 +13,13 @@ export function buildGhostDerivationSignMessage(
   const id = Number.parseInt(chainIdHex, 16)
   const chainLabel = Number.isFinite(id) ? String(id) : chainIdHex
   return [
-    'GhostTip — derivar secreto del vault (solo en este dispositivo)',
+    'GhostTip — derive vault secret (this device only)',
     '',
-    `Versión: ${GHOST_MASTER_DERIVATION_MSG_VERSION}`,
-    `Cuenta: ${walletAddress}`,
+    `Version: ${GHOST_MASTER_DERIVATION_MSG_VERSION}`,
+    `Account: ${walletAddress}`,
     `Chain ID: ${chainLabel}`,
     '',
-    'No se envía ninguna transacción. La firma genera entropía local para deriveTokenSecrets.',
+    'No transaction is sent. The signature provides local entropy for deriveTokenSecrets.',
   ].join('\n')
 }
 
@@ -34,12 +34,12 @@ function hexToBytesStrict(hex: string): Uint8Array {
 }
 
 /**
- * `keccak256` de la firma cruda (65 bytes típicos ECDSA) → 32 bytes como `masterSeed`.
+ * `keccak256` of the raw signature (typical 65-byte ECDSA) → 32 bytes as `masterSeed`.
  */
 export function masterSeedFromPersonalSignSignature(sigHex: string): Uint8Array {
   const bytes = hexToBytesStrict(sigHex)
   if (bytes.length < 64) {
-    throw new Error('Firma demasiado corta')
+    throw new Error('Signature too short')
   }
   return keccak256(bytes)
 }

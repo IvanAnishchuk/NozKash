@@ -58,7 +58,7 @@ Client                     GhostVault (on-chain)          Mint Server
   │  B = r · Y                    │                            │
   │                               │                            │
   │── deposit(depositId, B) ─────▶│                            │
-  │   + 0.01 ETH                  │── DepositLocked(id, B) ──▶│
+  │   + 0.001 ETH                 │── DepositLocked(id, B) ──▶│
   │                               │                            │  S' = sk · B
   │                               │◀── announce(id, S') ──────│
   │                               │                            │
@@ -69,7 +69,7 @@ Client                     GhostVault (on-chain)          Mint Server
   │                               │  ecrecover → verify sig    │
   │                               │  nullifier → double-spend  │
   │                               │  ecPairing → BLS verify    │
-  │                               │── 0.01 ETH ──────────────▶ dest
+  │                               │── 0.001 ETH ─────────────▶ dest
 ```
 
 **Blinding:** The client computes `B = r · H(spendAddress)` where `r` is a secret scalar. The mint sees only `B` — it cannot recover the spend address or link it to any future redemption.
@@ -205,7 +205,7 @@ The GhostVault contract (`sol/src/GhostVault.sol`) handles the complete token li
 
 | Function | Description |
 |----------|-------------|
-| `deposit(address depositId, uint256[2] B)` | Lock 0.01 ETH with a blinded G1 point |
+| `deposit(address depositId, uint256[2] B)` | Lock 0.001 ETH with a blinded G1 point |
 | `announce(address depositId, uint256[2] S')` | Mint posts blind signature (authorized caller only) |
 | `redeem(address recipient, bytes sig, address nullifier, uint256[2] S)` | Verify BLS + ECDSA, transfer ETH |
 
@@ -227,7 +227,7 @@ Both Python and TypeScript clients implement identical functionality, share the 
 
 ```bash
 cd py
-uv run client.py deposit --index 0              # Lock 0.01 ETH
+uv run client.py deposit --index 0              # Lock 0.001 ETH
 uv run client.py scan                            # Recover signed tokens (incremental)
 uv run client.py redeem --index 0 --to 0xAddr    # Redeem to any address
 uv run client.py status                          # Token lifecycle overview
@@ -392,9 +392,9 @@ The app is a single-page wallet with four routes:
 
 **`GhostMasterSeedProvider`** — React context that manages the vault master seed. On wallet connect, it prompts a one-time `personal_sign` in MetaMask to derive the seed deterministically (`keccak256(signature)`) — the seed lives only in RAM and is cleared on disconnect. For development, `VITE_GHOST_MASTER_SEED_HEX` bypasses the signature.
 
-**`DepositConfirmModal`** — The deposit flow: amount selection (fixed 0.01 AVAX denomination), real-time gas estimation via Fuji RPC, calldata construction using `buildGhostVaultDepositCalldata()` (derives secrets → blinds → ABI-encodes `deposit(address,uint256[2])`), and `eth_sendTransaction` through MetaMask. Includes pre-flight checks: `DENOMINATION()` view call, `depositPending()` collision check, and `eth_call` simulation before broadcasting.
+**`DepositConfirmModal`** — The deposit flow: amount selection (fixed 0.001 ETH denomination), real-time gas estimation via the configured RPC, calldata construction using `buildGhostVaultDepositCalldata()` (derives secrets → blinds → ABI-encodes `deposit(address,uint256[2])`), and `eth_sendTransaction` through MetaMask. Includes pre-flight checks: `DENOMINATION()` view call, `depositPending()` collision check, and `eth_call` simulation before broadcasting.
 
-**`useWallet`** — Hook managing MetaMask connection, account switching (`wallet_requestPermissions`), chain enforcement (auto-switches to Fuji 43113), and balance polling.
+**`useWallet`** — Hook managing MetaMask connection, account switching (`wallet_requestPermissions`), chain enforcement (auto-switches to the target chain from `VITE_CHAIN_ID`), and balance polling.
 
 **`ghostVault.ts`** — On-chain scanner that fetches `DepositLocked` and `MintFulfilled` events via `eth_getLogs`, matches them against derived `depositId`s, checks `spentNullifiers`, and assembles the activity feed. Handles RPC rate limiting (burst queue with pause), block range chunking (Avalanche public RPC caps at ~2048 blocks per query), and `last accepted block` edge cases.
 
@@ -411,7 +411,7 @@ This means a user can recover their vault tokens on any device by connecting the
 
 ### On-chain interaction
 
-All RPC calls go through `fujiJsonRpc.ts` which routes to a Vite dev proxy (`/fuji-rpc` → Infura Fuji) during development, avoiding CORS issues. In production builds it calls the RPC URL directly (configurable via `VITE_FUJI_RPC_URL`).
+All RPC calls go through `fujiJsonRpc.ts`, which uses `VITE_FUJI_RPC_URL` when set, otherwise the bundled Infura Fuji HTTPS URL (same in dev and production). If the browser hits CORS errors locally, configure the provider to allow your origin or point `VITE_FUJI_RPC_URL` at an endpoint that does.
 
 The deposit transaction is the only write operation — it uses MetaMask's `eth_sendTransaction` with pre-built calldata (same ABI encoding as the Python/TypeScript CLI clients). The app polls `eth_getTransactionReceipt` via HTTP RPC (not MetaMask) with a 30-second interval to avoid rate limits.
 
@@ -426,7 +426,10 @@ Override with `VITE_GHOST_VAULT_ADDRESS` in `.env`.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `VITE_GHOST_MASTER_SEED_HEX` | — | Dev shortcut: 64-char hex seed, bypasses `personal_sign` |
-| `VITE_FUJI_RPC_URL` | Infura Fuji | HTTPS JSON-RPC endpoint for reads |
+| `VITE_CHAIN_ID` | Sepolia `0xaa36a7` | Target `eth_chainId` (hex) |
+| `VITE_PUBLIC_RPC_URL` / `VITE_ETHEREUM_RPC_URL` | — | HTTPS JSON-RPC for reads (`chainRpcCall`) |
+| `VITE_PUBLIC_WS_RPC_URL` / `VITE_ETHEREUM_WS_RPC_URL` | — | Optional WebSocket for live vault logs |
+| `VITE_FUJI_RPC_URL` / `VITE_FUJI_WS_RPC_URL` | — | Legacy aliases still read by `chainPublicRpc.ts` |
 | `VITE_GHOST_VAULT_ADDRESS` | `0x0cd5…4352` | Deployed GhostVault contract |
 
 ---

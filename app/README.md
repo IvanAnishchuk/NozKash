@@ -1,6 +1,6 @@
 # NozKash (app)
 
-Frontend Vite + React. Todo el control del proyecto (scripts, lockfile, TypeScript, ESLint) está **aquí**.
+Vite + React frontend. All project control (scripts, lockfile, TypeScript, ESLint) lives **here**.
 
 ```bash
 npm install
@@ -8,8 +8,8 @@ npm run dev
 ```
 
 - Build: `npm run build` → `dist/`
-- Variables: copiá `.env.example` a `.env` si hace falta
-- Docs del equipo / GitHub: `docs/`
-- Contrato **GhostVault** (Avalanche Fuji): [Snowtrace](https://testnet.snowtrace.io/address/0x0cd5b34e58c579105A3c080Bb3170d032a544352)
+- Env: copy `.env.example` to `.env` if needed
+- Team / GitHub docs: `docs/`
+- **GhostVault** contract address: configured via `VITE_GHOST_VAULT_ADDRESS` (and matching RPC / chain env vars)
 
-Para copiar solo esta carpeta dentro de otro monorepo, usá el directorio `app/` completo.
+To copy only this folder into another monorepo, use the full `app/` directory.

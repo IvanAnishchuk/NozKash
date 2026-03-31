@@ -76,12 +76,19 @@ def compute_vector(master_seed_hex: str, sk_int: int, token_index: int) -> dict:
     S_prime = gl.mint_blind_sign(blinded.B, sk)
     S       = gl.unblind_signature(S_prime, secrets.r)
 
-    # ── MEV protection proof ─────────────────────────────────────────────────
+    # ── MEV protection proof (EIP-712) ────────────────────────────────────────
     # The redemption proof binds the token to a fixed test recipient address.
     # In production any recipient address can be used; the test address is fixed
     # so vectors are deterministic and cross-language comparable.
+    # EIP-712 domain params are also fixed for reproducible vectors.
     test_recipient = "0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7"
-    proof = gl.generate_redemption_proof(secrets.spend_priv, test_recipient)
+    test_chain_id = 43113
+    test_contract = "0x0cd5b34e58c579105A3c080Bb3170d032a544352"
+    test_deadline = 2**256 - 1
+    proof = gl.generate_redemption_proof(
+        secrets.spend_priv, test_recipient,
+        test_chain_id, test_contract, test_deadline,
+    )
 
     s_x, s_y = gl.serialize_g1(S)
 
@@ -136,8 +143,15 @@ def compute_vector(master_seed_hex: str, sk_int: int, token_index: int) -> dict:
             "Y": hex(S[1].n)[2:],
         },
 
+        # ── EIP-712 domain parameters (fixed for deterministic vectors) ──────
+        "EIP712": {
+            "chain_id":         test_chain_id,
+            "contract_address": test_contract,
+            "deadline":         hex(test_deadline),
+        },
+
         # ── Redemption transaction (what the client submits on-chain) ─────────
-        # redeem(recipient, spendSignature, unblindedSignatureS)
+        # redeem(recipient, spendSignature, nullifier, deadline, unblindedSignatureS)
         # spendSignature = r(32) || s(32) || v(1) where v = recovery_bit + 27
         "REDEEM_TX": {
             # Arguments to GhostVault.redeem()
@@ -145,9 +159,7 @@ def compute_vector(master_seed_hex: str, sk_int: int, token_index: int) -> dict:
             "S_x":        hex(s_x),   # uint256 — 0x-prefixed hex
             "S_y":        hex(s_y),   # uint256
 
-            # MEV protection signature — intermediate steps for verification
-            # msg_hash = keccak256("Pay to RAW: " || raw_20_byte_address)
-            "mev_payload":    f"Pay to RAW: <raw {test_recipient}>",
+            # MEV protection signature — EIP-712 typed data hash
             "msg_hash":       proof.msg_hash.hex(),
             "compact_hex":    proof.compact_hex,   # 128 hex chars: r(32) + s(32)
             "recovery_bit":   proof.recovery_bit,  # 0 or 1; v = recovery_bit + 27

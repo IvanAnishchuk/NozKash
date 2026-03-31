@@ -206,7 +206,10 @@ def test_full_protocol_lifecycle(setup_data, live_keypair):
     S = gl.unblind_signature(S_prime, secrets.r)
     assert is_on_curve(S, b)
 
-    proof = gl.generate_redemption_proof(secrets.spend_priv, destination)
+    proof = gl.generate_redemption_proof(
+        secrets.spend_priv, destination,
+        _TEST_CHAIN_ID, _TEST_CONTRACT, _TEST_DEADLINE,
+    )
 
     assert gl.verify_ecdsa_mev_protection(
         proof.msg_hash, proof.compact_hex, proof.recovery_bit, secrets.spend_address_hex
@@ -216,17 +219,25 @@ def test_full_protocol_lifecycle(setup_data, live_keypair):
 
 
 # ==============================================================================
-# MEV PROTECTION
+# MEV PROTECTION (EIP-712)
 # ==============================================================================
+
+# Fixed EIP-712 test parameters
+_TEST_CHAIN_ID = 43113
+_TEST_CONTRACT = "0x0cd5b34e58c579105A3c080Bb3170d032a544352"
+_TEST_DEADLINE = 2**256 - 1
+
 
 def test_mev_protection_rejects_tampered_destination(setup_data):
     master_seed, token_index, _ = setup_data
     secrets = gl.derive_token_secrets(master_seed, token_index)
     alice = "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa"
-    proof = gl.generate_redemption_proof(secrets.spend_priv, alice)
+    proof = gl.generate_redemption_proof(
+        secrets.spend_priv, alice, _TEST_CHAIN_ID, _TEST_CONTRACT, _TEST_DEADLINE,
+    )
 
     bob = "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
-    tampered_hash = keccak(b"Pay to RAW: " + bytes.fromhex(bob[2:]))
+    tampered_hash = gl.eip712_redemption_hash(bob, _TEST_DEADLINE, _TEST_CHAIN_ID, _TEST_CONTRACT)
     assert gl.verify_ecdsa_mev_protection(
         tampered_hash, proof.compact_hex, proof.recovery_bit, secrets.spend_address_hex
     ) is False
@@ -236,7 +247,9 @@ def test_mev_protection_rejects_wrong_recovery_bit(setup_data):
     master_seed, token_index, _ = setup_data
     secrets = gl.derive_token_secrets(master_seed, token_index)
     alice = "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa"
-    proof = gl.generate_redemption_proof(secrets.spend_priv, alice)
+    proof = gl.generate_redemption_proof(
+        secrets.spend_priv, alice, _TEST_CHAIN_ID, _TEST_CONTRACT, _TEST_DEADLINE,
+    )
 
     wrong_bit = 1 - proof.recovery_bit
     assert gl.verify_ecdsa_mev_protection(
@@ -248,7 +261,9 @@ def test_mev_protection_raises_on_bad_compact_hex(setup_data):
     master_seed, token_index, _ = setup_data
     secrets = gl.derive_token_secrets(master_seed, token_index)
     alice = "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa"
-    proof = gl.generate_redemption_proof(secrets.spend_priv, alice)
+    proof = gl.generate_redemption_proof(
+        secrets.spend_priv, alice, _TEST_CHAIN_ID, _TEST_CONTRACT, _TEST_DEADLINE,
+    )
 
     with pytest.raises(VerificationError, match="128 hex chars"):
         gl.verify_ecdsa_mev_protection(
@@ -260,7 +275,9 @@ def test_mev_protection_raises_on_bad_recovery_bit(setup_data):
     master_seed, token_index, _ = setup_data
     secrets = gl.derive_token_secrets(master_seed, token_index)
     alice = "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa"
-    proof = gl.generate_redemption_proof(secrets.spend_priv, alice)
+    proof = gl.generate_redemption_proof(
+        secrets.spend_priv, alice, _TEST_CHAIN_ID, _TEST_CONTRACT, _TEST_DEADLINE,
+    )
 
     with pytest.raises(VerificationError, match="recovery_bit"):
         gl.verify_ecdsa_mev_protection(

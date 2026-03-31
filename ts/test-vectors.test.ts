@@ -110,13 +110,18 @@ describe.each(ALL_VECTORS.map(({ id, v }) => ({ id, v })))(
             expect(coords[2]).toBe(v.S_UNBLINDED.Y);
         });
 
-        it('should verify the MEV protection payload', async () => {
+        it('should verify the MEV protection payload (EIP-712)', async () => {
             const masterSeedBytes = Buffer.from(v.MASTER_SEED, 'utf-8');
             const secrets  = gl.deriveTokenSecrets(masterSeedBytes, v.TOKEN_INDEX);
             const redeem   = v.REDEEM_TX;
+            const eip712   = v.EIP712;
 
             const spendPriv = gl.getSpendPriv(secrets);
-            const proof    = await gl.generateRedemptionProof(spendPriv, redeem.recipient);
+            const proof    = await gl.generateRedemptionProof(
+                spendPriv, redeem.recipient,
+                eip712.chain_id, eip712.contract_address,
+                BigInt(eip712.deadline),
+            );
 
             // Log the comparison result
             console.log(`\n--- MEV COMPARE [token_${v.TOKEN_INDEX}] ---`);

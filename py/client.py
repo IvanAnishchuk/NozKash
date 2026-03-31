@@ -42,6 +42,7 @@ import json
 import logging
 import os
 import sys
+import time
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 from pathlib import Path
@@ -774,12 +775,21 @@ def cmd_redeem(
     info("The spend address is the nullifier — recorded as spent after redemption.", muted=True)
     console.print()
 
-    # Step 3: generate redemption proof (pure crypto — no chain needed)
-    section("Step 3 · Generate Anti-MEV ECDSA Proof", "🛡️")
+    # Step 3: generate redemption proof (EIP-712 typed data)
+    section("Step 3 · Generate Anti-MEV ECDSA Proof (EIP-712)", "🛡️")
     recipient_checksum = Web3.to_checksum_address(recipient)
-    proof = generate_redemption_proof(secrets.spend_priv, recipient_checksum)
+    deadline = int(time.time()) + 3600  # 1 hour from now
+    if is_mock():
+        chain_id = 43113  # Avalanche Fuji default for mock
+    else:
+        w3_tmp = build_web3(config)
+        chain_id = w3_tmp.eth.chain_id
+    proof = generate_redemption_proof(
+        secrets.spend_priv, recipient_checksum,
+        chain_id, config.contract_address, deadline,
+    )
 
-    kv("Payload",       f'"Pay to RAW: " || {recipient_checksum} (32 bytes, abi.encodePacked)')
+    kv("Payload",       f'EIP-712 GhostRedeem(recipient={recipient_checksum}, deadline={deadline})')
     kv_hex("msg_hash",  proof.msg_hash.hex())
     kv_hex("compact_hex", "0x" + proof.compact_hex)
     kv("recovery_bit",  str(proof.recovery_bit))
@@ -805,9 +815,10 @@ def cmd_redeem(
     nullifier_checksum = Web3.to_checksum_address(secrets.spend.address)
     if is_mock():
         section("Step 4 · Mock Redemption Payload", "🧪")
-        dry("redeem(recipient, spendSignature, nullifier, S)")
+        dry("redeem(recipient, spendSignature, nullifier, deadline, S)")
         dry(f"recipient  = {recipient_checksum}")
         dry(f"nullifier  = {nullifier_checksum}")
+        dry(f"deadline   = {deadline}")
         dry(f"S.x        = {hex(s_x)}")
         dry(f"S.y        = {hex(s_y)}")
         dry(f"v          = {proof.recovery_bit + 27}  (recovery_bit + 27)")
@@ -849,7 +860,7 @@ def cmd_redeem(
     ZERO = "0x0000000000000000000000000000000000000000"
     try:
         calldata = contract.functions.redeem(
-            recipient_checksum, spend_sig_bytes, nullifier_checksum, [s_x, s_y],
+            recipient_checksum, spend_sig_bytes, nullifier_checksum, deadline, [s_x, s_y],
         ).build_transaction({"from": ZERO})["data"]
     except (ContractCustomError, ContractLogicError) as exc:
         err(f"Contract reverted during simulation: {decode_contract_error(exc)}")
@@ -913,7 +924,7 @@ def cmd_redeem(
 
         try:
             tx = contract.functions.redeem(
-                recipient_checksum, spend_sig_bytes, nullifier_checksum, [s_x, s_y],
+                recipient_checksum, spend_sig_bytes, nullifier_checksum, deadline, [s_x, s_y],
             ).build_transaction({
                 "from": wallet, "nonce": nonce, "gasPrice": gas_price,
             })

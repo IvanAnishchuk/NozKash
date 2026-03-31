@@ -31,6 +31,7 @@ MASTER_SEED from .env to reconstruct the redemption payload, then verifies it.
 
 import json
 import os
+import time
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -143,6 +144,9 @@ class MockRedeemer:
         spend_signature_bytes: bytes,
         unblinded_s_x: int,
         unblinded_s_y: int,
+        chain_id: int = 43113,
+        contract_address: str = "",
+        deadline: int = 2**256 - 1,
     ) -> RedeemResult:
         """
         Simulate GhostVault.redeem() — the full on-chain verification pipeline.
@@ -152,6 +156,9 @@ class MockRedeemer:
             spend_signature_bytes:  65-byte ECDSA signature (r‖s‖v), v is 27 or 28.
             unblinded_s_x:          x coordinate of the unblinded BLS signature S.
             unblinded_s_y:          y coordinate of the unblinded BLS signature S.
+            chain_id:               EIP-712 chain ID (default: 43113 Fuji).
+            contract_address:       EIP-712 verifying contract address.
+            deadline:               EIP-712 deadline (default: max uint256).
 
         Returns:
             RedeemResult with success/failure details and all intermediates.
@@ -163,12 +170,11 @@ class MockRedeemer:
             result.reason = f"Spend signature must be 65 bytes, got {len(spend_signature_bytes)}"
             return result
 
-        from eth_utils import keccak
         from eth_keys import keys
+        from ghost_library import eip712_redemption_hash
 
-        # Match Solidity: keccak256(abi.encodePacked("Pay to RAW: ", recipient))
-        addr_bytes = bytes.fromhex(recipient.replace("0x", ""))
-        msg_hash = keccak(b"Pay to RAW: " + addr_bytes)
+        # Match Solidity: EIP-712 redemptionMessageHash(recipient, deadline)
+        msg_hash = eip712_redemption_hash(recipient, deadline, chain_id, contract_address)
 
         r_bytes = spend_signature_bytes[:32]
         s_bytes = spend_signature_bytes[32:64]
@@ -399,11 +405,16 @@ def verify(
         console.print(Rule("[step]Step 2 · Generate Anti-MEV ECDSA Proof[/step]", style="dim magenta"))
 
     secrets = derive_token_secrets(master_seed, index)
-    proof = generate_redemption_proof(secrets.spend_priv, to)
+    contract_addr = os.getenv("CONTRACT_ADDRESS", "").strip()
+    chain_id = int(os.getenv("CHAIN_ID", "43113"))
+    deadline = int(time.time()) + 3600
+    proof = generate_redemption_proof(
+        secrets.spend_priv, to, chain_id, contract_addr, deadline,
+    )
 
     if not is_quiet:
         console.print(Text.assemble(
-            ("  Payload        ", "label"), (f'"Pay to RAW: " || {to} (32 bytes)', "value"),
+            ("  Payload        ", "label"), (f'EIP-712 GhostRedeem(recipient={to}, deadline={deadline})', "value"),
         ))
         console.print(Text.assemble(
             ("  msg_hash       ", "label"), (_short(proof.msg_hash.hex(), 18, 8), "hash"),
@@ -429,6 +440,9 @@ def verify(
         spend_signature_bytes=sig_65,
         unblinded_s_x=s_x,
         unblinded_s_y=s_y,
+        chain_id=chain_id,
+        contract_address=contract_addr,
+        deadline=deadline,
     )
 
     if not is_quiet:

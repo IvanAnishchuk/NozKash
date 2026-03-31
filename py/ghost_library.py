@@ -49,6 +49,46 @@ G1Point = NewType("G1Point", tuple[FQ,  FQ])
 G2Point = NewType("G2Point", tuple[FQ2, FQ2])
 Scalar  = NewType("Scalar",  int)
 
+# ==============================================================================
+# EIP-712 CONSTANTS
+# ==============================================================================
+
+EIP712_DOMAIN_TYPEHASH = keccak(
+    b"EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+)
+GHOSTREDEEM_TYPEHASH = keccak(
+    b"GhostRedeem(address recipient,uint256 deadline)"
+)
+
+
+def eip712_domain_separator(chain_id: int, contract_address: str) -> bytes:
+    """Compute the EIP-712 domain separator for a GhostVault deployment."""
+    addr = bytes.fromhex(contract_address.replace("0x", "").lower())
+    return keccak(
+        EIP712_DOMAIN_TYPEHASH
+        + keccak(b"GhostVault")
+        + keccak(b"1")
+        + chain_id.to_bytes(32, "big")
+        + addr.rjust(32, b'\x00')
+    )
+
+
+def eip712_redemption_hash(
+    recipient_address: str,
+    deadline: int,
+    chain_id: int,
+    contract_address: str,
+) -> bytes:
+    """Compute the full EIP-712 signed hash for a GhostRedeem struct."""
+    addr = bytes.fromhex(recipient_address.replace("0x", "").lower())
+    struct_hash = keccak(
+        GHOSTREDEEM_TYPEHASH
+        + addr.rjust(32, b'\x00')
+        + deadline.to_bytes(32, "big")
+    )
+    domain_sep = eip712_domain_separator(chain_id, contract_address)
+    return keccak(b"\x19\x01" + domain_sep + struct_hash)
+
 
 def _mul_g1(point: G1Point, scalar: Scalar) -> G1Point:
     """
@@ -277,19 +317,20 @@ def unblind_signature(S_prime: G1Point, r: Scalar) -> G1Point:
 def generate_redemption_proof(
     spend_priv: keys.PrivateKey,
     destination_address: str,
+    chain_id: int,
+    contract_address: str,
+    deadline: int,
 ) -> RedemptionProof:
     """
     Generates the anti-MEV ECDSA signature binding the token to a destination address.
 
-    The message hash MUST match the Solidity contract's redemptionMessageHash():
-        keccak256(abi.encodePacked("Pay to RAW: ", recipient))
-    which is the string "Pay to RAW: " (12 bytes) concatenated with the raw
-    20-byte address (NOT the hex string) = 32 bytes total.
+    The message hash is an EIP-712 typed structured data hash matching the Solidity
+    contract's redemptionMessageHash(recipient, deadline):
+        keccak256("\\x19\\x01" || DOMAIN_SEPARATOR || keccak256(abi.encode(GHOSTREDEEM_TYPEHASH, recipient, deadline)))
 
     NOTE: recovery_bit is 0 or 1. The EVM ecrecover precompile expects v = recovery_bit + 27.
     """
-    addr_bytes = bytes.fromhex(destination_address.replace("0x", ""))
-    msg_hash = keccak(b"Pay to RAW: " + addr_bytes)
+    msg_hash = eip712_redemption_hash(destination_address, deadline, chain_id, contract_address)
     ecdsa_sig = spend_priv.sign_msg_hash(msg_hash)
 
     r_hex = hex(ecdsa_sig.r)[2:].zfill(64)

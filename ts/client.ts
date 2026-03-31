@@ -473,10 +473,16 @@ async function cmdRedeem(config: Config, tokenIndex: number, recipient: string) 
     kv('Spend address (nullifier)', spendAddr);
     kv('Deposit ID', gl.getDepositId(secrets));
 
-    // Step 3: generate ECDSA proof
-    section('🛡️  Step 3 · Generate Anti-MEV ECDSA Proof');
+    // Step 3: generate ECDSA proof (EIP-712)
+    section('🛡️  Step 3 · Generate Anti-MEV ECDSA Proof (EIP-712)');
     const recipientAddr = getAddress(recipient);
-    const proof = await gl.generateRedemptionProof(gl.getSpendPriv(secrets), recipientAddr);
+    const { publicClient: tempPub } = await buildClients(config);
+    const chainId = await tempPub.getChainId();
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600); // 1 hour
+    const proof = await gl.generateRedemptionProof(
+        gl.getSpendPriv(secrets), recipientAddr,
+        chainId, config.contractAddress, deadline,
+    );
 
     kv('msg_hash', shortHex(Buffer.from(proof.msgHash).toString('hex')));
     kv('compact_hex', shortHex('0x' + proof.compactHex));
@@ -510,7 +516,7 @@ async function cmdRedeem(config: Config, tokenIndex: number, recipient: string) 
             address: config.contractAddress,
             abi: GHOST_VAULT_ABI,
             functionName: 'redeem',
-            args: [recipientAddr, spendSig, nullifier, [sx, sy]],
+            args: [recipientAddr, spendSig, nullifier, deadline, [sx, sy]],
         });
 
         kv('Transaction sent', hash);

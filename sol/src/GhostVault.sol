@@ -67,6 +67,13 @@ contract GhostVault {
     uint256 public constant DENOMINATION   = 0.001 ether;
     uint256 public constant MAX_H2C_ITERS  = 65536;
 
+    bytes32 public constant EIP712_DOMAIN_TYPEHASH = keccak256(
+        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+    );
+    bytes32 public constant GHOSTREDEEM_TYPEHASH = keccak256(
+        "GhostRedeem(address recipient,uint256 deadline)"
+    );
+
     // -- State ------------------------------------------------------------------
 
     /// @dev BLS public key of the Mint on G2 (EIP-197 limb order).
@@ -86,6 +93,9 @@ contract GhostVault {
 
     /// @dev depositId => EOA that called `deposit()` (required for `refund`).
     mapping(address => address) public depositors;
+
+    /// @dev EIP-712 domain separator (computed once in constructor).
+    bytes32 public immutable DOMAIN_SEPARATOR;
 
     // -- Events -----------------------------------------------------------------
 
@@ -121,12 +131,20 @@ contract GhostVault {
     error InvalidDepositId();
     error NotDepositor();
     error NothingToRefund();
+    error ExpiredSignature();
 
     // -- Constructor ------------------------------------------------------------
 
     constructor(uint256[4] memory pkMint_, address mintAuthority_) {
         pkMint        = pkMint_;
         mintAuthority = mintAuthority_;
+        DOMAIN_SEPARATOR = keccak256(abi.encode(
+            EIP712_DOMAIN_TYPEHASH,
+            keccak256("GhostVault"),
+            keccak256("1"),
+            block.chainid,
+            address(this)
+        ));
     }
 
     // -- External: deposit ------------------------------------------------------
@@ -199,9 +217,11 @@ contract GhostVault {
         address             recipient,
         bytes      calldata spendSignature,
         address             nullifier,
+        uint256             deadline,
         uint256[2] calldata unblindedSignatureS
     ) external {
-        bytes32 txHash = redemptionMessageHash(recipient);
+        if (block.timestamp > deadline) revert ExpiredSignature();
+        bytes32 txHash = redemptionMessageHash(recipient, deadline);
         address recoveredNullifier = recoverSigner(txHash, spendSignature);
         if (recoveredNullifier == address(0)) revert InvalidECDSA();
         if (recoveredNullifier != nullifier) revert InvalidECDSA();
@@ -219,8 +239,9 @@ contract GhostVault {
 
     // -- Public view helpers ----------------------------------------------------
 
-    function redemptionMessageHash(address recipient) public pure returns (bytes32) {
-        return keccak256(abi.encodePacked("Pay to RAW: ", recipient));
+    function redemptionMessageHash(address recipient, uint256 deadline) public view returns (bytes32) {
+        bytes32 structHash = keccak256(abi.encode(GHOSTREDEEM_TYPEHASH, recipient, deadline));
+        return keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash));
     }
 
     /**

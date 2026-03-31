@@ -90,6 +90,7 @@
       {"name": "recipient", "type": "address", "internalType": "address"},
       {"name": "spendSignature", "type": "bytes", "internalType": "bytes"},
       {"name": "nullifier", "type": "address", "internalType": "address"},
+      {"name": "deadline", "type": "uint256", "internalType": "uint256"},
       {"name": "unblindedSignatureS", "type": "uint256[2]", "internalType": "uint256[2]"}
     ],
     "outputs": [],
@@ -98,9 +99,12 @@
   {
     "type": "function",
     "name": "redemptionMessageHash",
-    "inputs": [{"name": "recipient", "type": "address", "internalType": "address"}],
+    "inputs": [
+      {"name": "recipient", "type": "address", "internalType": "address"},
+      {"name": "deadline", "type": "uint256", "internalType": "uint256"}
+    ],
     "outputs": [{"name": "", "type": "bytes32", "internalType": "bytes32"}],
-    "stateMutability": "pure"
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -138,5 +142,8 @@
   {"type": "error", "name": "InvalidECDSA", "inputs": []},
   {"type": "error", "name": "InvalidSignatureLength", "inputs": []},
   {"type": "error", "name": "InvalidValue", "inputs": []},
-  {"type": "error", "name": "NotMintAuthority", "inputs": []}
+  {"type": "error", "name": "NotMintAuthority", "inputs": []},
+  {"type": "error", "name": "NotDepositor", "inputs": []},
+  {"type": "error", "name": "NothingToRefund", "inputs": []},
+  {"type": "error", "name": "ExpiredSignature", "inputs": []}
 ]

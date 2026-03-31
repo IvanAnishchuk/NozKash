@@ -198,13 +198,67 @@ export function mintBlindSign(B: mcl.G1, skMint: bigint): mcl.G1 {
 // 4. REDEMPTION PROOF
 // ==============================================================================
 
+// ==============================================================================
+// EIP-712 HELPERS
+// ==============================================================================
+
+const EIP712_DOMAIN_TYPEHASH = keccak256(
+    new TextEncoder().encode('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)')
+);
+const GHOSTREDEEM_TYPEHASH = keccak256(
+    new TextEncoder().encode('GhostRedeem(address recipient,uint256 deadline)')
+);
+
+function uint256BE(n: bigint): Uint8Array {
+    const buf = new Uint8Array(32);
+    let val = n;
+    for (let i = 31; i >= 0; i--) {
+        buf[i] = Number(val & 0xffn);
+        val >>= 8n;
+    }
+    return buf;
+}
+
+function addressPadded32(addr: string): Uint8Array {
+    const raw = hexToBytes20(addr);
+    const out = new Uint8Array(32);
+    out.set(raw, 12); // left-pad to 32 bytes
+    return out;
+}
+
+export function eip712DomainSeparator(chainId: number, contractAddress: string): Uint8Array {
+    const nameHash    = keccak256(new TextEncoder().encode('GhostVault'));
+    const versionHash = keccak256(new TextEncoder().encode('1'));
+    return keccak256(new Uint8Array([
+        ...EIP712_DOMAIN_TYPEHASH,
+        ...nameHash,
+        ...versionHash,
+        ...uint256BE(BigInt(chainId)),
+        ...addressPadded32(contractAddress),
+    ]));
+}
+
+export function eip712RedemptionHash(
+    recipientAddress: string,
+    deadline: bigint,
+    chainId: number,
+    contractAddress: string,
+): Uint8Array {
+    const structHash = keccak256(new Uint8Array([
+        ...GHOSTREDEEM_TYPEHASH,
+        ...addressPadded32(recipientAddress),
+        ...uint256BE(deadline),
+    ]));
+    const domainSep = eip712DomainSeparator(chainId, contractAddress);
+    return keccak256(new Uint8Array([0x19, 0x01, ...domainSep, ...structHash]));
+}
+
 /**
  * Generates the anti-MEV ECDSA signature binding the token to a destination.
  * Mirrors Python's generate_redemption_proof().
  *
- * The message hash MUST match the Solidity contract's redemptionMessageHash():
- *   keccak256(abi.encodePacked("Pay to RAW: ", recipient))
- * which is "Pay to RAW: " (12 bytes) + raw 20-byte address = 32 bytes total.
+ * The message hash is an EIP-712 typed structured data hash matching the
+ * Solidity contract's redemptionMessageHash(recipient, deadline).
  *
  * Uses @noble/curves v2.x API:
  *   - sign() with { format: 'recovered' } returns 65 bytes: [recoveryBit, ...r(32), ...s(32)]
@@ -212,11 +266,12 @@ export function mintBlindSign(B: mcl.G1, skMint: bigint): mcl.G1 {
 export async function generateRedemptionProof(
     spendPriv: Uint8Array,
     destinationAddress: string,
+    chainId: number,
+    contractAddress: string,
+    deadline: bigint,
 ): Promise<RedemptionProof> {
-    // Match Solidity: keccak256(abi.encodePacked("Pay to RAW: ", recipient))
-    const addrBytes = hexToBytes20(destinationAddress);
-    const prefix = new TextEncoder().encode('Pay to RAW: '); // 12 bytes
-    const msgHash = keccak256(new Uint8Array([...prefix, ...addrBytes]));
+    // EIP-712 typed data hash matching Solidity redemptionMessageHash(recipient, deadline)
+    const msgHash = eip712RedemptionHash(destinationAddress, deadline, chainId, contractAddress);
 
     const pubKeyUncompressed = secp256k1.getPublicKey(spendPriv, false);  // 65 bytes with 0x04
 

@@ -97,20 +97,21 @@ function concatBytes(...parts: Uint8Array[]): Uint8Array {
   return out
 }
 
-/** First 4 bytes of `keccak256("redeem(address,bytes,address,uint256[2])")`. */
+/** First 4 bytes of `keccak256("redeem(address,bytes,address,uint256,uint256[2])")`. */
 const REDEEM_SELECTOR = keccak256(
-  new TextEncoder().encode('redeem(address,bytes,address,uint256[2])')
+  new TextEncoder().encode('redeem(address,bytes,address,uint256,uint256[2])')
 ).subarray(0, 4)
 
 export const GHOST_VAULT_REDEEM_SELECTOR_HEX = hex0x(REDEEM_SELECTOR)
 
 /**
- * ABI `redeem(address,bytes,address,uint256[2])` — same as `GhostVault.redeem` in Solidity.
+ * ABI `redeem(address,bytes,address,uint256,uint256[2])` — same as `GhostVault.redeem` in Solidity.
  */
 export function encodeGhostVaultRedeemCalldata(
   recipient: string,
   spendSignature65: Uint8Array,
   nullifier: string,
+  deadline: bigint,
   sx: bigint,
   sy: bigint
 ): `0x${string}` {
@@ -118,10 +119,18 @@ export function encodeGhostVaultRedeemCalldata(
     throw new Error(`spendSignature must be 65 bytes, got ${spendSignature65.length}`)
   }
 
+  // ABI head: 5 static words + 1 dynamic offset for bytes
+  // word 0: recipient (address)
+  // word 1: offset to spendSignature dynamic data (6 * 32 = 192)
+  // word 2: nullifier (address)
+  // word 3: deadline (uint256)
+  // word 4: S[0] (uint256)
+  // word 5: S[1] (uint256)
   const head = concatBytes(
     encodeAddressWord(recipient),
-    u256be(160n),
+    u256be(192n),
     encodeAddressWord(nullifier),
+    u256be(deadline),
     u256be(sx),
     u256be(sy)
   )
@@ -271,6 +280,8 @@ export type BuildRedeemCalldataInput = {
   draft: RedemptionDraftV1
   recipient: string
   mintFulfilled: { sx: bigint; sy: bigint }
+  chainId: number
+  contractAddress: string
 }
 
 /**
@@ -307,9 +318,13 @@ export async function buildGhostVaultRedeemCalldata(
   const sx = BigInt(xs)
   const sy = BigInt(ys)
 
+  const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600) // 1 hour
   const proof = await generateRedemptionProof(
     spendPriv,
-    input.recipient
+    input.recipient,
+    input.chainId,
+    input.contractAddress,
+    deadline,
   )
   const spendSig65 = packSpendSignature65(proof)
 
@@ -317,6 +332,7 @@ export async function buildGhostVaultRedeemCalldata(
     input.recipient,
     spendSig65,
     input.draft.spendAddress,
+    deadline,
     sx,
     sy
   )

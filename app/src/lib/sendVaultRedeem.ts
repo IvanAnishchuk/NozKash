@@ -6,6 +6,7 @@ import {
 } from '../crypto/ghostRedeem'
 import {
   ensureTargetChain,
+  TARGET_CHAIN_ID_DECIMAL,
   targetChainMismatchUserMessage,
   waitForTransactionReceipt,
 } from './ethereum'
@@ -134,6 +135,8 @@ export async function sendVaultRedeemTransaction(params: {
     draft,
     recipient: r,
     mintFulfilled: mint,
+    chainId: Number(TARGET_CHAIN_ID_DECIMAL),
+    contractAddress: GHOST_VAULT_ADDRESS,
   })
   redeemDebug('calldata built', {
     tokenIndex: draft.tokenIndex,

@@ -79,10 +79,15 @@ def test_redemption_proof_vector(v):
     master_seed = v["MASTER_SEED"].encode("utf-8")
     secrets = gl.derive_token_secrets(master_seed, v["TOKEN_INDEX"])
     redeem = v["REDEEM_TX"]
+    eip712 = v["EIP712"]
 
-    proof = gl.generate_redemption_proof(secrets.spend_priv, redeem["recipient"])
+    proof = gl.generate_redemption_proof(
+        secrets.spend_priv, redeem["recipient"],
+        eip712["chain_id"], eip712["contract_address"],
+        int(eip712["deadline"], 16),
+    )
 
-    # msg_hash is deterministic: keccak256("Pay to RAW: " || raw_20_byte_address)
+    # msg_hash is deterministic: EIP-712 typed data hash
     assert proof.msg_hash.hex() == redeem["msg_hash"]
     # compact_hex is deterministic given the private key and msg_hash
     assert proof.compact_hex == redeem["compact_hex"]

@@ -348,3 +348,99 @@ def test_bls_pairing_rejects_wrong_token(setup_data, live_keypair):
 
     assert gl.verify_bls_pairing(S, blinded_a.Y, keypair.pk) is True
     assert gl.verify_bls_pairing(S, blinded_b.Y, keypair.pk) is False
+
+
+# ==============================================================================
+# HASH TO CURVE
+# ==============================================================================
+
+
+def test_hash_to_curve_returns_on_curve_point():
+    point = gl.hash_to_curve(b"test_message")
+    assert is_on_curve(point, b)
+
+
+def test_hash_to_curve_is_deterministic():
+    p1 = gl.hash_to_curve(b"determinism_check")
+    p2 = gl.hash_to_curve(b"determinism_check")
+    assert p1[0].n == p2[0].n
+    assert p1[1].n == p2[1].n
+
+
+def test_hash_to_curve_different_inputs_differ():
+    p1 = gl.hash_to_curve(b"input_a")
+    p2 = gl.hash_to_curve(b"input_b")
+    assert (p1[0].n, p1[1].n) != (p2[0].n, p2[1].n)
+
+
+def test_hash_to_curve_matches_blind_token_y(setup_data):
+    master_seed, token_index, _ = setup_data
+    secrets = gl.derive_token_secrets(master_seed, token_index)
+    direct = gl.hash_to_curve(secrets.spend_address_bytes)
+    blinded = gl.blind_token(secrets.spend_address_bytes, secrets.r)
+    assert direct[0].n == blinded.Y[0].n
+    assert direct[1].n == blinded.Y[1].n
+
+
+# ==============================================================================
+# SERIALIZE / PARSE G1
+# ==============================================================================
+
+
+def test_serialize_g1_round_trip(setup_data):
+    master_seed, token_index, _ = setup_data
+    secrets = gl.derive_token_secrets(master_seed, token_index)
+    blinded = gl.blind_token(secrets.spend_address_bytes, secrets.r)
+    x, y = gl.serialize_g1(blinded.Y)
+    recovered = gl.parse_g1(x, y)
+    assert recovered[0].n == blinded.Y[0].n
+    assert recovered[1].n == blinded.Y[1].n
+
+
+def test_serialize_g1_returns_plain_ints(setup_data):
+    master_seed, token_index, _ = setup_data
+    secrets = gl.derive_token_secrets(master_seed, token_index)
+    blinded = gl.blind_token(secrets.spend_address_bytes, secrets.r)
+    x, y = gl.serialize_g1(blinded.Y)
+    assert type(x) is int
+    assert type(y) is int
+
+
+# ==============================================================================
+# EIP-712 DIRECT TESTS
+# ==============================================================================
+
+
+def test_eip712_domain_separator_is_deterministic():
+    a = gl.eip712_domain_separator(_TEST_CHAIN_ID, _TEST_CONTRACT)
+    b = gl.eip712_domain_separator(_TEST_CHAIN_ID, _TEST_CONTRACT)
+    assert a == b
+
+
+def test_eip712_domain_separator_changes_with_chain_id():
+    a = gl.eip712_domain_separator(1, _TEST_CONTRACT)
+    b = gl.eip712_domain_separator(11155111, _TEST_CONTRACT)
+    assert a != b
+
+
+def test_eip712_redemption_hash_matches_vector():
+    import json
+    from pathlib import Path
+
+    vec_path = Path(__file__).resolve().parent / ".." / "test_vectors" / "fb609bc5_c7e9cab4" / "token_0.json"
+    vec = json.loads(vec_path.read_text())
+    h = gl.eip712_redemption_hash(
+        vec["REDEEM_TX"]["recipient"],
+        int(vec["EIP712"]["deadline"], 16),
+        vec["EIP712"]["chain_id"],
+        vec["EIP712"]["contract_address"],
+    )
+    assert h.hex() == vec["REDEEM_TX"]["msg_hash"]
+
+
+def test_eip712_redemption_hash_changes_with_recipient():
+    alice = "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa"
+    bob = "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
+    h1 = gl.eip712_redemption_hash(alice, _TEST_DEADLINE, _TEST_CHAIN_ID, _TEST_CONTRACT)
+    h2 = gl.eip712_redemption_hash(bob, _TEST_DEADLINE, _TEST_CHAIN_ID, _TEST_CONTRACT)
+    assert h1 != h2

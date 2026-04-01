@@ -34,7 +34,7 @@ cd nozk_py && uv run generate_vectors.py
 
 One shot: **`bash scripts/forge_test_generated_vectors.sh`** (optional args are passed to **`generate_vectors.py`** only).
 
-**`nozk_library`** must use the same preimages: **`hash_to_curve(spend_address_bytes)`** (20 bytes) and **`keccak256(b"Pay to: " + recipient₂₀)`** for redemption signing.
+**`nozk_library`** must use the same preimages: **`hash_to_curve(spend_address_bytes)`** (20 bytes) for BLS, and **EIP-712 typed structured data** (`NozkRedeem(address recipient, uint256 deadline)` with domain `NozkVault`) for the anti-MEV ECDSA signature verified by `NozkVault.redemptionMessageHash(recipient, deadline)`.
 
 ---
 

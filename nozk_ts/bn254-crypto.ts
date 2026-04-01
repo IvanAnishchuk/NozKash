@@ -10,6 +10,15 @@ export function bytesToHex(bytes: Uint8Array): string {
 
 export function hexToBytes(hex: string): Uint8Array {
     const h = hex.replace(/^0x/i, '');
+    if (h.length === 0) {
+        return new Uint8Array(0);
+    }
+    if (h.length % 2 !== 0) {
+        throw new Error(`hexToBytes: odd-length hex string (${h.length} chars)`);
+    }
+    if (!/^[0-9a-fA-F]*$/.test(h)) {
+        throw new Error('hexToBytes: non-hex characters in input');
+    }
     return new Uint8Array(h.match(/.{2}/g)!.map((b) => parseInt(b, 16)));
 }
 

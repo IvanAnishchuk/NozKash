@@ -1,297 +1,281 @@
 # Agent Instructions for NozKash
 
-This file provides guidance to AI coding assistants (Codex, Jules, OpenCode, etc.) working with the NozKash codebase.
+This file guides AI coding assistants working in this repository.
 
 ## Project Mission
 
-**NozKash** is a privacy-preserving eCash system for EVM chains using BLS blind signatures over BN254. The goal is to provide unlinkable token transfers without zero-knowledge proofs, using only standard EVM precompiles (`ecAdd`, `ecMul`, `ecPairing`, `ecrecover`).
+**NozKash** is a privacy-preserving eCash system for EVM chains using BLS blind signatures over BN254. It aims to provide unlinkable fixed-denomination transfers without zero-knowledge proofs, using standard EVM precompiles (`ecAdd`, `ecMul`, `ecPairing`, `ecrecover`).
 
-**Default testnet:** Ethereum Sepolia (chain ID 11155111)
+**Default testnet:** Ethereum Sepolia (`11155111`)
 
 ## Repository Organization
 
-```
-nozk_py/         # Python: crypto library (SOURCE OF TRUTH), mint server, CLI wallet
-nozk_ts/         # TypeScript: byte-for-byte crypto port, CLI wallet
-sol/             # Solidity: NozkVault smart contract (Foundry project)
-app/             # React frontend wallet (Vite + React 19 + Tailwind)
-test_vectors/    # Shared cross-language test vectors
-abi/             # Shared contract ABI (single source)
+```text
+nozk_py/         Python source of truth: crypto library, mint server, CLI wallet
+nozk_ts/         TypeScript crypto port, tests, CLI wallet
+sol/             Solidity NozkVault contract (Foundry)
+app/             Vite + React frontend wallet
+test_vectors/    Shared cross-language test vectors
+abi/             Shared contract ABI
 ```
 
-### Critical Files
+Additional repo-level docs you may want to inspect before larger changes:
 
-- **`nozk_py/nozk_library.py`** — Cryptographic source of truth. All crypto changes start here.
-- **`nozk_ts/nozk-library.ts`** — Byte-for-byte port of Python crypto. Must match exactly.
-- **`sol/src/NozkVault.sol`** — Smart contract with BLS pairing verification logic.
-- **`test_vectors/manifest.json`** — Registry of all test vectors. Used by all test suites.
-- **`abi/NozkVault.json`** — Single source of truth for contract ABI.
+- `README.md`
+- `CONVENTIONS.md`
+- `GEMINI.md`
+- `CLAUDE.md`
+
+## Critical Files
+
+- `nozk_py/nozk_library.py` — cryptographic source of truth
+- `nozk_ts/nozk-library.ts` — TypeScript parity port of the Python crypto
+- `sol/src/NozkVault.sol` — on-chain deposit / announce / redeem / refund logic
+- `test_vectors/manifest.json` — shared vector registry used across languages
+- `abi/nozk_vault_abi.json` — shared ABI generated from Foundry artifacts
+- `app/vite.config.ts` — frontend aliasing of `@nozk` to `../nozk_ts`
+
+## Current Architecture Notes
+
+- The protocol uses a fixed denomination of `0.001 ether` per token.
+- `depositId` is the blind address and is an `address` on-chain.
+- The contract supports `deposit`, `announce`, `redeem`, and `refund`.
+- Refunds are only possible while a deposit is awaiting mint fulfillment.
+- Redemption currently uses an EIP-712 typed message:
+  `NozkRedeem(address recipient,uint256 deadline)`
+- The contract stores the mint G2 pubkey in EIP-197 limb order:
+  `[X_imag, X_real, Y_imag, Y_real]`
+- Hash-to-curve is try-and-increment with `keccak256(message || uint32_be(counter))`
+- Frontend code must reuse `nozk_ts` via the `@nozk` alias. Do not duplicate crypto implementations inside `app/src/crypto`.
 
 ## Workflow Commands
 
-### Python Development (`nozk_py/`)
+### Python (`nozk_py/`)
 
 ```bash
 cd nozk_py
 
-# Setup
-uv venv && uv sync
+uv venv
+uv sync --group dev
 
-# Development cycle
-uv run ruff check . && uv run ruff format . && uv run ty check && uv run pytest -v
+uv run ruff check .
+uv run ruff format .
+uv run ty check
+uv run pytest -v
 
-# Run specific test
 uv run pytest nozk_library_test.py::test_blind_sign -v
-
-# Generate test vectors (REQUIRED after crypto changes)
 uv run generate_vectors.py
 
-# Run mint server
 uv run mint_server.py --verbosity verbose
 
-# CLI wallet operations
 uv run client.py deposit --index 0
 uv run client.py scan
+uv run client.py status
 uv run client.py balance
 uv run client.py redeem --index 0 --to 0xRecipientAddress
 ```
 
-### TypeScript Development (`nozk_ts/`)
+### TypeScript (`nozk_ts/`)
 
 ```bash
 cd nozk_ts
+
 npm install
 
-# Development cycle
-npx biome check --fix . && npx tsc --noEmit && npx vitest run
+npm run lint
+npm run lint:fix
+npm run format
+npm run typecheck
+npm run test
 
-# End-to-end test
 npx tsx test.ts
 
-# CLI wallet
 npx tsx client.ts deposit --index 0
 npx tsx client.ts scan
-npx tsx client.ts redeem --index 0 --to 0xAddr
+npx tsx client.ts redeem --index 0 --to 0xRecipientAddress
 ```
 
-### Solidity Development (`sol/`)
+### Solidity (`sol/`)
 
 ```bash
 cd sol
 
-# Development cycle
-forge build && forge test && forge fmt && forge snapshot
-
-# Verbose test output
+forge build
+forge test
 forge test -vvv
+forge fmt
 
-# Run specific test
-forge test --match-test testDeposit
-
-# Deploy to testnet
 forge script script/NozkVault.s.sol:NozkVaultScript \
   --rpc-url $SEPOLIA_RPC_URL \
   --private-key $DEPLOYER_PRIVATE_KEY \
   --broadcast --verify
 
-# After deployment, sync ABI to abi/ directory
-python sync_abi.py
+python3 sync_abi.py
 ```
 
-### Frontend Development (`app/`)
+Notes:
+
+- `forge snapshot` is not currently part of the checked-in Solidity workflow.
+- Solidity tests use Foundry and the repo currently includes fork-oriented endpoint config in `sol/foundry.toml`.
+
+### Frontend (`app/`)
 
 ```bash
-cd app
-npm install  # Requires nozk_ts node_modules to be installed first
+cd nozk_ts && npm install
+cd ../app && npm install
 
-# Development cycle
-npm run lint && npm run build
-
-# Local dev server
+npm run lint
+npm run build
 npm run dev
-
-# Deploy to GitHub Pages
 npm run deploy
 ```
 
-### Full Stack Testing
+Notes:
+
+- The frontend depends on `nozk_ts/node_modules` being installed first.
+- The app currently uses Vite, React 19, ESLint, and Tailwind via `@tailwindcss/vite`.
+
+### End-to-End Flow
 
 ```bash
-# End-to-end lifecycle test
-./nozk_flow.sh --to 0xRecipient             # on-chain
-./nozk_flow.sh --to 0xRecipient --mock      # offline
-./nozk_flow.sh --to 0xRecipient --dry-run   # simulate
+./nozk_flow.sh --to 0xRecipient
+./nozk_flow.sh --to 0xRecipient --mock
+./nozk_flow.sh --to 0xRecipient --dry-run
 ```
 
-## Protocol Architecture
+## Cross-Language Parity Rules
 
-### Blind Signature Flow
+`nozk_py/nozk_library.py` is the source of truth. Any cryptographic behavior change must be reflected in `nozk_ts/nozk-library.ts`.
 
-1. **Client derives secrets:** From `(masterSeed, index)` → `spend_priv`, `blind_priv`
-2. **Client blinds token:** `B = r · H_G1(spend_addr)` where `r` is blinding factor
-3. **Contract deposits:** User locks 0.001 ETH, contract emits `DepositLocked(depositId, B)`
-4. **Mint signs blindly:** Mint computes `S' = sk · B` and posts via `announce()`
-5. **Client unblinds:** `S = S' · r⁻¹ = sk · H(spend_addr)`
-6. **Client redeems:** Provides `S` + ECDSA proof binding to recipient
-7. **Contract verifies:** Checks BLS pairing + ecrecover, prevents double-spend, transfers ETH
+When changing cryptography:
 
-### Key Properties
+1. Update Python first.
+2. Port the exact behavior to TypeScript.
+3. Regenerate vectors with `cd nozk_py && uv run generate_vectors.py`.
+4. Verify Python vectors with `cd nozk_py && uv run pytest test_vectors.py -v`.
+5. Verify TypeScript parity with `cd nozk_ts && npx vitest run`.
 
-- **Unlinkability:** Mint never learns the mapping between deposits and redemptions
-- **Unforgeability:** Only the mint can produce valid signatures (verified via pairing)
-- **Non-custodial:** Users control redemption recipient (MEV-protected via ECDSA)
-- **Stateless recovery:** All secrets re-derivable from seed
+Test vector facts:
 
-## Critical Constraints
+- Files live under `test_vectors/<keypair_dir>/token_<index>.json`
+- `test_vectors/manifest.json` is the registry all suites read
+- Vectors cover derivation, hash-to-curve, blinding, signing, unblinding, and redemption inputs
 
-### Cross-Language Parity
+## Smart Contract Notes
 
-**MANDATORY:** `nozk_py/nozk_library.py` and `nozk_ts/nozk-library.ts` must produce byte-identical output for all operations.
+`sol/src/NozkVault.sol` currently:
 
-**When modifying cryptography:**
-1. Always update `nozk_py/nozk_library.py` first (source of truth)
-2. Port changes to `nozk_ts/nozk-library.ts` maintaining exact behavior
-3. Run `cd nozk_py && uv run generate_vectors.py` to regenerate test vectors
-4. Verify parity: `cd nozk_py && uv run pytest test_vectors.py -v`
-5. Verify TypeScript: `cd nozk_ts && npx vitest run`
+- hardcodes `DENOMINATION = 0.001 ether`
+- enforces a single mint authority for `announce`
+- exposes `refund(address depositId)` for unfulfilled deposits
+- verifies redemptions with EIP-712 + `ecrecover` + BN254 pairing
+- prevents double-spend with `spentNullifiers`
 
-**Test vector system:**
-- Test vectors are JSON files in `test_vectors/<keypair_dir>/`
-- `test_vectors/manifest.json` lists all keypair directories and token indices
-- Foundry, pytest, and vitest all read from the same manifest
-- Vectors cover: key derivation, hash-to-curve, blinding, signing, unblinding, redemption
+If the ABI changes:
 
-### Fixed Architecture Constraints
+1. Rebuild with `forge build`
+2. Run `cd sol && python3 sync_abi.py`
+3. Confirm `abi/nozk_vault_abi.json` changed as expected
+4. Update Python, TypeScript, and frontend callers
 
-- **Denomination:** 0.001 ETH per token (hardcoded in contract, cannot change)
-- **Limited refund path:** Depositors can reclaim ETH only if mint never fulfills (before `announce()`). Once announced, redemption is the only exit path
-- **Stateless mint:** Mint stores nothing locally, all state is on-chain
-- **G2 pubkey format:** Stored in EIP-197 limb order `[X_imag, X_real, Y_imag, Y_real]`
-- **Hash-to-curve:** Uses try-and-increment with `keccak256(msg || counter_be32)`
+## Frontend Constraints
 
-### Frontend-Specific Constraints
+- Import shared crypto via `@nozk/...`, not duplicated browser-only rewrites.
+- Keep master seed handling in memory only.
+- Preserve the existing chunked event scanning approach in `app/src/lib/nozkVault*.ts`.
+- Check for existing refund and live-activity flows before changing dashboard logic.
 
-- **Crypto library sharing:** Frontend imports `nozk_ts/` directly via `@nozk/` alias
-- **No crypto duplication:** `app/src/crypto/` contains only wrappers, not implementations
-- **Seed in memory only:** Master seed never persisted, derived from wallet signature
-- **Event scanning:** Uses chunked `eth_getLogs` with ~2048 block windows
+## Environment Files
 
-## Environment Setup
+Primary shared template:
 
-Copy `example.env` to `.env` and configure:
+- `example.env`
+
+Additional mint template:
+
+- `mint.ethereum.testnet.env.example`
+
+Common variables used across components include:
 
 ```bash
-# Shared
-MASTER_SEED=0x...              # Wallet master seed
-MINT_BLS_PRIVKEY=0x...         # Mint signing key
-MINT_BLS_PUBKEY=...            # G2 pubkey (4 uint256, comma-separated)
-CONTRACT_ADDRESS=0x...         # Deployed NozkVault
-CHAIN_ID=11155111              # Ethereum Sepolia
+MASTER_SEED=...
+MINT_BLS_PRIVKEY=...
+MINT_BLS_PUBKEY=...
+CONTRACT_ADDRESS=...
+CHAIN_ID=11155111
+RPC_HTTP_URL=...
+RPC_WS_URL=...
+WALLET_ADDRESS=...
+WALLET_KEY=...
+MINT_WALLET_ADDRESS=...
+MINT_WALLET_KEY=...
+DEPLOYER_PRIVATE_KEY=...
+```
 
-# Forge deployment (sol/)
-PK_MINT_X_IMAG=...
-PK_MINT_X_REAL=...
-PK_MINT_Y_IMAG=...
-PK_MINT_Y_REAL=...
-MINT_AUTHORITY=0x...
-DEPLOYER_PRIVATE_KEY=0x...
+Frontend-specific variables include:
 
-# Mint server (nozk_py/)
-RPC_WS_URL=wss://...
-MINT_WALLET_ADDRESS=0x...
-MINT_WALLET_KEY=0x...
-
-# CLI wallet (nozk_py/, nozk_ts/)
-WALLET_ADDRESS=0x...
-WALLET_KEY=0x...
-RPC_HTTP_URL=https://...
-
-# Frontend (app/)
+```bash
 VITE_CHAIN_ID=0xaa36a7
-VITE_PUBLIC_RPC_URL=https://...
-VITE_NOZK_VAULT_ADDRESS=0x...
-VITE_NOZK_MASTER_SEED_HEX=0x...  # Dev only
+VITE_PUBLIC_RPC_URL=...
+VITE_NOZK_VAULT_ADDRESS=...
+VITE_NOZK_MASTER_SEED_HEX=...
 ```
 
 ## Common Tasks for Agents
 
-### Adding a New Cryptographic Function
+### Crypto Changes
 
-1. Implement in `nozk_py/nozk_library.py` with full docstring
-2. Add unit tests in `nozk_py/nozk_library_test.py`
-3. Run tests: `cd nozk_py && uv run pytest nozk_library_test.py -v`
-4. Port to `nozk_ts/nozk-library.ts` (exact same logic)
-5. Add test vectors to `nozk_py/generate_vectors.py`
-6. Regenerate: `cd nozk_py && uv run generate_vectors.py`
-7. Verify parity: Run pytest and vitest on test vectors
+1. Edit `nozk_py/nozk_library.py`
+2. Update tests in `nozk_py/nozk_library_test.py`
+3. Port behavior to `nozk_ts/nozk-library.ts`
+4. Regenerate vectors
+5. Run Python and TypeScript parity tests
 
-### Modifying Smart Contract
+### Contract Changes
 
 1. Edit `sol/src/NozkVault.sol`
-2. Run `forge build` to compile
-3. Run `forge test -vvv` to verify tests pass
-4. Update gas snapshots: `forge snapshot`
-5. If interface changed, sync ABI: `cd sol && python sync_abi.py` (creates `abi/nozk_vault_abi.json`)
-6. Update TypeScript/Python clients if ABI changed
+2. Run `forge build` and `forge test`
+3. Sync ABI if needed
+4. Update downstream callers in `nozk_py`, `nozk_ts`, and `app`
 
-### Adding Frontend Features
+### Frontend Changes
 
-1. Ensure `nozk_ts/node_modules` is installed
-2. Edit files in `app/src/`
-3. Import crypto via `import { ... } from '@nozk/nozk-library'`
-4. Run `npm run lint` and fix issues
-5. Test with `npm run dev`
-6. Build with `npm run build`
+1. Install `nozk_ts` dependencies first, then `app`
+2. Reuse shared crypto via `@nozk`
+3. Run `npm run lint` and `npm run build` in `app`
 
-### Deploying Contract Updates
+### Debugging Mismatches
 
-1. Update mint BLS pubkey in `sol/.env` (if changed)
-2. Run deployment script with `--broadcast --verify`
-3. Note deployed contract address
-4. Update `CONTRACT_ADDRESS` in all `.env` files
-5. Sync ABI: `cd sol && python sync_abi.py`
-6. Update frontend `.env` with new contract address
-
-### Debugging Cryptographic Mismatches
-
-1. Check test vectors: `cd nozk_py && uv run pytest test_vectors.py -v`
-2. Compare Python vs TypeScript output for specific test case
-3. Verify hash-to-curve counter logic (common mismatch point)
-4. Check byte order in G1/G2 point serialization
-5. Verify keccak256 input concatenation (endianness matters)
+1. Run Python vector tests
+2. Run TypeScript vector tests
+3. Check hash-to-curve counter encoding
+4. Check G1/G2 serialization and limb order
+5. Check keccak input byte order
+6. Check EIP-712 domain / typed-data fields if redemption signatures fail
 
 ## Testing Philosophy
 
-- **Unit tests:** Individual crypto operations (Python: pytest, TypeScript: vitest)
-- **Cross-language vectors:** Enforce Python-TypeScript parity
-- **End-to-end tests:** Full deposit-mint-redeem cycle (`nozk_tip_test.py`, `test.ts`)
-- **Solidity tests:** Fork Sepolia for realistic precompile behavior
-- **Integration test:** `./nozk_flow.sh` tests all components together
+- Python unit tests cover crypto and client-side helpers
+- TypeScript tests enforce parity and client behavior
+- Solidity tests validate contract behavior
+- `nozk_flow.sh` exercises the full lifecycle in live, mock, or dry-run modes
+- Cross-language vectors are mandatory whenever crypto behavior changes
 
-## Gas Efficiency
+## CI Status
 
-Target costs:
-- `deposit()`: ~50k gas (locks 0.001 ETH)
-- `announce()`: ~55k gas
-- `redeem()`: ~120k gas (transfers 0.001 ETH)
-- `refund()`: ~30k gas (only if mint never fulfilled)
+GitHub Actions currently runs:
 
-When modifying contract, always run `forge snapshot` and verify gas costs haven't increased significantly.
+- Python: `ruff check`, `ruff format --check`, `ty check`, `pytest -v`
+- TypeScript: `biome check .`, `tsc --noEmit`, `vitest run`
+- Solidity: `forge build`, `forge test`
+- Frontend: `npm run build`
+
+The current CI workflow does **not** run frontend linting.
 
 ## Security Considerations
 
-- **No secrets in code:** Use environment variables for all keys
-- **Nullifier double-spend:** `spentNullifiers` mapping prevents token reuse
-- **MEV protection:** ECDSA signature binds redemption to specific recipient
-- **Mint trust model:** Mint can deny service but cannot forge tokens or steal funds
-- **Blinding factor security:** `r` must be uniformly random and secret
-
-## CI/CD
-
-GitHub Actions runs:
-- Python: ruff lint/format, ty typecheck, pytest
-- TypeScript: biome lint/format, tsc typecheck, vitest
-- Solidity: forge build, forge test
-- Frontend: npm build
-
-All checks must pass before merging. See `.github/workflows/ci.yml` for details.
+- Never commit secrets or filled `.env` files.
+- Do not weaken nullifier double-spend protections.
+- Keep redemption bound to the intended recipient and deadline.
+- Preserve blind-signature unlinkability when touching derivation, blinding, or scanning logic.
+- Be careful with any change that increases depositor-to-deposit linkage on-chain or in logs.

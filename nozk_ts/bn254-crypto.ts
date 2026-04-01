@@ -56,17 +56,19 @@ export function modularInverse(k: bigint, mod: bigint): bigint {
  * 1:1 Port of the Python Try-And-Increment Hash to Curve
  */
 export function hashToCurveBN254(messageBytes: Uint8Array): mcl.G1 {
+    // Pre-allocate payload buffer: message || counter_be32
+    const payload = new Uint8Array(messageBytes.length + 4);
+    payload.set(messageBytes, 0);
+    const counterOffset = messageBytes.length;
+
     let counter = 0;
     while (true) {
-        // Append 4-byte big-endian counter
-        const counterBytes = new Uint8Array([
-            (counter >> 24) & 255,
-            (counter >> 16) & 255,
-            (counter >> 8) & 255,
-            counter & 255,
-        ]);
+        // Write 4-byte big-endian counter into the tail of the buffer
+        payload[counterOffset] = (counter >> 24) & 255;
+        payload[counterOffset + 1] = (counter >> 16) & 255;
+        payload[counterOffset + 2] = (counter >> 8) & 255;
+        payload[counterOffset + 3] = counter & 255;
 
-        const payload = new Uint8Array([...messageBytes, ...counterBytes]);
         const h = keccak256(payload);
 
         const x = BigInt(`0x${bytesToHex(h)}`) % FIELD_MODULUS;

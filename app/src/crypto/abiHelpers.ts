@@ -33,7 +33,9 @@ export function concatBytes(...parts: Uint8Array[]): Uint8Array {
 export function encodeAddressWord(addr: string): Uint8Array {
   const word = new Uint8Array(32)
   const h = addr.replace(/^0x/i, '').toLowerCase()
-  if (h.length !== 40) throw new Error(`Invalid address: ${addr}`)
+  if (h.length !== 40 || !/^[0-9a-f]{40}$/.test(h)) {
+    throw new Error(`Invalid address: ${addr}`)
+  }
   for (let i = 0; i < 20; i++) {
     word[12 + i] = Number.parseInt(h.slice(i * 2, i * 2 + 2), 16)
   }

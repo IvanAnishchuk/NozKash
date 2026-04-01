@@ -29,8 +29,16 @@ WORKTREE_DIR="$(cd "$REPO_ROOT/.." && pwd)/nozkash-gh-pages"
 if [ -n "${VITE_BASE_PATH:-}" ]; then
     BASE_PATH="$VITE_BASE_PATH"
 else
-    # Derive repo name from git remote (works for forks/renames)
-    REPO_NAME="${REPO_NAME:-$(basename -s .git "$(git -C "$REPO_ROOT" remote get-url origin 2>/dev/null)" 2>/dev/null || echo "NozKash")}"
+    # Derive repo name from git remote (POSIX-compatible, works on macOS/BSD)
+    if [ -z "${REPO_NAME:-}" ]; then
+        REMOTE_URL="$(git -C "$REPO_ROOT" remote get-url origin 2>/dev/null || true)"
+        if [ -n "$REMOTE_URL" ]; then
+            REPO_BASENAME="${REMOTE_URL##*/}"
+            REPO_NAME="${REPO_BASENAME%.git}"
+        else
+            REPO_NAME="NozKash"
+        fi
+    fi
     BASE_PATH="/${REPO_NAME}/"
 fi
 

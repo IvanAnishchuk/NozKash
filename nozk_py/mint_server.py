@@ -34,12 +34,10 @@ from typing import Optional
 import typer
 from dotenv import load_dotenv
 from rich import box
-from rich.console import Console
 from rich.panel import Panel
 from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
-from rich.theme import Theme
 from rich.traceback import install as install_rich_traceback
 from web3 import AsyncWeb3, WebSocketProvider
 from web3.exceptions import ContractCustomError, ContractLogicError
@@ -54,30 +52,13 @@ from nozk_library import (
     parse_g1,
     serialize_g1,
 )
+from nozk_theme import make_console
 
 load_dotenv()
 
 # ── Rich setup ────────────────────────────────────────────────────────────────
 
-nozk_theme = Theme(
-    {
-        "primary": "bold cyan",
-        "secondary": "dim cyan",
-        "success": "bold green",
-        "warning": "bold yellow",
-        "error": "bold red",
-        "muted": "dim white",
-        "label": "bold white",
-        "value": "cyan",
-        "addr": "yellow",
-        "hash": "magenta",
-        "num": "bright_blue",
-        "accent": "bright_cyan",
-        "banner": "bold bright_cyan",
-    }
-)
-
-console = Console(theme=nozk_theme, highlight=False)
+console = make_console()
 install_rich_traceback(console=console, show_locals=False)
 
 

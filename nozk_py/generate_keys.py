@@ -45,32 +45,13 @@ from typing import Annotated, Optional
 import typer
 from py_ecc.bn128 import G2, curve_order
 from py_ecc.bn128 import multiply as bn128_multiply
-from rich.console import Console
 from rich.panel import Panel
 from rich.rule import Rule
 from rich.text import Text
-from rich.theme import Theme
 
-nozk_theme = Theme(
-    {
-        "primary": "bold cyan",
-        "secondary": "dim cyan",
-        "success": "bold green",
-        "warning": "bold yellow",
-        "error": "bold red",
-        "muted": "dim white",
-        "label": "bold white",
-        "value": "cyan",
-        "addr": "yellow",
-        "hash": "magenta",
-        "num": "bright_blue",
-        "banner": "bold bright_cyan",
-        "key": "bold bright_yellow",
-        "secret": "bold red",
-    }
-)
+from nozk_theme import make_console
 
-console = Console(theme=nozk_theme, highlight=False)
+console = make_console()
 
 ENV_FILE = Path(".env")
 

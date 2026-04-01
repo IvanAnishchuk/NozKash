@@ -28,21 +28,17 @@ CLI usage (replaces the scan step in mock mode):
 All operations are pure — no network, no gas, no state beyond .nozk_wallet.json.
 """
 
-import json
 import os
 from dataclasses import dataclass
 from enum import Enum
-from pathlib import Path
 from typing import Annotated, Optional
 
 import typer
 from dotenv import load_dotenv
 from py_ecc.bn128 import curve_order
-from rich.console import Console
 from rich.panel import Panel
 from rich.rule import Rule
 from rich.text import Text
-from rich.theme import Theme
 
 from nozk_library import (
     G1Point,
@@ -58,6 +54,8 @@ from nozk_library import (
     unblind_signature,
     verify_bls_pairing,
 )
+from nozk_theme import make_console
+from wallet_state import load_wallet_state, save_wallet_state, short_hex
 
 load_dotenv()
 
@@ -150,50 +148,13 @@ class MockMint:
 # CLI — integrates with client.py's .nozk_wallet.json
 # ==============================================================================
 
-nozk_theme = Theme(
-    {
-        "primary": "bold cyan",
-        "secondary": "dim cyan",
-        "success": "bold green",
-        "warning": "bold yellow",
-        "error": "bold red",
-        "muted": "dim white",
-        "label": "bold white",
-        "value": "cyan",
-        "addr": "yellow",
-        "hash": "magenta",
-        "num": "bright_blue",
-        "banner": "bold bright_cyan",
-        "step": "bold cyan",
-        "mock": "bold magenta",
-    }
-)
-
-console = Console(theme=nozk_theme, highlight=False)
-
-WALLET_STATE_FILE = Path(".nozk_wallet.json")
+console = make_console()
 
 
 class Verbosity(str, Enum):
     quiet = "quiet"
     normal = "normal"
     verbose = "verbose"
-
-
-def _short(val: str, head: int = 10, tail: int = 8) -> str:
-    if len(val) <= head + tail + 3:
-        return val
-    return f"{val[:head]}…{val[-tail:]}"
-
-
-def _load_wallet_state() -> dict:
-    if not WALLET_STATE_FILE.exists():
-        return {"tokens": {}, "last_scanned_block": 0}
-    return json.loads(WALLET_STATE_FILE.read_text())
-
-
-def _save_wallet_state(state: dict) -> None:
-    WALLET_STATE_FILE.write_text(json.dumps(state, indent=2))
 
 
 app = typer.Typer(
@@ -256,13 +217,13 @@ def sign(
         console.print(
             Text.assemble(
                 ("  BLS sk loaded  ", "label"),
-                (_short(hex(mint.sk), 12, 6), "hash"),
+                (short_hex(hex(mint.sk), 12, 6), "hash"),
             )
         )
         console.print()
 
     # ── Load wallet state ─────────────────────────────────────────────────
-    state = _load_wallet_state()
+    state = load_wallet_state()
 
     end_index = index_to if index_to is not None else index
     if end_index < index:
@@ -298,25 +259,25 @@ def sign(
         b_x, b_y = serialize_g1(blinded.B)
 
         if is_verbose:
-            console.print(Text.assemble(("  r              ", "label"), (_short(hex(secrets.r), 18, 8), "hash")))
-            console.print(Text.assemble(("  B.x            ", "label"), (_short(hex(b_x), 18, 8), "hash")))
-            console.print(Text.assemble(("  B.y            ", "label"), (_short(hex(b_y), 18, 8), "hash")))
+            console.print(Text.assemble(("  r              ", "label"), (short_hex(hex(secrets.r), 18, 8), "hash")))
+            console.print(Text.assemble(("  B.x            ", "label"), (short_hex(hex(b_x), 18, 8), "hash")))
+            console.print(Text.assemble(("  B.y            ", "label"), (short_hex(hex(b_y), 18, 8), "hash")))
 
         # Step 3: Mock mint signs (S' = sk · B)
         S_prime = mint.sign(blinded.B)
         s_prime_x, s_prime_y = serialize_g1(S_prime)
 
         if is_verbose:
-            console.print(Text.assemble(("  S'.x           ", "label"), (_short(hex(s_prime_x), 18, 8), "hash")))
-            console.print(Text.assemble(("  S'.y           ", "label"), (_short(hex(s_prime_y), 18, 8), "hash")))
+            console.print(Text.assemble(("  S'.x           ", "label"), (short_hex(hex(s_prime_x), 18, 8), "hash")))
+            console.print(Text.assemble(("  S'.y           ", "label"), (short_hex(hex(s_prime_y), 18, 8), "hash")))
 
         # Step 4: Client unblinds (S = S' · r⁻¹)
         S = unblind_signature(S_prime, secrets.r)
         s_x, s_y = serialize_g1(S)
 
         if is_verbose:
-            console.print(Text.assemble(("  S.x            ", "label"), (_short(hex(s_x), 18, 8), "hash")))
-            console.print(Text.assemble(("  S.y            ", "label"), (_short(hex(s_y), 18, 8), "hash")))
+            console.print(Text.assemble(("  S.x            ", "label"), (short_hex(hex(s_x), 18, 8), "hash")))
+            console.print(Text.assemble(("  S.y            ", "label"), (short_hex(hex(s_y), 18, 8), "hash")))
 
         # Step 5: Local BLS verification (sanity check)
         bls_ok = verify_bls_pairing(S, blinded.Y, pk_mint)
@@ -348,7 +309,7 @@ def sign(
             console.print(Text("  ✅  Written to wallet state", style="success"))
             console.print()
 
-    _save_wallet_state(state)
+    save_wallet_state(state)
 
     if not is_quiet:
         console.print(Rule(style="dim magenta"))

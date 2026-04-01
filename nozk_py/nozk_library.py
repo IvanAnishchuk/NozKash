@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import NewType
 
 from eth_keys import keys
+from eth_keys.exceptions import ValidationError as _EthKeysValidationError
 from eth_utils import keccak
 from py_ecc.bn128 import FQ, FQ2, G2, b, curve_order, field_modulus, is_on_curve, multiply, pairing
 
@@ -390,7 +391,7 @@ def verify_ecdsa_mev_protection(
         sig = keys.Signature(vrs=(recovery_bit, r, s))
         recovered_pubkey = sig.recover_public_key_from_msg_hash(msg_hash)
         return recovered_pubkey.to_address().lower() == expected_address_hex.lower()
-    except Exception:
+    except (ValueError, TypeError, _EthKeysValidationError):
         return False
 
 

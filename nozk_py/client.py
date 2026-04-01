@@ -50,12 +50,10 @@ import requests
 import typer
 from dotenv import load_dotenv
 from rich import box
-from rich.console import Console
 from rich.panel import Panel
 from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
-from rich.theme import Theme
 from rich.traceback import install as install_rich_traceback
 from web3 import Web3
 from web3.exceptions import ContractCustomError, ContractLogicError
@@ -75,32 +73,14 @@ from nozk_library import (
     verify_bls_pairing,
     verify_ecdsa_mev_protection,
 )
+from nozk_theme import make_console
+from wallet_state import short_hex
 
 load_dotenv()
 
 # ── Rich setup ─────────────────────────────────────────────────────────────────
 
-nozk_theme = Theme(
-    {
-        "primary": "bold cyan",
-        "secondary": "dim cyan",
-        "success": "bold green",
-        "warning": "bold yellow",
-        "error": "bold red",
-        "muted": "dim white",
-        "label": "bold white",
-        "value": "cyan",
-        "addr": "yellow",
-        "hash": "magenta",
-        "num": "bright_blue",
-        "accent": "bright_cyan",
-        "banner": "bold bright_cyan",
-        "dryrun": "bold magenta",
-        "step": "bold cyan",
-    }
-)
-
-console = Console(theme=nozk_theme, highlight=False)
+console = make_console()
 install_rich_traceback(console=console, show_locals=False)
 
 # ── Verbosity ──────────────────────────────────────────────────────────────────
@@ -141,12 +121,6 @@ def is_mock() -> bool:
 # ── Formatting helpers ─────────────────────────────────────────────────────────
 
 DENOMINATION_WEI: Wei = Wei(1_000_000_000_000_000)  # 0.001 ETH
-
-
-def _short(val: str, head: int = 10, tail: int = 8) -> str:
-    if len(val) <= head + tail + 3:
-        return val
-    return f"{val[:head]}…{val[-tail:]}"
 
 
 def _fmt_addr(address: str) -> Text:
@@ -235,7 +209,7 @@ def kv_hex(label: str, value: str) -> None:
     """Print a key-value pair with hex truncation in normal mode, full in verbose."""
     if is_quiet():
         return
-    display = value if is_verbose() else _short(value, 18, 8)
+    display = value if is_verbose() else short_hex(value, 18, 8)
     kv(label, display, style="hash")
 
 
@@ -631,7 +605,7 @@ def cmd_scan(
         sig = evt["args"]["S_prime"]
         fulfilled[did] = (int(sig[0]), int(sig[1]))
         if is_verbose():
-            kv_hex(f"  S'.x [{_short(did, 6, 4)}]", hex(int(sig[0])))
+            kv_hex(f"  S'.x [{short_hex(did, 6, 4)}]", hex(int(sig[0])))
 
     console.print()
     section("Step 2 · Match Tokens by Deposit ID", "🔗")
@@ -696,7 +670,7 @@ def cmd_scan(
             )
 
         if deposit_id not in fulfilled:
-            info(f"  No MintFulfilled yet for deposit ID {_short(deposit_id, 8, 6)}", muted=True)
+            info(f"  No MintFulfilled yet for deposit ID {short_hex(deposit_id, 8, 6)}", muted=True)
             continue
 
         s_prime_x, s_prime_y = fulfilled[deposit_id]
@@ -1090,10 +1064,10 @@ def cmd_status(config: ClientConfig) -> None:
         table.add_row(
             str(idx),
             rec.status_styled,
-            _short(rec.spend_address, 6, 4),
-            _short(rec.deposit_id, 6, 4),
-            _short(rec.deposit_tx, 8, 6) if rec.deposit_tx else "—",
-            _short(rec.redeem_tx, 8, 6) if rec.redeem_tx else "—",
+            short_hex(rec.spend_address, 6, 4),
+            short_hex(rec.deposit_id, 6, 4),
+            short_hex(rec.deposit_tx, 8, 6) if rec.deposit_tx else "—",
+            short_hex(rec.redeem_tx, 8, 6) if rec.redeem_tx else "—",
         )
 
     console.print(table)

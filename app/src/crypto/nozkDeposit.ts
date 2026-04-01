@@ -9,31 +9,13 @@ import {
   getSpendAddressBytes,
   type TokenSecrets,
 } from '@nozk/nozk-library'
+import { hex0x, u256be } from './abiHelpers'
 
 let mclInit: Promise<void> | null = null
 
 export async function ensureNozkCrypto(): Promise<void> {
   if (!mclInit) mclInit = initBN254()
   await mclInit
-}
-
-function u256be(n: bigint): Uint8Array {
-  const out = new Uint8Array(32)
-  let x = n
-  for (let i = 31; i >= 0; i--) {
-    out[i] = Number(x & 0xffn)
-    x >>= 8n
-  }
-  return out
-}
-
-function hex0x(bytes: Uint8Array): string {
-  return (
-    '0x' +
-    Array.from(bytes)
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('')
-  )
 }
 
 /** Same as `deriveTokenSecrets`: index as 4-byte big-endian. */

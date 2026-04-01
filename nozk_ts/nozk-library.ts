@@ -176,6 +176,9 @@ export function blindToken(spendAddressBytes: Uint8Array, r: bigint): BlindedPoi
 }
 
 export function unblindSignature(S_prime: mcl.G1, r: bigint): mcl.G1 {
+    if (r === 0n) {
+        throw new VerificationError('Invalid blinding factor r = 0');
+    }
     const r_inv = modularInverse(r, CURVE_ORDER);
     return multiplyBN254(S_prime, r_inv);
 }

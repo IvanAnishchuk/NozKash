@@ -29,22 +29,18 @@ All operations are pure — no network, no gas. The CLI reads wallet state and
 MASTER_SEED from .env to reconstruct the redemption payload, then verifies it.
 """
 
-import json
 import os
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from pathlib import Path
 from typing import Annotated, Optional
 
 import typer
 from dotenv import load_dotenv
 from py_ecc.bn128 import G2 as G2_gen
-from rich.console import Console
 from rich.panel import Panel
 from rich.rule import Rule
 from rich.text import Text
-from rich.theme import Theme
 
 from nozk_library import (
     G2Point,
@@ -59,6 +55,8 @@ from nozk_library import (
     verify_bls_pairing,
     verify_ecdsa_mev_protection,
 )
+from nozk_theme import make_console
+from wallet_state import load_wallet_state, save_wallet_state, short_hex
 
 load_dotenv()
 
@@ -274,50 +272,13 @@ class MockRedeemer:
 # CLI — reads wallet state, builds redeem payload, verifies everything
 # ==============================================================================
 
-nozk_theme = Theme(
-    {
-        "primary": "bold cyan",
-        "secondary": "dim cyan",
-        "success": "bold green",
-        "warning": "bold yellow",
-        "error": "bold red",
-        "muted": "dim white",
-        "label": "bold white",
-        "value": "cyan",
-        "addr": "yellow",
-        "hash": "magenta",
-        "num": "bright_blue",
-        "banner": "bold bright_cyan",
-        "step": "bold cyan",
-        "mock": "bold magenta",
-    }
-)
-
-console = Console(theme=nozk_theme, highlight=False)
-
-WALLET_STATE_FILE = Path(".nozk_wallet.json")
+console = make_console()
 
 
 class Verbosity(str, Enum):
     quiet = "quiet"
     normal = "normal"
     verbose = "verbose"
-
-
-def _short(val: str, head: int = 10, tail: int = 8) -> str:
-    if len(val) <= head + tail + 3:
-        return val
-    return f"{val[:head]}…{val[-tail:]}"
-
-
-def _load_wallet_state() -> dict:
-    if not WALLET_STATE_FILE.exists():
-        return {"tokens": {}, "last_scanned_block": 0}
-    return json.loads(WALLET_STATE_FILE.read_text())
-
-
-def _save_wallet_state(state: dict) -> None:
-    WALLET_STATE_FILE.write_text(json.dumps(state, indent=2))
 
 
 def _encode_spend_signature(compact_hex: str, recovery_bit: int) -> bytes:
@@ -380,7 +341,7 @@ def verify(
         raise typer.Exit(code=1)
 
     # ── Load wallet state ─────────────────────────────────────────────────
-    state = _load_wallet_state()
+    state = load_wallet_state()
     token_key = str(index)
     rec = state.get("tokens", {}).get(token_key)
 
@@ -413,8 +374,8 @@ def verify(
             )
         )
         if is_verbose:
-            console.print(Text.assemble(("  S.x            ", "label"), (_short(hex(s_x), 18, 8), "hash")))
-            console.print(Text.assemble(("  S.y            ", "label"), (_short(hex(s_y), 18, 8), "hash")))
+            console.print(Text.assemble(("  S.x            ", "label"), (short_hex(hex(s_x), 18, 8), "hash")))
+            console.print(Text.assemble(("  S.y            ", "label"), (short_hex(hex(s_y), 18, 8), "hash")))
         console.print()
 
     # ── Derive spend key and generate ECDSA proof ─────────────────────────
@@ -443,7 +404,7 @@ def verify(
         console.print(
             Text.assemble(
                 ("  msg_hash       ", "label"),
-                (_short(proof.msg_hash.hex(), 18, 8), "hash"),
+                (short_hex(proof.msg_hash.hex(), 18, 8), "hash"),
             )
         )
         console.print(
@@ -459,7 +420,7 @@ def verify(
             console.print(
                 Text.assemble(
                     ("  compact_hex    ", "label"),
-                    (_short("0x" + proof.compact_hex, 22, 8), "hash"),
+                    (short_hex("0x" + proof.compact_hex, 22, 8), "hash"),
                 )
             )
         console.print()
@@ -514,7 +475,7 @@ def verify(
         # Mark as spent in wallet state
         state["tokens"][token_key]["spent"] = True
         state["tokens"][token_key]["redeem_tx"] = "mock-redeem-verified"
-        _save_wallet_state(state)
+        save_wallet_state(state)
 
         if not is_quiet:
             console.print(Rule(style="dim magenta"))

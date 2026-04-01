@@ -23,6 +23,7 @@ Usage:
 """
 
 import json
+import re
 from pathlib import Path
 
 from eth_utils import keccak
@@ -124,8 +125,6 @@ def _extract_selector(error) -> str | None:
 
     # Last resort: str(error) might contain "0xXXXXXXXX"
     s = str(error)
-    import re
-
     match = re.search(r"0x([0-9a-fA-F]{8,})", s)
     if match:
         return match.group(1)[:8].lower()

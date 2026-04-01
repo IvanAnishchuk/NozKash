@@ -1,3 +1,4 @@
+import { bytesToHex, hexToBytes } from '@nozk/bn254-crypto'
 import {
   deriveTokenSecrets as deriveTokenSecretsLib,
   getDepositId,
@@ -15,17 +16,6 @@ export function setMasterSeed(seed: Uint8Array) {
 export function getMasterSeed(): Uint8Array {
   if (!masterSeed) throw new Error('Master seed not initialized')
   return masterSeed
-}
-
-export function hexToBytes(hex: string): Uint8Array {
-  const h = hex.replace(/^0x/i, '')
-  return new Uint8Array(h.match(/.{1,2}/g)!.map((b) => parseInt(b, 16)))
-}
-
-function bytesToHex(bytes: Uint8Array): string {
-  return Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('')
 }
 
 export type DerivedTokenSecrets = {
@@ -58,4 +48,4 @@ export function deriveTokenSecrets(tokenIndex: number): DerivedTokenSecrets {
   return deriveTokenSecretsFromSeed(getMasterSeed(), tokenIndex)
 }
 
-export { bytesToHex }
+export { bytesToHex, hexToBytes }

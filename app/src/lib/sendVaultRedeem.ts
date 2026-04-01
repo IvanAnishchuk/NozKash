@@ -1,9 +1,9 @@
 import {
-  buildGhostVaultRedeemCalldata,
+  buildNozkVaultRedeemCalldata,
   clearRedemptionDraft,
   redemptionDraftMatchesSecrets,
   type RedemptionDraftV1,
-} from '../crypto/ghostRedeem'
+} from '../crypto/nozkRedeem'
 import {
   ensureTargetChain,
   TARGET_CHAIN_ID_DECIMAL,
@@ -11,12 +11,12 @@ import {
   waitForTransactionReceipt,
 } from './ethereum'
 import { chainRpcCall } from './chainPublicRpc'
-import { isGhostVaultDebugEnabled } from './ghostDebug'
+import { isNozkVaultDebugEnabled } from './nozkDebug'
 import {
   fetchMintFulfilledSPrime,
-  GHOST_VAULT_ADDRESS,
+  NOZK_VAULT_ADDRESS,
   requestVaultActivityRefresh,
-} from './ghostVault'
+} from './nozkVault'
 
 export type EthereumRequester = {
   request: (args: {
@@ -26,12 +26,12 @@ export type EthereumRequester = {
 }
 
 /**
- * Sends `GhostVault.redeem` using the local draft (spend/blind keys) and `recipient`.
+ * Sends `NozkVault.redeem` using the local draft (spend/blind keys) and `recipient`.
  * Clears the draft and invalidates activity cache on success.
  */
 function redeemDebug(msg: string, data?: Record<string, unknown>) {
-  if (!isGhostVaultDebugEnabled()) return
-  console.log('[GhostVault redeem]', msg, data ?? '')
+  if (!isNozkVaultDebugEnabled()) return
+  console.log('[NozkVault redeem]', msg, data ?? '')
 }
 
 function encodeUint256Arg(n: number): `0x${string}` {
@@ -93,7 +93,7 @@ export async function sendVaultRedeemTransaction(params: {
   }
 
   const mint = await fetchMintFulfilledSPrime(draft.depositId, {
-    contractAddress: GHOST_VAULT_ADDRESS,
+    contractAddress: NOZK_VAULT_ADDRESS,
   })
   if (!mint) {
     throw new Error('No MintFulfilled log for this depositId')
@@ -106,7 +106,7 @@ export async function sendVaultRedeemTransaction(params: {
     for (let i = 0; i < 4; i++) {
       const limbHex = await chainRpcCall<string>('eth_call', [
         {
-          to: GHOST_VAULT_ADDRESS,
+          to: NOZK_VAULT_ADDRESS,
           data: `${selector}${encodeUint256Arg(i).slice(2)}`,
         },
         'latest',
@@ -131,12 +131,12 @@ export async function sendVaultRedeemTransaction(params: {
     sy: mint.sy.toString(10),
   })
 
-  const data = await buildGhostVaultRedeemCalldata({
+  const data = await buildNozkVaultRedeemCalldata({
     draft,
     recipient: r,
     mintFulfilled: mint,
     chainId: Number(TARGET_CHAIN_ID_DECIMAL),
-    contractAddress: GHOST_VAULT_ADDRESS,
+    contractAddress: NOZK_VAULT_ADDRESS,
   })
   redeemDebug('calldata built', {
     tokenIndex: draft.tokenIndex,
@@ -155,7 +155,7 @@ export async function sendVaultRedeemTransaction(params: {
 
   const sendParams = {
     from,
-    to: GHOST_VAULT_ADDRESS,
+    to: NOZK_VAULT_ADDRESS,
     data,
     value: '0x0',
   }

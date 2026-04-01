@@ -13,11 +13,11 @@ interface ImportMetaEnv {
   readonly VITE_NATIVE_CURRENCY_SYMBOL?: string
   readonly VITE_NATIVE_CURRENCY_NAME?: string
   readonly VITE_NATIVE_CURRENCY_DECIMALS?: string
-  readonly VITE_GHOST_VAULT_ADDRESS?: string
+  readonly VITE_NOZK_VAULT_ADDRESS?: string
   /** First block where the deployed vault has logs (hex). */
-  readonly VITE_GHOST_VAULT_SCAN_FROM_BLOCK_HEX?: string
+  readonly VITE_NOZK_VAULT_SCAN_FROM_BLOCK_HEX?: string
   /** 64 hex chars (32 bytes) — master seed for `deriveTokenSecrets`. */
-  readonly VITE_GHOST_MASTER_SEED_HEX?: string
+  readonly VITE_NOZK_MASTER_SEED_HEX?: string
   /** Default HTTP JSON-RPC for reads (logs, blocks, receipts, estimateGas). */
   readonly VITE_PUBLIC_RPC_URL?: string
   readonly VITE_ETHEREUM_RPC_URL?: string
@@ -32,31 +32,31 @@ interface ImportMetaEnv {
    */
   readonly VITE_PUBLIC_RPC_MIN_GAP_MS?: string
   /** Dashboard / Redeem / deposit modal: vault activity poll interval in ms (default 10000, min 2000). */
-  readonly VITE_GHOST_VAULT_RPC_POLL_MS?: string
+  readonly VITE_NOZK_VAULT_RPC_POLL_MS?: string
   /** Max consecutive JSON-RPC calls before pausing vault scan (default 5). */
-  readonly VITE_GHOST_VAULT_RPC_BURST?: string
+  readonly VITE_NOZK_VAULT_RPC_BURST?: string
   /** Pause in ms after burst is exhausted (default 7500). */
-  readonly VITE_GHOST_VAULT_RPC_PAUSE_MS?: string
+  readonly VITE_NOZK_VAULT_RPC_PAUSE_MS?: string
   /** Vault activity cache TTL in ms (default 60000). 0 = no cache. */
-  readonly VITE_GHOST_VAULT_SCAN_CACHE_MS?: string
+  readonly VITE_NOZK_VAULT_SCAN_CACHE_MS?: string
   /** Token indices per scan batch (default 5). */
-  readonly VITE_GHOST_VAULT_TOKEN_BATCH_SIZE?: string
+  readonly VITE_NOZK_VAULT_TOKEN_BATCH_SIZE?: string
   /** Lowest token index allowed for new deposits (default 2). */
-  readonly VITE_GHOST_VAULT_MIN_NEW_DEPOSIT_TOKEN_INDEX?: string
+  readonly VITE_NOZK_VAULT_MIN_NEW_DEPOSIT_TOKEN_INDEX?: string
   /**
    * Max batches for vault activity + next token index scan (default 128; max 10000).
    * Max token index ≈ `this × 5 - 1` when scans run to the cap.
    */
-  readonly VITE_GHOST_VAULT_MAX_BATCHES?: string
+  readonly VITE_NOZK_VAULT_MAX_BATCHES?: string
   /** Optional: only this account sees "Start redeem" before the first draft (same as Account 1). */
-  readonly VITE_GHOST_REDEEM_PREPARE_ACCOUNT?: string
+  readonly VITE_NOZK_REDEEM_PREPARE_ACCOUNT?: string
   /** Optional: only this account sees "Redeem here" (Account 2 / who signs the tx). */
-  readonly VITE_GHOST_REDEEM_EXECUTOR_ACCOUNT?: string
+  readonly VITE_NOZK_REDEEM_EXECUTOR_ACCOUNT?: string
   /**
-   * `true` — verbose GhostVault console logs: deposit debug, activity scan, redeem.
+   * `true` — verbose NozkVault console logs: deposit debug, activity scan, redeem.
    * Off in production builds unless set at build time. Also on in `import.meta.env.DEV`.
    */
-  readonly VITE_GHOST_DEBUG?: string
+  readonly VITE_NOZK_DEBUG?: string
 }
 
 interface ImportMeta {

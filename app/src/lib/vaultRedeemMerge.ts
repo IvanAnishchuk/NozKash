@@ -1,6 +1,6 @@
-import type { RedemptionDraftV1 } from '../crypto/ghostRedeem'
+import type { RedemptionDraftV1 } from '../crypto/nozkRedeem'
 import type { VaultTx } from '../types/activity'
-import { GHOST_VAULT_DEPOSIT_AMOUNT_LABEL } from './ghostVault'
+import { NOZK_VAULT_DEPOSIT_AMOUNT_LABEL } from './nozkVault'
 
 /**
  * If the user switched to the account that sends redeem (e.g. Account 2) but
@@ -28,7 +28,7 @@ export function mergeVaultRowsWithRedeemDraft(
   const synthetic: VaultTx = {
     id: `vault-deposit-${draft.tokenIndex}`,
     type: 'Deposit',
-    amount: GHOST_VAULT_DEPOSIT_AMOUNT_LABEL,
+    amount: NOZK_VAULT_DEPOSIT_AMOUNT_LABEL,
     counterparty: '—',
     txHash: '—',
     historyLabel: `Deposit · mint fulfilled · token #${draft.tokenIndex}`,

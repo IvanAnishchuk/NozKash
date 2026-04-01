@@ -1,4 +1,4 @@
-# GhostVault mint — one container per chain, same image (py/Dockerfile).
+# NozkVault mint — one container per chain, same image (nozk_py/Dockerfile).
 #
 # First-time setup (Ethereum Sepolia):
 #   cp mint.ethereum.testnet.env.example mint.ethereum.testnet.env
@@ -20,7 +20,7 @@ services:
     profiles: [ethereum]
     build:
       context: .
-      dockerfile: py/Dockerfile
+      dockerfile: nozk_py/Dockerfile
     env_file:
       - mint.ethereum.testnet.env
     container_name: mint-ethereum-testnet
@@ -30,7 +30,7 @@ services:
     profiles: [avalanche]
     build:
       context: .
-      dockerfile: py/Dockerfile
+      dockerfile: nozk_py/Dockerfile
     env_file:
       - mint.avalanche.testnet.env
     container_name: mint-avalanche-testnet
@@ -40,7 +40,7 @@ services:
     profiles: [monad]
     build:
       context: .
-      dockerfile: py/Dockerfile
+      dockerfile: nozk_py/Dockerfile
     env_file:
       - mint.monad.testnet.env
     container_name: mint-monad-testnet
@@ -50,7 +50,7 @@ services:
     profiles: [bnb]
     build:
       context: .
-      dockerfile: py/Dockerfile
+      dockerfile: nozk_py/Dockerfile
     env_file:
       - mint.bnb.testnet.env
     container_name: mint-bnb-testnet
@@ -60,7 +60,7 @@ services:
     profiles: [base]
     build:
       context: .
-      dockerfile: py/Dockerfile
+      dockerfile: nozk_py/Dockerfile
     env_file:
       - mint.base.testnet.env
     container_name: mint-base-testnet

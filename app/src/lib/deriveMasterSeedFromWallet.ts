@@ -1,21 +1,21 @@
 import { keccak256 } from 'ethereum-cryptography/keccak'
 
-export const GHOST_MASTER_DERIVATION_MSG_VERSION = 'v1'
+export const NOZK_MASTER_DERIVATION_MSG_VERSION = 'v1'
 
 /**
  * EIP-191 message the user signs with their wallet.
  * Includes account and chain so the derived `masterSeed` is bound to that context.
  */
-export function buildGhostDerivationSignMessage(
+export function buildNozkDerivationSignMessage(
   walletAddress: string,
   chainIdHex: string
 ): string {
   const id = Number.parseInt(chainIdHex, 16)
   const chainLabel = Number.isFinite(id) ? String(id) : chainIdHex
   return [
-    'GhostTip — derive vault secret (this device only)',
+    'NozkTip — derive vault secret (this device only)',
     '',
-    `Version: ${GHOST_MASTER_DERIVATION_MSG_VERSION}`,
+    `Version: ${NOZK_MASTER_DERIVATION_MSG_VERSION}`,
     `Account: ${walletAddress}`,
     `Chain ID: ${chainLabel}`,
     '',

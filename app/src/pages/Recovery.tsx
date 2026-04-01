@@ -1,15 +1,15 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useGhostMasterSeed } from '../context/GhostMasterSeedProvider'
+import { useNozkMasterSeed } from '../context/NozkMasterSeedProvider'
 import {
   TARGET_NETWORK_LABEL,
   walletNetworkBadgeLabel,
 } from '../lib/ethereum'
-import { fetchVaultActivityForFirstTokens } from '../lib/ghostVault'
+import { fetchVaultActivityForFirstTokens } from '../lib/nozkVault'
 import type { VaultTx } from '../types/activity'
 
 export function Recovery() {
-  const { effectiveMasterSeed } = useGhostMasterSeed()
+  const { effectiveMasterSeed } = useNozkMasterSeed()
   const [phrase, setPhrase] = useState('')
   const [startIdx, setStartIdx] = useState('0')
   const [endIdx, setEndIdx] = useState('99')
@@ -27,7 +27,7 @@ export function Recovery() {
       const seed = effectiveMasterSeed
       if (!seed) {
         setScanError(
-          'Connect your wallet and accept the vault signature (valid while connected), or set VITE_GHOST_MASTER_SEED_HEX (dev).'
+          'Connect your wallet and accept the vault signature (valid while connected), or set VITE_NOZK_MASTER_SEED_HEX (dev).'
         )
         return
       }
@@ -64,7 +64,7 @@ export function Recovery() {
           RECOVERY
         </div>
         <div className="modal-sub-label" style={{ marginBottom: 0 }}>
-          {walletNetworkBadgeLabel()} · GhostVault reads via RPC
+          {walletNetworkBadgeLabel()} · NozkVault reads via RPC
         </div>
       </div>
 
@@ -148,7 +148,7 @@ export function Recovery() {
       {done && scanRows.length === 0 && !scanError && (
         <div className="deposit-info" style={{ marginTop: 16 }}>
           <div style={{ fontSize: 13, color: 'var(--text2)' }}>
-            No GhostVault activity for this seed in the scanned range.
+            No NozkVault activity for this seed in the scanned range.
           </div>
         </div>
       )}

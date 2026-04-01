@@ -28,7 +28,7 @@ rm -rf .git
 
 git init
 git add -A
-git commit -m "chore: initial commit v1.0.0 (eGhostCash wallet)"
+git commit -m "chore: initial commit v1.0.0 (eNozkCash wallet)"
 ```
 
 `node_modules` and `dist` are in `.gitignore` and are not pushed.

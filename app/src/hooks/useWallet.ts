@@ -15,7 +15,7 @@ import {
 export const WALLET_BALANCE_POLL_MS = 6_000
 
 /** Dispatched after deposit/redeem so every `useWallet()` instance refetches (hooks are not shared). */
-export const WALLET_BALANCE_REFRESH_EVENT = 'ghost:wallet-balance-refresh'
+export const WALLET_BALANCE_REFRESH_EVENT = 'nozk:wallet-balance-refresh'
 
 export function requestWalletBalanceRefresh(): void {
   window.dispatchEvent(new Event(WALLET_BALANCE_REFRESH_EVENT))

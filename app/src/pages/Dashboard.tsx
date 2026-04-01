@@ -6,15 +6,15 @@ import {
   loadRedemptionDraft,
   saveRedemptionDraft,
   type RedemptionDraftV1,
-} from '../crypto/ghostRedeem'
-import { useGhostMasterSeed } from '../context/GhostMasterSeedProvider'
+} from '../crypto/nozkRedeem'
+import { useNozkMasterSeed } from '../context/NozkMasterSeedProvider'
 import { usePrivacy } from '../context/usePrivacy'
 import {
   requestWalletBalanceRefresh,
   useWallet,
 } from '../hooks/useWallet'
 import { DateRangePill } from '../components/DateRangePill'
-import { deriveTokenSecrets, getDepositId } from '../crypto/ghost-library'
+import { deriveTokenSecrets, getDepositId } from '../crypto/nozk-library'
 import {
   getEthereum,
   NATIVE_CURRENCY_SYMBOL,
@@ -30,11 +30,11 @@ import { sendVaultRedeemTransaction } from '../lib/sendVaultRedeem'
 import { sendVaultRefundTransaction } from '../lib/sendVaultRefund'
 import { isStartRedeemVisible, shouldShowRedeemHere } from '../lib/redeemUiGates'
 import { mergeVaultRowsWithRedeemDraft } from '../lib/vaultRedeemMerge'
-import { useGhostVaultActivityLive } from '../hooks/useGhostVaultActivityLive'
+import { useNozkVaultActivityLive } from '../hooks/useNozkVaultActivityLive'
 import type { LayoutOutletContext } from '../layoutOutletContext'
 import type { ActivityKind, HistoryFilterType, VaultTx } from '../types/activity'
 
-/** Matches `GHOST_VAULT_DEPOSIT_AMOUNT_LABEL` (0.001 ETH per deposit). */
+/** Matches `NOZK_VAULT_DEPOSIT_AMOUNT_LABEL` (0.001 ETH per deposit). */
 const VAULT_DENOMINATION_ETH = 0.001
 
 function kindToClass(k: ActivityKind) {
@@ -111,7 +111,7 @@ function FilterFunnelIcon() {
 
 export function Dashboard() {
   const { privacyOn } = usePrivacy()
-  const { effectiveMasterSeed, seedRevision } = useGhostMasterSeed()
+  const { effectiveMasterSeed, seedRevision } = useNozkMasterSeed()
   const { network, account, homeBalanceMain } = useWallet()
   const { openDepositModal, showToast } =
     useOutletContext<LayoutOutletContext>()
@@ -130,7 +130,7 @@ export function Dashboard() {
   const [dateTo, setDateTo] = useState('')
   const [filterOpen, setFilterOpen] = useState(false)
   const filterWrapRef = useRef<HTMLDivElement>(null)
-  const { rows: vaultChainRows, loading: vaultLoading, scanBatch } = useGhostVaultActivityLive({
+  const { rows: vaultChainRows, loading: vaultLoading, scanBatch } = useNozkVaultActivityLive({
     masterSeed: effectiveMasterSeed,
     seedRevision,
     network,
@@ -142,7 +142,7 @@ export function Dashboard() {
     setRedemptionDraft(loadRedemptionDraft())
   }, [account, seedRevision])
 
-  // Vault activity is loaded/updated via `useGhostVaultActivityLive`.
+  // Vault activity is loaded/updated via `useNozkVaultActivityLive`.
 
   useEffect(() => {
     if (!filterOpen) return

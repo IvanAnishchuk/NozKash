@@ -95,7 +95,7 @@ export function padHex64(hex: string): string {
  * This is the canonical generator used by:
  *   - The EVM ecPairing precompile (EIP-197)
  *   - py_ecc's bn128.G2
- *   - The GhostVault Solidity contract's _g2Gen()
+ *   - The NozkVault Solidity contract's _g2Gen()
  *
  * EIP-197 uint256[4] order: [X_imag, X_real, Y_imag, Y_real]
  * mcl-wasm setStr format: "1 X_real X_imag Y_real Y_imag" (base 16)

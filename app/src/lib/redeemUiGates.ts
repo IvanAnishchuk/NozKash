@@ -1,4 +1,4 @@
-import type { RedemptionDraftV1 } from '../crypto/ghostRedeem'
+import type { RedemptionDraftV1 } from '../crypto/nozkRedeem'
 
 function normalizeAddr(a: string | null | undefined): string | null {
   if (!a || !/^0x[a-fA-F0-9]{40}$/i.test(a.trim())) return null
@@ -6,7 +6,7 @@ function normalizeAddr(a: string | null | undefined): string | null {
 }
 
 function envAddr(
-  key: 'VITE_GHOST_REDEEM_PREPARE_ACCOUNT' | 'VITE_GHOST_REDEEM_EXECUTOR_ACCOUNT'
+  key: 'VITE_NOZK_REDEEM_PREPARE_ACCOUNT' | 'VITE_NOZK_REDEEM_EXECUTOR_ACCOUNT'
 ): string | null {
   const raw = import.meta.env[key] as string | undefined
   return normalizeAddr(raw)
@@ -29,7 +29,7 @@ export function isStartRedeemVisible(
     return false
   }
   if (!draft?.prepareAccount) {
-    const prepOnly = envAddr('VITE_GHOST_REDEEM_PREPARE_ACCOUNT')
+    const prepOnly = envAddr('VITE_NOZK_REDEEM_PREPARE_ACCOUNT')
     if (prepOnly) return acc === prepOnly
     return true
   }
@@ -39,7 +39,7 @@ export function isStartRedeemVisible(
 /**
  * **Redeem here** — on the account that sends the on-chain tx (Account 2).
  * - `isReady` usually comes from `isHomeRedeemReady` (connected ≠ prepareAccount).
- * - If `VITE_GHOST_REDEEM_EXECUTOR_ACCOUNT` is set, only that address sees the button.
+ * - If `VITE_NOZK_REDEEM_EXECUTOR_ACCOUNT` is set, only that address sees the button.
  */
 export function shouldShowRedeemHere(
   account: string | null,
@@ -48,7 +48,7 @@ export function shouldShowRedeemHere(
   if (!isReady) return false
   const acc = normalizeAddr(account)
   if (!acc) return false
-  const execOnly = envAddr('VITE_GHOST_REDEEM_EXECUTOR_ACCOUNT')
+  const execOnly = envAddr('VITE_NOZK_REDEEM_EXECUTOR_ACCOUNT')
   if (execOnly) return acc === execOnly
   return true
 }

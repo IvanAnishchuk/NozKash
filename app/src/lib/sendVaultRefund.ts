@@ -5,9 +5,9 @@ import {
 } from './ethereum'
 import { chainRpcCall } from './chainPublicRpc'
 import {
-  GHOST_VAULT_ADDRESS,
+  NOZK_VAULT_ADDRESS,
   requestVaultActivityRefresh,
-} from './ghostVault'
+} from './nozkVault'
 
 export type EthereumRequester = {
   request: (args: {
@@ -25,12 +25,12 @@ function encodeAddress32(depositId: string): string {
   return h.padStart(64, '0')
 }
 
-export function encodeGhostVaultRefundCalldata(depositId: string): `0x${string}` {
+export function encodeNozkVaultRefundCalldata(depositId: string): `0x${string}` {
   return `${REFUND_SELECTOR}${encodeAddress32(depositId)}` as `0x${string}`
 }
 
 /**
- * Sends `GhostVault.refund(depositId)` from the connected wallet (must be the original depositor).
+ * Sends `NozkVault.refund(depositId)` from the connected wallet (must be the original depositor).
  */
 export async function sendVaultRefundTransaction(params: {
   ethereum: EthereumRequester
@@ -47,7 +47,7 @@ export async function sendVaultRefundTransaction(params: {
     throw new Error(targetChainMismatchUserMessage())
   }
 
-  const data = encodeGhostVaultRefundCalldata(id)
+  const data = encodeNozkVaultRefundCalldata(id)
 
   const accs = (await ethereum.request({
     method: 'eth_requestAccounts',
@@ -60,7 +60,7 @@ export async function sendVaultRefundTransaction(params: {
 
   const sendParams = {
     from,
-    to: GHOST_VAULT_ADDRESS,
+    to: NOZK_VAULT_ADDRESS,
     data,
     value: '0x0',
   }

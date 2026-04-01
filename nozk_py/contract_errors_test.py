@@ -32,6 +32,10 @@ def test_extract_selector_short_hex_returns_none():
     assert _extract_selector("0x1234") is None
 
 
+def test_extract_selector_embedded_in_message():
+    assert _extract_selector("execution reverted: 0x28739233") == "28739233"
+
+
 def test_extract_selector_non_hex_returns_none():
     assert _extract_selector("not hex at all") is None
 

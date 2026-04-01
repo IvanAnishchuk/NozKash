@@ -103,11 +103,15 @@ def _extract_selector(error) -> str | None:
     """
     Pull the 4-byte selector hex (without 0x) from various representations.
     """
-    # Raw hex string
+    # Raw hex string (e.g. "0x28739233" or "28739233")
     if isinstance(error, str):
         cleaned = error.strip().lower().replace("0x", "")
         if len(cleaned) >= 8 and all(c in "0123456789abcdef" for c in cleaned[:8]):
             return cleaned[:8]
+        # Embedded selector in a longer message (e.g. "execution reverted: 0x28739233")
+        match = re.search(r"0x([0-9a-fA-F]{8,})", error)
+        if match:
+            return match.group(1)[:8].lower()
         return None
 
     # web3 ContractCustomError: .data attribute contains the hex

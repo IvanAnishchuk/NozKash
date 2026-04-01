@@ -1,4 +1,4 @@
-import { keccak256 } from 'ethereum-cryptography/keccak'
+import { keccak256 } from 'ethereum-cryptography/keccak.js'
 import { initBN254, formatG1ForSolidity } from '@nozk/bn254-crypto'
 import { isNozkVaultDebugEnabled } from '../lib/nozkDebug'
 import {

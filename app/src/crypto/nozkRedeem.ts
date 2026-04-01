@@ -1,5 +1,5 @@
 import { secp256k1 } from '@noble/curves/secp256k1.js'
-import { keccak256 } from 'ethereum-cryptography/keccak'
+import { keccak256 } from 'ethereum-cryptography/keccak.js'
 import {
   bytesToHex,
   CURVE_ORDER,

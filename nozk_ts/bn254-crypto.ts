@@ -55,14 +55,15 @@ export function modularInverse(k: bigint, mod: bigint): bigint {
 /**
  * 1:1 Port of the Python Try-And-Increment Hash to Curve
  */
+const MAX_H2C_ITERS = 65536; // matches NozkVault.sol MAX_H2C_ITERS
+
 export function hashToCurveBN254(messageBytes: Uint8Array): mcl.G1 {
     // Pre-allocate payload buffer: message || counter_be32
     const payload = new Uint8Array(messageBytes.length + 4);
     payload.set(messageBytes, 0);
     const counterOffset = messageBytes.length;
 
-    let counter = 0;
-    while (true) {
+    for (let counter = 0; counter < MAX_H2C_ITERS; counter++) {
         // Write 4-byte big-endian counter into the tail of the buffer
         payload[counterOffset] = (counter >> 24) & 255;
         payload[counterOffset + 1] = (counter >> 16) & 255;
@@ -84,8 +85,8 @@ export function hashToCurveBN254(messageBytes: Uint8Array): mcl.G1 {
             point.setStr(`1 ${x.toString(16)} ${y.toString(16)}`, 16);
             return point;
         }
-        counter++;
     }
+    throw new Error(`hashToCurveBN254: no valid point found in ${MAX_H2C_ITERS} iterations`);
 }
 
 /**

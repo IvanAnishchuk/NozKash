@@ -1,4 +1,4 @@
-import { keccak256 } from 'ethereum-cryptography/keccak'
+import { keccak256 } from 'ethereum-cryptography/keccak.js'
 
 export const NOZK_MASTER_DERIVATION_MSG_VERSION = 'v1'
 

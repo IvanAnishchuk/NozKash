@@ -104,6 +104,5 @@ def test_selector_table_covers_all_abi_errors():
     abi = json.loads(abi_path.read_text())
     abi_errors = [e for e in abi if e.get("type") == "error"]
     assert len(_SELECTOR_TO_NAME) == len(abi_errors), (
-        f"Selector table has {len(_SELECTOR_TO_NAME)} entries "
-        f"but ABI has {len(abi_errors)} errors"
+        f"Selector table has {len(_SELECTOR_TO_NAME)} entries but ABI has {len(abi_errors)} errors"
     )

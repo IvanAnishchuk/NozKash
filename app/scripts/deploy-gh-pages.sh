@@ -84,9 +84,13 @@ else
 Built from $(cd "$REPO_ROOT" && git rev-parse --short HEAD) on $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     git push origin gh-pages
     echo
-    REMOTE_URL="$(cd "$REPO_ROOT" && git remote get-url origin)"
     echo "==> Deployed!"
-    echo "    Site: https://$(echo "$REMOTE_URL" | sed 's|.*github.com[:/]\(.*\)\.git|\1|' | tr '/' '.').github.io${BASE_PATH}"
+    # Try to print the GitHub Pages URL (works for HTTPS and SSH remotes)
+    REMOTE_URL="$(cd "$REPO_ROOT" && git remote get-url origin 2>/dev/null || true)"
+    GH_OWNER="$(echo "$REMOTE_URL" | sed -n 's|.*github\.com[:/]\([^/]*\)/.*|\1|p')"
+    if [ -n "$GH_OWNER" ]; then
+        echo "    Site: https://${GH_OWNER}.github.io${BASE_PATH}"
+    fi
 fi
 
 # Clean up worktree (leave the directory for next deploy)

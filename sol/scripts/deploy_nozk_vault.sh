@@ -12,7 +12,7 @@
 #   PK_MINT_Y_IMAG
 #   PK_MINT_Y_REAL
 #   MINT_AUTHORITY           — address allowed to call announce()
-#   RPC_URL          — JSON-RPC HTTPS for the selected network
+#   RPC_HTTP_URL          — JSON-RPC HTTPS for the selected network
 #   ETHERSCAN_API_KEY        — for verification (omit with --skip-verify)
 #
 # Solidity entrypoint: script/NozkVault.s.sol — NozkVaultScript
@@ -57,7 +57,7 @@ required=(
   PK_MINT_Y_IMAG
   PK_MINT_Y_REAL
   MINT_AUTHORITY
-  RPC_URL
+  RPC_HTTP_URL
 )
 
 for v in "${required[@]}"; do
@@ -79,11 +79,11 @@ fi
 export PK_MINT_X_IMAG PK_MINT_X_REAL PK_MINT_Y_IMAG PK_MINT_Y_REAL MINT_AUTHORITY
 
 echo "==> Deploying NozkVault (broadcast from $(basename "$SOL_ROOT"))"
-echo "    RPC: ${RPC_URL:0:40}…"
+echo "    RPC: ${RPC_HTTP_URL:0:40}…"
 
 forge_args=(
   script/NozkVault.s.sol:NozkVaultScript
-  --rpc-url "$RPC_URL"
+  --rpc-url "$RPC_HTTP_URL"
   --broadcast
   --private-key "$DEPLOYER_PRIVATE_KEY"
 )

@@ -30,7 +30,7 @@ The project is a monorepo containing the following key components:
 
 ### Source of Truth Hierarchy
 1. **Cryptography:** `nozk_py/nozk_library.py`
-2. **Contract ABI:** `abi/NozkVault.json`
+2. **Contract ABI:** `abi/nozk_vault_abi.json`
 3. **Test Vectors:** `test_vectors/manifest.json`
 4. **Environment:** `example.env`
 
@@ -43,7 +43,7 @@ The project is a monorepo containing the following key components:
 - **Endianness:** All multi-byte values (integers, counters) use **big-endian** encoding.
 - **Hash-to-Curve:** Try-and-increment with `keccak256(msg || counter_be32)`.
 - **G2 Format:** EIP-197 limb order `[X_imag, X_real, Y_imag, Y_real]`.
-- **ECDSA Message:** `keccak256("Pay to RAW: " || recipient_address)`.
+- **ECDSA Message:** EIP-712 typed data: `NozkRedeem(address recipient, uint256 deadline)` with domain `NozkVault` v1.
 
 ## Building and Running
 

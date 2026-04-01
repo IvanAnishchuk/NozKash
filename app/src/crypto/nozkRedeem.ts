@@ -1,10 +1,9 @@
 import { secp256k1 } from '@noble/curves/secp256k1.js'
 import { keccak256 } from 'ethereum-cryptography/keccak'
-import mcl from 'mcl-wasm'
 import {
   CURVE_ORDER,
-  padHex64,
   formatG1ForSolidity,
+  g1FromHexCoords,
 } from '@nozk/bn254-crypto'
 import { ensureNozkCrypto } from './nozkDeposit'
 import {
@@ -307,10 +306,9 @@ export async function buildNozkVaultRedeemCalldata(
     throw new Error('Invalid blinding factor r = 0')
   }
 
-  const S_prime = new mcl.G1()
-  S_prime.setStr(
-    `1 ${padHex64(input.mintFulfilled.sx.toString(16))} ${padHex64(input.mintFulfilled.sy.toString(16))}`,
-    16
+  const S_prime = g1FromHexCoords(
+    input.mintFulfilled.sx.toString(16),
+    input.mintFulfilled.sy.toString(16),
   )
 
   const S = unblindSignature(S_prime, r)

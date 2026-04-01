@@ -11,6 +11,7 @@ export default defineConfig({
     alias: {
       '@nozk': path.resolve(__dirname, '../nozk_ts'),
     },
+    dedupe: ['mcl-wasm'],
   },
   optimizeDeps: {
     include: ['mcl-wasm'],

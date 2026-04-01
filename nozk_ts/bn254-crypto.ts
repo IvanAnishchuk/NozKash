@@ -140,6 +140,16 @@ export function verifyPairingBN254(S: mcl.G1, Y: mcl.G1, PK_mint: mcl.G2): boole
 }
 
 /**
+ * Constructs a G1 point from hex coordinate strings.
+ * Callers must ensure initBN254() has been awaited before calling this.
+ */
+export function g1FromHexCoords(xHex: string, yHex: string): mcl.G1 {
+    const point = new mcl.G1();
+    point.setStr(`1 ${padHex64(xHex)} ${padHex64(yHex)}`, 16);
+    return point;
+}
+
+/**
  * Formats mcl.G1 point to [uint256, uint256] array for Solidity
  */
 export function formatG1ForSolidity(point: mcl.G1): [string, string] {

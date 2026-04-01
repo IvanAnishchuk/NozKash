@@ -9,6 +9,8 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
+      // nozk_ts uses NodeNext (requires .js specifiers in source), but Vite's
+      // TS-aware resolver remaps .js → .ts when no compiled output exists.
       '@nozk': path.resolve(__dirname, '../nozk_ts'),
     },
     dedupe: ['mcl-wasm'],

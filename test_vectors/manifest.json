@@ -1,8 +1,12 @@
 {
+  "chain_id": 11155111,
+  "contract_address": "0x00000000000000000000000000000000DeaDBeef",
+  "recipient": "0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7",
+  "deadline": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
   "keypairs": [
-    "de4afb7f_ae7e8e64",
-    "04e91cd9_838e2305",
-    "c86c054e_bb8dba0c"
+    "26cc8590_102065af",
+    "7fee6e86_2349c32a",
+    "1855d0ee_ddf58215"
   ],
   "indices": [
     0,

@@ -144,7 +144,7 @@ class MockRedeemer:
         spend_signature_bytes: bytes,
         unblinded_s_x: int,
         unblinded_s_y: int,
-        chain_id: int = 43113,
+        chain_id: int = 11155111,
         contract_address: str = "",
         deadline: int = 2**256 - 1,
     ) -> RedeemResult:
@@ -156,7 +156,7 @@ class MockRedeemer:
             spend_signature_bytes:  65-byte ECDSA signature (r‖s‖v), v is 27 or 28.
             unblinded_s_x:          x coordinate of the unblinded BLS signature S.
             unblinded_s_y:          y coordinate of the unblinded BLS signature S.
-            chain_id:               EIP-712 chain ID (default: 43113 Fuji).
+            chain_id:               EIP-712 chain ID (default: 11155111 Sepolia).
             contract_address:       EIP-712 verifying contract address.
             deadline:               EIP-712 deadline (default: max uint256).
 
@@ -406,7 +406,7 @@ def verify(
 
     secrets = derive_token_secrets(master_seed, index)
     contract_addr = os.getenv("CONTRACT_ADDRESS", "").strip()
-    chain_id = int(os.getenv("CHAIN_ID", "43113"))
+    chain_id = int(os.getenv("CHAIN_ID", "11155111"))
     deadline = int(time.time()) + 3600
     proof = generate_redemption_proof(
         secrets.spend_priv, to, chain_id, contract_addr, deadline,

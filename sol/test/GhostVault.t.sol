@@ -18,18 +18,25 @@ contract GhostVaultHarness is GhostVault {
     }
 }
 
-/// @dev Forks **Avalanche Fuji** C-Chain in `setUp` (public RPC in `foundry.toml` alias `avalanche-fuji`;
-///      set `FUJI_RPC_URL` to override). Reads vectors from repo-root `test_vectors/` (or `GHOST_VECTOR_SUITE`),
+/// @dev Forks **Ethereum Sepolia** in `setUp` (public RPC in `foundry.toml` alias `sepolia-public`;
+///      set `FORK_RPC_URL` to override). Reads vectors from repo-root `test_vectors/` (or `GHOST_VECTOR_SUITE`),
 ///      iterates over all keypair directories listed in `manifest.json`.
+///
+///      The vault is deployed at the exact `contract_address` from `manifest.json` via `deployCodeTo`,
+///      so the EIP-712 DOMAIN_SEPARATOR matches the vectors byte-for-byte — all ECDSA signatures
+///      from the vectors are directly verifiable without `vm.sign`.
 contract GhostVaultTest is Test {
     using stdJson for string;
 
-    /// @dev Default vault deployed from the first keypair in the manifest (used by non-vector unit tests).
+    /// @dev Default vault deployed at the vector contract address from the first keypair (used by unit tests).
     GhostVaultHarness internal vault;
     address internal mintAuthority;
 
     /// @dev Root directory containing `manifest.json` and keypair subdirectories.
     string internal vectorSuite;
+
+    /// @dev Contract address from manifest — vault is deployed here so DOMAIN_SEPARATOR matches vectors.
+    address internal vectorContract;
 
     /// @dev Keypair directory names read from manifest.json.
     string[] internal keypairDirs;
@@ -41,18 +48,20 @@ contract GhostVaultTest is Test {
     event MintFulfilled(address indexed depositId, uint256[2] S_prime);
 
     function setUp() public {
-        string memory fujiUrl = vm.envOr("FUJI_RPC_URL", string(""));
-        if (bytes(fujiUrl).length > 0) {
-            vm.createSelectFork(fujiUrl);
+        string memory forkUrl = vm.envOr("FORK_RPC_URL", string(""));
+        if (bytes(forkUrl).length > 0) {
+            vm.createSelectFork(forkUrl);
         } else {
-            vm.createSelectFork("avalanche-fuji");
+            vm.createSelectFork("sepolia-public");
         }
 
         vectorSuite = vm.envOr("GHOST_VECTOR_SUITE", string("../test_vectors"));
         mintAuthority = makeAddr("mintAuthority");
 
-        // Read manifest to discover all keypair suites and indices.
+        // Read manifest to discover contract address, keypair suites, and indices.
         string memory manifest = vm.readFile(string.concat(vectorSuite, "/manifest.json"));
+        vectorContract = manifest.readAddress(".contract_address");
+
         string[] memory kps = manifest.readStringArray(".keypairs");
         for (uint256 i; i < kps.length; i++) {
             keypairDirs.push(kps[i]);
@@ -62,10 +71,15 @@ contract GhostVaultTest is Test {
             tokenIndices.push(idxs[i]);
         }
 
-        // Deploy the default vault from the first keypair (token_42 as before).
+        // Deploy the default vault at the vector contract address (first keypair, for unit tests).
         string memory j = vm.readFile(_tokenFileIn(keypairDirs[0], 42));
         uint256[4] memory pkMint = _pkMintFromJson(j);
-        vault = new GhostVaultHarness(pkMint, mintAuthority);
+        deployCodeTo(
+            "GhostVault.t.sol:GhostVaultHarness",
+            abi.encode(pkMint, mintAuthority),
+            vectorContract
+        );
+        vault = GhostVaultHarness(payable(vectorContract));
     }
 
     function _tokenFileIn(string memory kpDir, uint256 tokenIndex) internal view returns (string memory) {
@@ -118,10 +132,15 @@ contract GhostVaultTest is Test {
 
     function test_allTestVectors_metadataBlsH2cEcdsaAndRedeem() public {
         for (uint256 k; k < keypairDirs.length; k++) {
-            // Deploy a fresh vault for each keypair's pkMint.
+            // Deploy a fresh vault at the vector contract address for each keypair's pkMint.
             string memory j0 = vm.readFile(_tokenFileIn(keypairDirs[k], tokenIndices[0]));
             uint256[4] memory pkMint = _pkMintFromJson(j0);
-            GhostVaultHarness kpVault = new GhostVaultHarness(pkMint, mintAuthority);
+            deployCodeTo(
+                "GhostVault.t.sol:GhostVaultHarness",
+                abi.encode(pkMint, mintAuthority),
+                vectorContract
+            );
+            GhostVaultHarness kpVault = GhostVaultHarness(payable(vectorContract));
 
             // Verify crypto for every token index.
             for (uint256 t; t < tokenIndices.length; t++) {
@@ -130,7 +149,7 @@ contract GhostVaultTest is Test {
             }
 
             // Redeem every token index.
-            vm.deal(address(kpVault), tokenIndices.length * kpVault.DENOMINATION());
+            vm.deal(vectorContract, tokenIndices.length * kpVault.DENOMINATION());
             for (uint256 t; t < tokenIndices.length; t++) {
                 string memory j = vm.readFile(_tokenFileIn(keypairDirs[k], tokenIndices[t]));
                 _redeemOneFor(kpVault, j);
@@ -139,35 +158,37 @@ contract GhostVaultTest is Test {
     }
 
     function _assertTokenCryptoFor(GhostVaultHarness v_, string memory j) internal view {
+        // BLS verification
         uint256[4] memory pkMint = _pkMintFromJson(j);
-        uint256[2] memory s = _g1FromJson(j, ".S_UNBLINDED");
+        uint256[2] memory sUnblinded = _g1FromJson(j, ".S_UNBLINDED");
         uint256[2] memory y = _g1FromJson(j, ".Y_HASH_TO_CURVE");
-        assertTrue(v_.exposedVerifyBLS(s, y, pkMint));
+        assertTrue(v_.exposedVerifyBLS(sUnblinded, y, pkMint));
 
+        // Hash-to-curve parity
         address spend = j.readAddress(".SPEND_KEYPAIR.address");
         uint256[2] memory yOnChain = v_.hashNullifierPoint(spend);
         assertEq(yOnChain[0], y[0]);
         assertEq(yOnChain[1], y[1]);
 
-        // EIP-712 hash is deployment-dependent, so we verify ECDSA via vm.sign
-        // rather than comparing against vector msg_hash.
-        uint256 spendPriv = _hexU256(j, ".SPEND_KEYPAIR.priv");
+        // EIP-712 msg_hash determinism: vault's hash must match vector byte-for-byte
         address recipient = j.readAddress(".REDEEM_TX.recipient");
-        uint256 deadline = block.timestamp + 3600;
+        uint256 deadline = _hexU256(j, ".REDEEM_TX.deadline");
         bytes32 digest = v_.redemptionMessageHash(recipient, deadline);
-        (uint8 vv, bytes32 r, bytes32 s256) = vm.sign(spendPriv, digest);
-        address recovered = ecrecover(digest, vv, r, s256);
+        bytes32 vectorHash = bytes32(_hexU256(j, ".REDEEM_TX.msg_hash"));
+        assertEq(digest, vectorHash, "EIP-712 msg_hash mismatch");
+
+        // ECDSA: ecrecover with vector signature must recover spend address
+        bytes memory sig = _hexBytes(j, ".REDEEM_TX.spend_signature");
+        (bytes32 r, bytes32 s, uint8 v) = _splitSig(sig);
+        address recovered = ecrecover(digest, v, r, s);
         assertEq(recovered, spend, "ECDSA must recover spend_addr");
     }
 
     function _redeemOneFor(GhostVaultHarness v_, string memory j) internal {
         address recipient = j.readAddress(".REDEEM_TX.recipient");
         address nullifier = j.readAddress(".SPEND_KEYPAIR.address");
-        uint256 spendPriv = _hexU256(j, ".SPEND_KEYPAIR.priv");
-        uint256 deadline = block.timestamp + 3600;
-        bytes32 digest = v_.redemptionMessageHash(recipient, deadline);
-        (uint8 vv, bytes32 r, bytes32 s) = vm.sign(spendPriv, digest);
-        bytes memory sig = abi.encodePacked(r, s, vv);
+        uint256 deadline = _hexU256(j, ".REDEEM_TX.deadline");
+        bytes memory sig = _hexBytes(j, ".REDEEM_TX.spend_signature");
         uint256[2] memory sG1 = [j.readUint(".REDEEM_TX.S_x"), j.readUint(".REDEEM_TX.S_y")];
 
         uint256 balBefore = recipient.balance;
@@ -203,12 +224,13 @@ contract GhostVaultTest is Test {
         vm.deal(user, 2 ether);
 
         uint256 den = vault.DENOMINATION();
+        uint256 balBefore = address(vault).balance;
         vm.prank(user);
         vault.deposit{value: den}(blind1, b);
         vm.prank(user);
         vault.deposit{value: den}(blind2, b);
 
-        assertEq(address(vault).balance, 2 * den);
+        assertEq(address(vault).balance - balBefore, 2 * den);
         assertTrue(vault.depositPending(blind1));
         assertTrue(vault.depositPending(blind2));
         assertFalse(vault.depositFulfilled(blind1));
@@ -312,11 +334,8 @@ contract GhostVaultTest is Test {
         string memory j = vm.readFile(_tokenFile(42));
         address recipient = j.readAddress(".REDEEM_TX.recipient");
         address nullifier = j.readAddress(".SPEND_KEYPAIR.address");
-        uint256 spendPriv = _hexU256(j, ".SPEND_KEYPAIR.priv");
-        uint256 deadline = block.timestamp + 3600;
-        bytes32 digest = vault.redemptionMessageHash(recipient, deadline);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(spendPriv, digest);
-        bytes memory sig = abi.encodePacked(r, s, v);
+        uint256 deadline = _hexU256(j, ".REDEEM_TX.deadline");
+        bytes memory sig = _hexBytes(j, ".REDEEM_TX.spend_signature");
         uint256[2] memory sG1 = [j.readUint(".REDEEM_TX.S_x"), j.readUint(".REDEEM_TX.S_y")];
 
         vm.deal(address(vault), vault.DENOMINATION());
@@ -332,11 +351,8 @@ contract GhostVaultTest is Test {
         string memory j = vm.readFile(_tokenFile(42));
         address recipient = j.readAddress(".REDEEM_TX.recipient");
         address nullifier = j.readAddress(".SPEND_KEYPAIR.address");
-        uint256 spendPriv = _hexU256(j, ".SPEND_KEYPAIR.priv");
-        uint256 deadline = block.timestamp + 3600;
-        bytes32 digest = vault.redemptionMessageHash(recipient, deadline);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(spendPriv, digest);
-        bytes memory sig = abi.encodePacked(r, s, v);
+        uint256 deadline = _hexU256(j, ".REDEEM_TX.deadline");
+        bytes memory sig = _hexBytes(j, ".REDEEM_TX.spend_signature");
         uint256[2] memory sG1 = [j.readUint(".REDEEM_TX.S_x"), j.readUint(".REDEEM_TX.S_y")];
 
         vm.deal(address(vault), 2 * vault.DENOMINATION());
@@ -351,7 +367,7 @@ contract GhostVaultTest is Test {
         address recipient = j.readAddress(".REDEEM_TX.recipient");
         address spend = j.readAddress(".SPEND_KEYPAIR.address");
         uint256[2] memory sG1 = [j.readUint(".REDEEM_TX.S_x"), j.readUint(".REDEEM_TX.S_y")];
-        uint256 deadline = block.timestamp + 3600;
+        uint256 deadline = _hexU256(j, ".REDEEM_TX.deadline");
         bytes memory badSig = new bytes(65);
         for (uint256 i; i < 65; i++) {
             badSig[i] = 0xab;
@@ -366,11 +382,8 @@ contract GhostVaultTest is Test {
         string memory j = vm.readFile(_tokenFile(42));
         address recipient = j.readAddress(".REDEEM_TX.recipient");
         address spend = j.readAddress(".SPEND_KEYPAIR.address");
-        uint256 spendPriv = _hexU256(j, ".SPEND_KEYPAIR.priv");
-        uint256 deadline = block.timestamp + 3600;
-        bytes32 digest = vault.redemptionMessageHash(recipient, deadline);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(spendPriv, digest);
-        bytes memory sig = abi.encodePacked(r, s, v);
+        uint256 deadline = _hexU256(j, ".REDEEM_TX.deadline");
+        bytes memory sig = _hexBytes(j, ".REDEEM_TX.spend_signature");
         uint256[2] memory badS = [uint256(1), uint256(2)];
 
         vm.deal(address(vault), vault.DENOMINATION());

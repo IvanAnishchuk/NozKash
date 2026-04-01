@@ -69,18 +69,12 @@ $ forge build
 $ forge test
 ```
 
-`GhostVault.t.sol` **forks Avalanche Fuji** C-Chain in `setUp` (alias `avalanche-fuji` in `foundry.toml`). Outbound RPC access is required.
+`GhostVault.t.sol` **forks Ethereum Sepolia** in `setUp` (alias `sepolia-public` in `foundry.toml`). Outbound RPC access is required. The vault is deployed at the vector's `contract_address` via `deployCodeTo`, so the EIP-712 DOMAIN_SEPARATOR matches vectors byte-for-byte.
 
 | Env | Purpose |
 |-----|---------|
-| `FUJI_RPC_URL` | Optional. If set, used as the fork URL instead of the public Fuji endpoint from `foundry.toml`. |
-| `GHOST_VECTOR_SUITE` | Optional. Directory of flat `token_*.json` files (default `test/test-vectors`). |
-
-CLI (same RPC as tests when using the alias):
-
-```shell
-forge test --fork-url avalanche-fuji
-```
+| `FORK_RPC_URL` | Optional. If set, used as the fork URL instead of the public Sepolia endpoint from `foundry.toml`. |
+| `GHOST_VECTOR_SUITE` | Optional. Root directory containing `manifest.json` and keypair subdirs (default `../test_vectors`). |
 
 ### Format
 

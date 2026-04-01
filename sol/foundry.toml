@@ -10,8 +10,9 @@ fs_permissions = [
 
 # `forge test --fork-url sepolia|avalanche-fuji`, `cast rpc --rpc avalanche-fuji`, etc.
 [rpc_endpoints]
+# GhostVault.t.sol forks this in setUp (override URL in Solidity via FORK_RPC_URL).
 sepolia = "${SEPOLIA_RPC_URL}"
-# GhostVault.t.sol forks this in setUp (override URL in Solidity via FUJI_RPC_URL).
+sepolia-public = "https://ethereum-sepolia-rpc.publicnode.com"
 avalanche-fuji = "https://api.avax-test.network/ext/bc/C/rpc"
 
 # `forge script ... --verify` on Sepolia. Export `ETHERSCAN_API_KEY` (e.g. from `sol/.env`).

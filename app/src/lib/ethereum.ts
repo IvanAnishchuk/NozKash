@@ -237,15 +237,3 @@ export async function ensureTargetChain(
   }
 }
 
-/** @deprecated Use {@link TARGET_CHAIN_ID} */
-export const SEPOLIA_CHAIN_ID = TARGET_CHAIN_ID
-
-/** @deprecated Use {@link TARGET_CHAIN_ID} */
-export const FUJI_CHAIN_ID = TARGET_CHAIN_ID
-
-/** @deprecated Use {@link ensureTargetChain} */
-export async function ensureSepolia(
-  ethereum: EthereumProvider
-): Promise<boolean> {
-  return ensureTargetChain(ethereum)
-}

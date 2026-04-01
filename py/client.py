@@ -780,7 +780,7 @@ def cmd_redeem(
     recipient_checksum = Web3.to_checksum_address(recipient)
     deadline = int(time.time()) + 3600  # 1 hour from now
     if is_mock():
-        chain_id = 43113  # Avalanche Fuji default for mock
+        chain_id = int(os.getenv("CHAIN_ID", "11155111"))  # Sepolia default
     else:
         w3_tmp = build_web3(config)
         chain_id = w3_tmp.eth.chain_id

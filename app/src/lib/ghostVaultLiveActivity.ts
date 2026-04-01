@@ -74,8 +74,6 @@ export function getChainWsRpcUrl(): string | null {
   if (a) return a
   const b = (import.meta.env.VITE_ETHEREUM_WS_RPC_URL as string | undefined)?.trim()
   if (b) return b
-  const legacy = (import.meta.env.VITE_FUJI_WS_RPC_URL as string | undefined)?.trim()
-  if (legacy) return legacy
 
   const http = getChainPublicRpcUrl()
   const m = http.match(/^https?:\/\/([^/]+)(\/.*)?$/i)

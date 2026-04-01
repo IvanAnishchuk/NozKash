@@ -24,18 +24,13 @@ interface ImportMetaEnv {
   /** WebSocket endpoint for `eth_subscribe` logs (optional). */
   readonly VITE_PUBLIC_WS_RPC_URL?: string
   readonly VITE_ETHEREUM_WS_RPC_URL?: string
-  /** Legacy aliases (still read by `chainPublicRpc.ts`). */
-  readonly VITE_FUJI_RPC_URL?: string
-  readonly VITE_FUJI_WS_RPC_URL?: string
   /** Max retries for HTTP 429/503 and JSON-RPC rate limits (default 4). */
   readonly VITE_PUBLIC_RPC_MAX_RETRIES?: string
-  readonly VITE_FUJI_RPC_MAX_RETRIES?: string
   /**
    * Min ms between consecutive HTTP JSON-RPC requests (global serial queue). Default 150.
    * Set `0` for high-throughput paid RPC.
    */
   readonly VITE_PUBLIC_RPC_MIN_GAP_MS?: string
-  readonly VITE_FUJI_RPC_MIN_GAP_MS?: string
   /** Dashboard / Redeem / deposit modal: vault activity poll interval in ms (default 10000, min 2000). */
   readonly VITE_GHOST_VAULT_RPC_POLL_MS?: string
   /** Max consecutive JSON-RPC calls before pausing vault scan (default 5). */

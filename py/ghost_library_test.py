@@ -223,8 +223,8 @@ def test_full_protocol_lifecycle(setup_data, live_keypair):
 # ==============================================================================
 
 # Fixed EIP-712 test parameters
-_TEST_CHAIN_ID = 43113
-_TEST_CONTRACT = "0x0cd5b34e58c579105A3c080Bb3170d032a544352"
+_TEST_CHAIN_ID = 11155111  # Ethereum Sepolia
+_TEST_CONTRACT = "0x00000000000000000000000000000000DeaDBeef"
 _TEST_DEADLINE = 2**256 - 1
 
 

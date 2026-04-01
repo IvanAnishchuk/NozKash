@@ -249,7 +249,7 @@ function createVaultScanRpcLimiter(burst: number, pauseMs: number): ChainRpcFn {
 /** Deployed GhostVault — override with `VITE_GHOST_VAULT_ADDRESS`. */
 export const GHOST_VAULT_ADDRESS =
   (import.meta.env.VITE_GHOST_VAULT_ADDRESS as string | undefined) ??
-  '0x0cd5b34e58c579105A3c080Bb3170d032a544352'
+  '0x0000000000000000000000000000000000000000'
 
 /**
  * Default vault deployment block (`GHOST_VAULT_ADDRESS`): no point querying

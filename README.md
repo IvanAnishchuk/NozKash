@@ -2,9 +2,7 @@
 
 **aleph-hackathon-m2026**
 
-Deployed on Avalanche Fuji testnet!
-
-**Contract GhostVault (Fuji):** [Snowtrace testnet — `0x0cd5b34e58c579105A3c080Bb3170d032a544352`](https://testnet.snowtrace.io/address/0x0cd5b34e58c579105A3c080Bb3170d032a544352)
+Default testnet: **Ethereum Sepolia** (chain ID 11155111).
 
 [Simoneth Arianna Gomez](https://github.com/Simonethg), [Fabio Laura](https://github.com/raptor0929), [Ivan Anishchuk](https://github.com/IvanAnishchuk)
 
@@ -126,7 +124,7 @@ cd py && uv run derive_bls.py 0x<your_bls_privkey>
 # Run tests
 cd py && uv run pytest -v          # Python unit + vector tests
 cd ts && npx vitest run            # TypeScript vector parity tests
-cd sol && forge test               # Solidity contract tests (forks Fuji)
+cd sol && forge test               # Solidity contract tests (forks Sepolia)
 
 # Generate cross-language test vectors
 cd py && uv run generate_vectors.py
@@ -172,15 +170,13 @@ cd py && uv run generate_vectors.py
 │   ├── src/
 │   │   └── GhostVault.sol            # Solidity smart contract
 │   ├── test/
-│   │   ├── GhostVault.t.sol          # Foundry test suite (forks Fuji)
-│   │   └── test-vectors/             # JSON vectors for Solidity tests
+│   │   └── GhostVault.t.sol          # Foundry test suite (forks Sepolia)
 │   ├── script/
 │   │   └── GhostVault.s.sol          # Deployment script
 │   ├── scripts/
 │   │   ├── generate_vectors.py       # Vector generator for Solidity tests
 │   │   ├── ghost_library.py          # Standalone copy for sol/scripts
 │   │   └── forge_test_generated_vectors.sh
-│   ├── ghost_vault_abi.json          # Contract ABI (shared source of truth)
 │   ├── foundry.toml                  # Foundry configuration
 │   ├── lib/forge-std/                # Forge standard library (git submodule)
 │   └── README.md                     # Solidity-specific documentation
@@ -191,7 +187,7 @@ cd py && uv run generate_vectors.py
     │   ├── components/               # React components (Layout, DepositConfirmModal, Splash)
     │   ├── context/                  # GhostMasterSeedProvider, PrivacyProvider
     │   ├── hooks/                    # useWallet, useRedeemSign
-    │   ├── lib/                      # ghostVault scanner, Fuji RPC, ethereum helpers
+    │   ├── lib/                      # ghostVault scanner, RPC helpers, ethereum utils
     │   ├── pages/                    # Dashboard, Deposit, Redeem, Recovery
     │   └── styles/                   # eghostcash.css (full custom theme)
     └── ...
@@ -337,7 +333,7 @@ cd py && uv run pytest ghost_library_test.py -v
 cd py && uv run pytest test_vectors.py -v     # Python
 cd ts && npx vitest run                       # TypeScript
 
-# Solidity contract tests (forks Avalanche Fuji)
+# Solidity contract tests (forks Ethereum Sepolia)
 cd sol && forge test
 
 # End-to-end smoke tests
@@ -354,7 +350,7 @@ cd ts && npx tsx test.ts                      # TypeScript
 
 ## Frontend App
 
-NozKash ships with a mobile-first React wallet UI in the `app/` directory. It connects to MetaMask, derives vault secrets client-side, and talks directly to the deployed GhostVault contract on Avalanche Fuji — no backend server required for the wallet itself.
+NozKash ships with a mobile-first React wallet UI in the `app/` directory. It connects to MetaMask, derives vault secrets client-side, and talks directly to the deployed GhostVault contract — no backend server required for the wallet itself.
 
 <!-- TODO: add screenshots
 ![Dashboard](docs/screenshots/dashboard.png)
@@ -367,7 +363,7 @@ NozKash ships with a mobile-first React wallet UI in the `app/` directory. It co
 ```bash
 cd app
 npm install
-npm run dev          # Vite dev server with Fuji RPC proxy
+npm run dev          # Vite dev server
 npm run build        # Production build → dist/
 ```
 
@@ -411,15 +407,13 @@ This means a user can recover their vault tokens on any device by connecting the
 
 ### On-chain interaction
 
-All RPC calls go through `fujiJsonRpc.ts`, which uses `VITE_FUJI_RPC_URL` when set, otherwise the bundled Infura Fuji HTTPS URL (same in dev and production). If the browser hits CORS errors locally, configure the provider to allow your origin or point `VITE_FUJI_RPC_URL` at an endpoint that does.
+All RPC calls go through `chainPublicRpc.ts`, which uses `VITE_PUBLIC_RPC_URL` when set, otherwise a bundled Sepolia public endpoint. If the browser hits CORS errors locally, configure the provider to allow your origin or point `VITE_PUBLIC_RPC_URL` at an endpoint that does.
 
 The deposit transaction is the only write operation — it uses MetaMask's `eth_sendTransaction` with pre-built calldata (same ABI encoding as the Python/TypeScript CLI clients). The app polls `eth_getTransactionReceipt` via HTTP RPC (not MetaMask) with a 30-second interval to avoid rate limits.
 
 ### Contract address
 
-The deployed GhostVault on Fuji: [`0x0cd5b34e58c579105A3c080Bb3170d032a544352`](https://testnet.snowtrace.io/address/0x0cd5b34e58c579105A3c080Bb3170d032a544352)
-
-Override with `VITE_GHOST_VAULT_ADDRESS` in `.env`.
+Set `VITE_GHOST_VAULT_ADDRESS` in `.env` to the deployed contract address.
 
 ### App environment variables
 
@@ -427,10 +421,9 @@ Override with `VITE_GHOST_VAULT_ADDRESS` in `.env`.
 |----------|---------|-------------|
 | `VITE_GHOST_MASTER_SEED_HEX` | — | Dev shortcut: 64-char hex seed, bypasses `personal_sign` |
 | `VITE_CHAIN_ID` | Sepolia `0xaa36a7` | Target `eth_chainId` (hex) |
-| `VITE_PUBLIC_RPC_URL` / `VITE_ETHEREUM_RPC_URL` | — | HTTPS JSON-RPC for reads (`chainRpcCall`) |
+| `VITE_PUBLIC_RPC_URL` / `VITE_ETHEREUM_RPC_URL` | Sepolia public node | HTTPS JSON-RPC for reads (`chainRpcCall`) |
 | `VITE_PUBLIC_WS_RPC_URL` / `VITE_ETHEREUM_WS_RPC_URL` | — | Optional WebSocket for live vault logs |
-| `VITE_FUJI_RPC_URL` / `VITE_FUJI_WS_RPC_URL` | — | Legacy aliases still read by `chainPublicRpc.ts` |
-| `VITE_GHOST_VAULT_ADDRESS` | `0x0cd5…4352` | Deployed GhostVault contract |
+| `VITE_GHOST_VAULT_ADDRESS` | — | Deployed GhostVault contract |
 
 ---
 

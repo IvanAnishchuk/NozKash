@@ -83,8 +83,8 @@ def compute_vector(master_seed_hex: str, sk_int: int, token_index: int) -> dict:
     # so vectors are deterministic and cross-language comparable.
     # EIP-712 domain params are also fixed for reproducible vectors.
     test_recipient = "0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7"
-    test_chain_id = 43113
-    test_contract = "0x0cd5b34e58c579105A3c080Bb3170d032a544352"
+    test_chain_id = 11155111  # Ethereum Sepolia
+    test_contract = "0x00000000000000000000000000000000DeaDBeef"
     test_deadline = 2**256 - 1
     proof = gl.generate_redemption_proof(
         secrets.spend_priv, test_recipient,
@@ -98,6 +98,7 @@ def compute_vector(master_seed_hex: str, sk_int: int, token_index: int) -> dict:
         "MASTER_SEED":      master_seed_hex,
         "TOKEN_INDEX":      token_index,
         "MINT_BLS_PRIVKEY": hex(sk_int),
+        "RECIPIENT":        test_recipient,
 
         # ── Mint public key (G2) ──────────────────────────────────────────────
         "PK_MINT": {
@@ -157,6 +158,7 @@ def compute_vector(master_seed_hex: str, sk_int: int, token_index: int) -> dict:
         "REDEEM_TX": {
             # Arguments to GhostVault.redeem()
             "recipient":  test_recipient,
+            "deadline":   hex(test_deadline),
             "S_x":        hex(s_x),   # uint256 — 0x-prefixed hex
             "S_y":        hex(s_y),   # uint256
 
@@ -237,7 +239,14 @@ def main():
             total += 1
 
     # Write manifest so consumers (e.g. Foundry tests) can discover all keypair suites.
-    manifest = {"keypairs": keypair_dirs, "indices": indices}
+    manifest = {
+        "chain_id": 11155111,
+        "contract_address": "0x00000000000000000000000000000000DeaDBeef",
+        "recipient": "0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7",
+        "deadline": hex(2**256 - 1),
+        "keypairs": keypair_dirs,
+        "indices": indices,
+    }
     manifest_path = out_dir / "manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2))
 

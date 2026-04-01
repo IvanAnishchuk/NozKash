@@ -25,5 +25,6 @@ with open(ARTIFACT) as f:
 lines = [json.dumps(entry, separators=(", ", ": ")) for entry in abi]
 output = "[\n  " + ",\n  ".join(lines) + "\n]\n"
 
+ABI_OUT.parent.mkdir(parents=True, exist_ok=True)
 ABI_OUT.write_text(output)
 print(f"wrote {len(abi)} ABI entries to {ABI_OUT.relative_to(REPO_ROOT)}")

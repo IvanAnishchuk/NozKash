@@ -24,9 +24,15 @@ APP_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$APP_DIR/.." && pwd)"
 WORKTREE_DIR="$(cd "$REPO_ROOT/.." && pwd)/nozkash-gh-pages"
 
-# Repo name for the base path (GitHub Pages serves at /<repo-name>/)
-REPO_NAME="NozKash"
-BASE_PATH="/${REPO_NAME}/"
+# Base path for GitHub Pages (/<repo-name>/ by default).
+# Override with VITE_BASE_PATH env var, e.g. "/" for a custom domain.
+if [ -n "${VITE_BASE_PATH:-}" ]; then
+    BASE_PATH="$VITE_BASE_PATH"
+else
+    # Derive repo name from git remote (works for forks/renames)
+    REPO_NAME="${REPO_NAME:-$(basename -s .git "$(git -C "$REPO_ROOT" remote get-url origin 2>/dev/null)" 2>/dev/null || echo "NozKash")}"
+    BASE_PATH="/${REPO_NAME}/"
+fi
 
 echo "==> Installing dependencies"
 cd "$REPO_ROOT/nozk_ts" && npm ci --silent
@@ -42,13 +48,18 @@ cp "$APP_DIR/dist/index.html" "$APP_DIR/dist/404.html"
 echo "==> Preparing gh-pages worktree at ${WORKTREE_DIR}"
 cd "$REPO_ROOT"
 
-# Ensure the gh-pages branch exists (orphan if new)
+# Ensure the gh-pages branch exists locally
 if ! git show-ref --verify --quiet refs/heads/gh-pages 2>/dev/null; then
-    echo "    Creating orphan gh-pages branch"
-    git checkout --orphan gh-pages
-    git rm -rf . > /dev/null 2>&1 || true
-    git commit --allow-empty -m "Initialize gh-pages branch"
-    git checkout -
+    # Try fetching from remote first
+    if git fetch origin gh-pages:gh-pages 2>/dev/null; then
+        echo "    Fetched gh-pages from remote"
+    else
+        echo "    Creating orphan gh-pages branch"
+        git checkout --orphan gh-pages
+        git rm -rf . > /dev/null 2>&1 || true
+        git commit --allow-empty -m "Initialize gh-pages branch"
+        git checkout -
+    fi
 fi
 
 # Set up the worktree (remove stale one if it exists)

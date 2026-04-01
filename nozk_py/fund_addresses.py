@@ -5,7 +5,7 @@ from pathlib import Path
 
 from dotenv import dotenv_values
 
-ENV_FILE = Path(".env")
+ENV_FILE = Path(__file__).resolve().parent / ".env"
 OUT_FILE = Path(__file__).resolve().parent.parent / "fund_addresses.txt"
 
 ROLES = [

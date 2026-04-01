@@ -1,5 +1,17 @@
-import mcl from 'mcl-wasm';
 import { keccak256 } from 'ethereum-cryptography/keccak.js';
+import mcl from 'mcl-wasm';
+
+// --- Byte Helpers ---
+export function bytesToHex(bytes: Uint8Array): string {
+    return Array.from(bytes)
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+}
+
+export function hexToBytes(hex: string): Uint8Array {
+    const h = hex.replace(/^0x/i, '');
+    return new Uint8Array(h.match(/.{2}/g)!.map((b) => parseInt(b, 16)));
+}
 
 // BN254 Curve Constants
 export const FIELD_MODULUS = 21888242871839275222246405745257275088696311157297823662689037894645226208583n;
@@ -42,19 +54,19 @@ export function hashToCurveBN254(messageBytes: Uint8Array): mcl.G1 {
             (counter >> 24) & 255,
             (counter >> 16) & 255,
             (counter >> 8) & 255,
-            counter & 255
+            counter & 255,
         ]);
-        
+
         const payload = new Uint8Array([...messageBytes, ...counterBytes]);
         const h = keccak256(payload);
-        
-        const x = BigInt('0x' + Buffer.from(h).toString('hex')) % FIELD_MODULUS;
+
+        const x = BigInt(`0x${bytesToHex(h)}`) % FIELD_MODULUS;
         const y_squared = (modPow(x, 3n, FIELD_MODULUS) + 3n) % FIELD_MODULUS;
-        
+
         // Euler's criterion
         if (modPow(y_squared, (FIELD_MODULUS - 1n) / 2n, FIELD_MODULUS) === 1n) {
             const y = modPow(y_squared, (FIELD_MODULUS + 1n) / 4n, FIELD_MODULUS);
-            
+
             // Load into mcl-wasm G1 Point
             const point = new mcl.G1();
             // mcl expects base 16 strings in format "1 <x> <y>"
@@ -103,22 +115,6 @@ export function getG2Generator(): mcl.G2 {
 
     g2.setStr(`1 ${X_real} ${X_imag} ${Y_real} ${Y_imag}`, 16);
 
-    // ── DIAGNOSTIC: verify round-trip with padded comparison ─────────────
-    const parts = g2.getStr(16).split(' ');
-    if (parts.length >= 5) {
-        const ok = padHex64(parts[1]) === X_real
-                && padHex64(parts[2]) === X_imag
-                && padHex64(parts[3]) === Y_real
-                && padHex64(parts[4]) === Y_imag;
-        if (!ok) {
-            console.log('[getG2Generator] WARNING: round-trip mismatch after padding!');
-            console.log('  X_real:', padHex64(parts[1]) === X_real, padHex64(parts[1]));
-            console.log('  X_imag:', padHex64(parts[2]) === X_imag, padHex64(parts[2]));
-            console.log('  Y_real:', padHex64(parts[3]) === Y_real, padHex64(parts[3]));
-            console.log('  Y_imag:', padHex64(parts[4]) === Y_imag, padHex64(parts[4]));
-        }
-    }
-
     return g2;
 }
 
@@ -131,11 +127,6 @@ export function verifyPairingBN254(S: mcl.G1, Y: mcl.G1, PK_mint: mcl.G2): boole
     const e1 = mcl.pairing(S, g2);
     const e2 = mcl.pairing(Y, PK_mint);
 
-    // ── DIAGNOSTIC ───────────────────────────────────────────────────────
-    console.log('\n=== verifyPairingBN254 ===');
-    console.log('[e(S,G2) == e(Y,PK)]:', e1.isEqual(e2));
-    console.log('=== END ===\n');
-
     return e1.isEqual(e2);
 }
 
@@ -146,8 +137,5 @@ export function formatG1ForSolidity(point: mcl.G1): [string, string] {
     const hexStr = point.getStr(16).substring(2); // remove "1 " prefix
     const parts = hexStr.split(' ');
     // Return base 10 strings for ethers.js/viem
-    return [
-        BigInt('0x' + parts[0]).toString(10),
-        BigInt('0x' + parts[1]).toString(10)
-    ];
+    return [BigInt(`0x${parts[0]}`).toString(10), BigInt(`0x${parts[1]}`).toString(10)];
 }

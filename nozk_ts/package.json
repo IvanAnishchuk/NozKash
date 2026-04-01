@@ -1,32 +1,39 @@
 {
-  "name": "nozkash",
-  "version": "0.1.0",
-  "type": "module",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/IvanAnishchuk/nozkashresearchdump.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/IvanAnishchuk/nozkashresearchdump/issues"
-  },
-  "homepage": "https://github.com/IvanAnishchuk/nozkashresearchdump#readme",
-  "dependencies": {
-    "@noble/curves": "^2.0.1",
-    "dotenv": "^17.3.1",
-    "ethereum-cryptography": "^3.2.0",
-    "mcl-wasm": "^2.0.0",
-    "tsx": "^4.21.0",
-    "viem": "^2.47.6"
-  },
-  "devDependencies": {
-    "vitest": "^4.1.0"
-  }
+    "name": "nozkash",
+    "version": "0.1.0",
+    "type": "module",
+    "description": "",
+    "main": "index.js",
+    "scripts": {
+        "test": "vitest run",
+        "lint": "biome check .",
+        "lint:fix": "biome check --fix .",
+        "format": "biome format --write .",
+        "typecheck": "tsc --noEmit"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/IvanAnishchuk/nozkashresearchdump.git"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "bugs": {
+        "url": "https://github.com/IvanAnishchuk/nozkashresearchdump/issues"
+    },
+    "homepage": "https://github.com/IvanAnishchuk/nozkashresearchdump#readme",
+    "dependencies": {
+        "@noble/curves": "^2.0.1",
+        "dotenv": "^17.3.1",
+        "ethereum-cryptography": "^3.2.0",
+        "mcl-wasm": "^2.0.0",
+        "tsx": "^4.21.0",
+        "viem": "^2.47.6"
+    },
+    "devDependencies": {
+        "@biomejs/biome": "^2.4.10",
+        "@types/node": "^25.5.0",
+        "typescript": "^6.0.2",
+        "vitest": "^4.1.0"
+    }
 }

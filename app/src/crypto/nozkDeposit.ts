@@ -1,5 +1,5 @@
 import { keccak256 } from 'ethereum-cryptography/keccak'
-import { initBN254, formatG1ForSolidity } from './bn254'
+import { initBN254, formatG1ForSolidity } from '@nozk/bn254-crypto.js'
 import { isNozkVaultDebugEnabled } from '../lib/nozkDebug'
 import {
   blindToken,
@@ -8,7 +8,7 @@ import {
   getR,
   getSpendAddressBytes,
   type TokenSecrets,
-} from './nozk-library'
+} from '@nozk/nozk-library.js'
 
 let mclInit: Promise<void> | null = null
 

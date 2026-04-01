@@ -18,15 +18,22 @@
  */
 
 import 'dotenv/config';
-import { readFileSync, writeFileSync, existsSync } from 'fs';
-import { resolve } from 'path';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import mcl from 'mcl-wasm';
 import {
-    createPublicClient, createWalletClient, http, parseEther, formatEther, formatGwei,
-    getAddress, defineChain, type Hex, type Address, type PublicClient, type WalletClient, type Chain,
+    type Address,
+    createPublicClient,
+    createWalletClient,
+    defineChain,
+    formatEther,
+    getAddress,
+    type Hex,
+    http,
+    parseEther,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import mcl from 'mcl-wasm';
-import { initBN254, getG2Generator, CURVE_ORDER, formatG1ForSolidity } from './bn254-crypto.js';
+import { CURVE_ORDER, getG2Generator, initBN254 } from './bn254-crypto.js';
 import * as gl from './nozk-library.js';
 
 // ==============================================================================
@@ -38,13 +45,13 @@ const WALLET_STATE_FILE = resolve('.nozk_wallet.json');
 const ABI_PATH = resolve('abi/nozk_vault_abi.json');
 
 interface Config {
-    masterSeed:      Uint8Array;
-    walletKey:       Hex;
-    walletAddress:   Address;
+    masterSeed: Uint8Array;
+    walletKey: Hex;
+    walletAddress: Address;
     contractAddress: Address;
-    rpcUrl:          string;
-    scanFromBlock:   bigint;
-    mintBlsPubkey:   mcl.G2 | null;
+    rpcUrl: string;
+    scanFromBlock: bigint;
+    mintBlsPubkey: mcl.G2 | null;
 }
 
 function loadConfig(): Config {
@@ -64,7 +71,7 @@ function loadConfig(): Config {
     let mintBlsPubkey: mcl.G2 | null = null;
     const pkStr = process.env.MINT_BLS_PUBKEY || '';
     if (pkStr) {
-        const parts = pkStr.split(',').map(p => p.trim());
+        const parts = pkStr.split(',').map((p) => p.trim());
         if (parts.length === 4) {
             const pk = new mcl.G2();
             // EIP-197 order in env: X_imag, X_real, Y_imag, Y_real
@@ -85,15 +92,15 @@ function loadConfig(): Config {
         }
     }
 
-    const key = walletKey.startsWith('0x') ? walletKey as Hex : `0x${walletKey}` as Hex;
+    const key = walletKey.startsWith('0x') ? (walletKey as Hex) : (`0x${walletKey}` as Hex);
 
     return {
-        masterSeed:      Buffer.from(seed, 'utf-8'),
-        walletKey:       key,
-        walletAddress:   getAddress(walletAddr),
+        masterSeed: Buffer.from(seed, 'utf-8'),
+        walletKey: key,
+        walletAddress: getAddress(walletAddr),
         contractAddress: getAddress(contract),
-        rpcUrl:          rpc,
-        scanFromBlock:   BigInt(process.env.SCAN_FROM_BLOCK || '0'),
+        rpcUrl: rpc,
+        scanFromBlock: BigInt(process.env.SCAN_FROM_BLOCK || '0'),
         mintBlsPubkey,
     };
 }
@@ -103,19 +110,19 @@ function loadConfig(): Config {
 // ==============================================================================
 
 interface TokenRecord {
-    index:          number;
-    spend_address:  string;
-    deposit_id:     string;
-    deposit_tx:     string | null;
-    deposit_block:  number | null;
-    s_unblinded_x:  string | null;
-    s_unblinded_y:  string | null;
-    redeem_tx:      string | null;
-    spent:          boolean;
+    index: number;
+    spend_address: string;
+    deposit_id: string;
+    deposit_tx: string | null;
+    deposit_block: number | null;
+    s_unblinded_x: string | null;
+    s_unblinded_y: string | null;
+    redeem_tx: string | null;
+    spent: boolean;
 }
 
 interface WalletState {
-    tokens:             Record<string, TokenRecord>;
+    tokens: Record<string, TokenRecord>;
     last_scanned_block: number;
 }
 
@@ -147,11 +154,21 @@ const NOZK_VAULT_ABI = JSON.parse(readFileSync(ABI_PATH, 'utf-8'));
 // HELPERS
 // ==============================================================================
 
-function log(msg: string)  { console.log(`  ${msg}`); }
-function ok(msg: string)   { console.log(`  ✅  ${msg}`); }
-function err(msg: string)  { console.log(`  ❌  ${msg}`); }
-function kv(k: string, v: string) { console.log(`    ${k.padEnd(24)} ${v}`); }
-function section(title: string) { console.log(`\n──── ${title} ────`); }
+function log(msg: string) {
+    console.log(`  ${msg}`);
+}
+function ok(msg: string) {
+    console.log(`  ✅  ${msg}`);
+}
+function err(msg: string) {
+    console.log(`  ❌  ${msg}`);
+}
+function kv(k: string, v: string) {
+    console.log(`    ${k.padEnd(24)} ${v}`);
+}
+function section(title: string) {
+    console.log(`\n──── ${title} ────`);
+}
 function shortHex(hex: string, head = 18, tail = 8): string {
     if (hex.length <= head + tail + 3) return hex;
     return `${hex.slice(0, head)}…${hex.slice(-tail)}`;
@@ -190,7 +207,7 @@ async function buildClients(config: Config) {
 // Format G1 point coords as [bigint, bigint] for contract calls
 function g1ToBigInts(point: mcl.G1): [bigint, bigint] {
     const parts = point.getStr(16).split(' ');
-    return [BigInt('0x' + parts[1]), BigInt('0x' + parts[2])];
+    return [BigInt(`0x${parts[1]}`), BigInt(`0x${parts[2]}`)];
 }
 
 // ==============================================================================
@@ -289,7 +306,6 @@ async function cmdDeposit(config: Config, tokenIndex: number) {
         };
         saveWalletState(state);
         ok('Deposit complete. Next: run scan to recover the signed token.');
-
     } catch (e: any) {
         console.log('\n=== DEPOSIT ERROR DEBUG ===');
         console.log('[error type]:', e.constructor?.name);
@@ -331,7 +347,7 @@ async function cmdScan(config: Config, indexFrom: number, indexTo: number) {
 
     const fulfilled = new Map<string, [bigint, bigint]>();
     for (const log of logs) {
-        const args = log.args as any;
+        const args = (log as any).args;
         const did = getAddress(args.depositId);
         fulfilled.set(did, [BigInt(args.S_prime[0]), BigInt(args.S_prime[1])]);
     }
@@ -351,9 +367,12 @@ async function cmdScan(config: Config, indexFrom: number, indexTo: number) {
                 index: idx,
                 spend_address: gl.getSpendAddress(secrets),
                 deposit_id: gl.getDepositId(secrets),
-                deposit_tx: null, deposit_block: null,
-                s_unblinded_x: null, s_unblinded_y: null,
-                redeem_tx: null, spent: false,
+                deposit_tx: null,
+                deposit_block: null,
+                s_unblinded_x: null,
+                s_unblinded_y: null,
+                redeem_tx: null,
+                spent: false,
             };
         }
 
@@ -382,7 +401,7 @@ async function cmdScan(config: Config, indexFrom: number, indexTo: number) {
         }
 
         const [spX, spY] = fulfilled.get(depositId)!;
-        log('    Unblinding: S = S\' · r⁻¹ mod q …');
+        log("    Unblinding: S = S' · r⁻¹ mod q …");
 
         // Load S' as mcl.G1
         const sPrime = new mcl.G1();
@@ -405,12 +424,12 @@ async function cmdScan(config: Config, indexFrom: number, indexTo: number) {
 
         // Check nullifier on-chain
         const nullifier = getAddress(gl.getSpendAddress(secrets));
-        const isSpent = await publicClient.readContract({
+        const isSpent = (await publicClient.readContract({
             address: config.contractAddress,
             abi: NOZK_VAULT_ABI,
             functionName: 'spentNullifiers',
             args: [nullifier],
-        }) as boolean;
+        })) as boolean;
 
         rec.s_unblinded_x = `0x${sx.toString(16)}`;
         rec.s_unblinded_y = `0x${sy.toString(16)}`;
@@ -437,9 +456,18 @@ async function cmdRedeem(config: Config, tokenIndex: number, recipient: string) 
     const state = loadWalletState();
     const rec = state.tokens[String(tokenIndex)];
 
-    if (!rec) { err(`Token ${tokenIndex} not found. Run deposit first.`); process.exit(1); }
-    if (rec.spent) { err(`Token ${tokenIndex} already spent.`); process.exit(1); }
-    if (!rec.s_unblinded_x) { err(`Token ${tokenIndex} has no unblinded sig. Run scan first.`); process.exit(1); }
+    if (!rec) {
+        err(`Token ${tokenIndex} not found. Run deposit first.`);
+        process.exit(1);
+    }
+    if (rec.spent) {
+        err(`Token ${tokenIndex} already spent.`);
+        process.exit(1);
+    }
+    if (!rec.s_unblinded_x) {
+        err(`Token ${tokenIndex} has no unblinded sig. Run scan first.`);
+        process.exit(1);
+    }
 
     const secrets = gl.deriveTokenSecrets(config.masterSeed, tokenIndex);
 
@@ -480,12 +508,15 @@ async function cmdRedeem(config: Config, tokenIndex: number, recipient: string) 
     const chainId = await tempPub.getChainId();
     const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600); // 1 hour
     const proof = await gl.generateRedemptionProof(
-        gl.getSpendPriv(secrets), recipientAddr,
-        chainId, config.contractAddress, deadline,
+        gl.getSpendPriv(secrets),
+        recipientAddr,
+        chainId,
+        config.contractAddress,
+        deadline,
     );
 
     kv('msg_hash', shortHex(Buffer.from(proof.msgHash).toString('hex')));
-    kv('compact_hex', shortHex('0x' + proof.compactHex));
+    kv('compact_hex', shortHex(`0x${proof.compactHex}`));
     kv('recovery_bit', String(proof.recoveryBit));
     kv('v (EVM)', String(proof.recoveryBit + 27));
 
@@ -542,7 +573,6 @@ async function cmdRedeem(config: Config, tokenIndex: number, recipient: string) 
         saveWalletState(state);
 
         ok(`Redemption complete. Token ${tokenIndex} is now spent.`);
-
     } catch (e: any) {
         err(`Contract error: ${e.shortMessage || e.message}`);
         process.exit(1);
@@ -585,18 +615,18 @@ async function main() {
 
     switch (command) {
         case 'deposit': {
-            const index = parseInt(getArg('--index'));
+            const index = parseInt(getArg('--index'), 10);
             await cmdDeposit(config, index);
             break;
         }
         case 'scan': {
-            const from = parseInt(getArg('--index-from', '0'));
-            const to = parseInt(getArg('--index-to', '9'));
+            const from = parseInt(getArg('--index-from', '0'), 10);
+            const to = parseInt(getArg('--index-to', '9'), 10);
             await cmdScan(config, from, to);
             break;
         }
         case 'redeem': {
-            const index = parseInt(getArg('--index'));
+            const index = parseInt(getArg('--index'), 10);
             const to = getArg('--to');
             await cmdRedeem(config, index, to);
             break;
@@ -617,7 +647,7 @@ async function main() {
     }
 }
 
-main().catch(e => {
+main().catch((e) => {
     console.error('Fatal:', e.message || e);
     process.exit(1);
 });

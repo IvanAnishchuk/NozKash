@@ -4,7 +4,7 @@ import {
   getR,
   getSpendAddress,
   getSpendPriv,
-} from './nozk-library'
+} from '@nozk/nozk-library.js'
 
 let masterSeed: Uint8Array | null = null
 

@@ -1,9 +1,15 @@
-import { keccak256 } from 'ethereum-cryptography/keccak.js';
 import { secp256k1 } from '@noble/curves/secp256k1.js';
+import { keccak256 } from 'ethereum-cryptography/keccak.js';
 import mcl from 'mcl-wasm';
 import {
-    hashToCurveBN254, multiplyBN254,
-    modularInverse, verifyPairingBN254, getG2Generator, CURVE_ORDER,
+    bytesToHex,
+    CURVE_ORDER,
+    getG2Generator,
+    hashToCurveBN254,
+    hexToBytes,
+    modularInverse,
+    multiplyBN254,
+    verifyPairingBN254,
 } from './bn254-crypto.js';
 
 // ==============================================================================
@@ -21,7 +27,6 @@ export class DerivationError extends NozkError {}
 
 export class VerificationError extends NozkError {}
 
-
 // ==============================================================================
 // TYPES
 // ==============================================================================
@@ -34,10 +39,10 @@ export class VerificationError extends NozkError {}
  *   blind keypair → address is the deposit ID (revealed at deposit)
  */
 export interface TokenKeypair {
-    priv:         Uint8Array;   // 32-byte private key
-    pubHex:       string;       // 0x-prefixed uncompressed public key (65 bytes, starts with 04)
-    address:      string;       // 0x-prefixed Ethereum address (20 bytes)
-    addressBytes: Uint8Array;   // raw 20 bytes
+    priv: Uint8Array; // 32-byte private key
+    pubHex: string; // 0x-prefixed uncompressed public key (65 bytes, starts with 04)
+    address: string; // 0x-prefixed Ethereum address (20 bytes)
+    addressBytes: Uint8Array; // raw 20 bytes
 }
 
 export interface TokenSecrets {
@@ -46,8 +51,8 @@ export interface TokenSecrets {
 }
 
 export interface BlindedPoints {
-    Y: mcl.G1;   // H(spend_address) — unblinded hash-to-curve
-    B: mcl.G1;   // r·Y             — blinded point sent to mint
+    Y: mcl.G1; // H(spend_address) — unblinded hash-to-curve
+    B: mcl.G1; // r·Y             — blinded point sent to mint
 }
 
 export interface MintKeypair {
@@ -56,11 +61,11 @@ export interface MintKeypair {
 }
 
 export interface RedemptionProof {
-    msgHash:            Uint8Array;
-    signatureObj:       Uint8Array;   // raw 64-byte compact r||s
-    compactHex:         string;       // 128-char hex of signatureObj
-    recoveryBit:        0 | 1;        // v = recoveryBit + 27 in the 65-byte spend signature
-    pubKeyUncompressed: Uint8Array;   // 65-byte uncompressed secp256k1 pubkey
+    msgHash: Uint8Array;
+    signatureObj: Uint8Array; // raw 64-byte compact r||s
+    compactHex: string; // 128-char hex of signatureObj
+    recoveryBit: 0 | 1; // v = recoveryBit + 27 in the 65-byte spend signature
+    pubKeyUncompressed: Uint8Array; // 65-byte uncompressed secp256k1 pubkey
 }
 
 // ==============================================================================
@@ -69,9 +74,7 @@ export interface RedemptionProof {
 
 /** Derives the Ethereum address from a 65-byte uncompressed public key. */
 function pubKeyToAddress(pubKeyUncompressed: Uint8Array): string {
-    return '0x' + Buffer.from(
-        keccak256(pubKeyUncompressed.slice(1)).slice(-20)
-    ).toString('hex');
+    return `0x${bytesToHex(keccak256(pubKeyUncompressed.slice(1)).slice(-20))}`;
 }
 
 /**
@@ -79,11 +82,12 @@ function pubKeyToAddress(pubKeyUncompressed: Uint8Array): string {
  * Domain labels: "spend", "blind"  (mirrors Python's b"spend" / b"blind").
  */
 function deriveKeypair(domain: string, baseMaterial: Uint8Array): TokenKeypair {
-    const priv            = keccak256(new Uint8Array([...Buffer.from(domain), ...baseMaterial]));
-    const pubUncompressed = secp256k1.getPublicKey(priv, false);  // 65 bytes, includes 0x04 prefix
-    const pubHex          = '0x' + Buffer.from(pubUncompressed).toString('hex');
-    const address         = pubKeyToAddress(pubUncompressed);
-    const addressBytes    = Buffer.from(address.slice(2), 'hex');
+    const domainBytes = new TextEncoder().encode(domain);
+    const priv = keccak256(new Uint8Array([...domainBytes, ...baseMaterial]));
+    const pubUncompressed = secp256k1.getPublicKey(priv, false); // 65 bytes, includes 0x04 prefix
+    const pubHex = `0x${bytesToHex(pubUncompressed)}`;
+    const address = pubKeyToAddress(pubUncompressed);
+    const addressBytes = hexToBytes(address.slice(2));
 
     return { priv, pubHex, address, addressBytes };
 }
@@ -93,7 +97,7 @@ function deriveKeypair(domain: string, baseMaterial: Uint8Array): TokenKeypair {
  * Mirrors Python: Scalar(int.from_bytes(blind.priv.to_bytes(), "big") % curve_order)
  */
 function toBlsScalar(priv: Uint8Array): bigint {
-    return BigInt('0x' + Buffer.from(priv).toString('hex')) % CURVE_ORDER;
+    return BigInt(`0x${bytesToHex(priv)}`) % CURVE_ORDER;
 }
 
 // ==============================================================================
@@ -105,8 +109,8 @@ export function hashToCurve(messageBytes: Uint8Array): mcl.G1 {
 }
 
 export function generateMintKeypair(): MintKeypair {
-    const skBytes = secp256k1.utils.randomPrivateKey();
-    const skMint  = BigInt('0x' + Buffer.from(skBytes).toString('hex')) % CURVE_ORDER;
+    const skBytes = secp256k1.utils.randomSecretKey();
+    const skMint = BigInt(`0x${bytesToHex(skBytes)}`) % CURVE_ORDER;
 
     const g2 = getG2Generator();
     const skFr = new mcl.Fr();
@@ -132,19 +136,15 @@ export function generateMintKeypair(): MintKeypair {
  * Throws DerivationError for invalid inputs.
  */
 export function deriveTokenSecrets(masterSeed: Uint8Array, tokenIndex: number): TokenSecrets {
-    if (!Number.isInteger(tokenIndex) || tokenIndex < 0 || tokenIndex > 0xFFFFFFFF) {
-        throw new DerivationError(
-            `tokenIndex must be a non-negative 32-bit integer, got ${tokenIndex}`
-        );
+    if (!Number.isInteger(tokenIndex) || tokenIndex < 0 || tokenIndex > 0xffffffff) {
+        throw new DerivationError(`tokenIndex must be a non-negative 32-bit integer, got ${tokenIndex}`);
     }
 
     // DataView ensures correct 32-bit big-endian encoding — Uint8Array constructor
     // would silently truncate indices >= 256, breaking parity with Python.
     const indexBuf = new ArrayBuffer(4);
     new DataView(indexBuf).setUint32(0, tokenIndex, false);
-    const baseMaterial = keccak256(
-        new Uint8Array([...masterSeed, ...new Uint8Array(indexBuf)])
-    );
+    const baseMaterial = keccak256(new Uint8Array([...masterSeed, ...new Uint8Array(indexBuf)]));
 
     return {
         spend: deriveKeypair('spend', baseMaterial),
@@ -153,11 +153,21 @@ export function deriveTokenSecrets(masterSeed: Uint8Array, tokenIndex: number): 
 }
 
 /** Convenience accessors matching the Python compat properties on TokenSecrets. */
-export function getSpendPriv(secrets: TokenSecrets): Uint8Array    { return secrets.spend.priv; }
-export function getSpendAddress(secrets: TokenSecrets): string      { return secrets.spend.address; }
-export function getSpendAddressBytes(secrets: TokenSecrets): Uint8Array { return secrets.spend.addressBytes; }
-export function getDepositId(secrets: TokenSecrets): string         { return secrets.blind.address; }
-export function getR(secrets: TokenSecrets): bigint                 { return toBlsScalar(secrets.blind.priv); }
+export function getSpendPriv(secrets: TokenSecrets): Uint8Array {
+    return secrets.spend.priv;
+}
+export function getSpendAddress(secrets: TokenSecrets): string {
+    return secrets.spend.address;
+}
+export function getSpendAddressBytes(secrets: TokenSecrets): Uint8Array {
+    return secrets.spend.addressBytes;
+}
+export function getDepositId(secrets: TokenSecrets): string {
+    return secrets.blind.address;
+}
+export function getR(secrets: TokenSecrets): bigint {
+    return toBlsScalar(secrets.blind.priv);
+}
 
 export function blindToken(spendAddressBytes: Uint8Array, r: bigint): BlindedPoints {
     const Y = hashToCurve(spendAddressBytes);
@@ -188,11 +198,9 @@ export function mintBlindSign(B: mcl.G1, skMint: bigint): mcl.G1 {
 // ==============================================================================
 
 const EIP712_DOMAIN_TYPEHASH = keccak256(
-    new TextEncoder().encode('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)')
+    new TextEncoder().encode('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)'),
 );
-const NOZKREDEEM_TYPEHASH = keccak256(
-    new TextEncoder().encode('NozkRedeem(address recipient,uint256 deadline)')
-);
+const NOZKREDEEM_TYPEHASH = keccak256(new TextEncoder().encode('NozkRedeem(address recipient,uint256 deadline)'));
 
 function uint256BE(n: bigint): Uint8Array {
     const buf = new Uint8Array(32);
@@ -204,22 +212,24 @@ function uint256BE(n: bigint): Uint8Array {
 }
 
 function addressPadded(addr: string): Uint8Array {
-    const raw = Buffer.from(addr.replace('0x', '').toLowerCase(), 'hex');
+    const raw = hexToBytes(addr.replace('0x', '').toLowerCase());
     const out = new Uint8Array(32);
     out.set(raw, 12); // left-pad to 32 bytes
     return out;
 }
 
 export function eip712DomainSeparator(chainId: number, contractAddress: string): Uint8Array {
-    const nameHash    = keccak256(new TextEncoder().encode('NozkVault'));
+    const nameHash = keccak256(new TextEncoder().encode('NozkVault'));
     const versionHash = keccak256(new TextEncoder().encode('1'));
-    return keccak256(new Uint8Array([
-        ...EIP712_DOMAIN_TYPEHASH,
-        ...nameHash,
-        ...versionHash,
-        ...uint256BE(BigInt(chainId)),
-        ...addressPadded(contractAddress),
-    ]));
+    return keccak256(
+        new Uint8Array([
+            ...EIP712_DOMAIN_TYPEHASH,
+            ...nameHash,
+            ...versionHash,
+            ...uint256BE(BigInt(chainId)),
+            ...addressPadded(contractAddress),
+        ]),
+    );
 }
 
 export function eip712RedemptionHash(
@@ -228,11 +238,9 @@ export function eip712RedemptionHash(
     chainId: number,
     contractAddress: string,
 ): Uint8Array {
-    const structHash = keccak256(new Uint8Array([
-        ...NOZKREDEEM_TYPEHASH,
-        ...addressPadded(recipientAddress),
-        ...uint256BE(deadline),
-    ]));
+    const structHash = keccak256(
+        new Uint8Array([...NOZKREDEEM_TYPEHASH, ...addressPadded(recipientAddress), ...uint256BE(deadline)]),
+    );
     const domainSep = eip712DomainSeparator(chainId, contractAddress);
     return keccak256(new Uint8Array([0x19, 0x01, ...domainSep, ...structHash]));
 }
@@ -257,7 +265,7 @@ export async function generateRedemptionProof(
     // EIP-712 typed data hash matching Solidity redemptionMessageHash(recipient, deadline)
     const msgHash = eip712RedemptionHash(destinationAddress, deadline, chainId, contractAddress);
 
-    const pubKeyUncompressed = secp256k1.getPublicKey(spendPriv, false);  // 65 bytes with 0x04
+    const pubKeyUncompressed = secp256k1.getPublicKey(spendPriv, false); // 65 bytes with 0x04
 
     // @noble/curves v2.x sign() with format: 'recovered'
     // Returns 65 bytes: [recovery_bit, r(32), s(32)]
@@ -268,9 +276,9 @@ export async function generateRedemptionProof(
     });
 
     // Extract recovery bit (first byte) and compact sig (remaining 64 bytes)
-    const recoveryBit  = sigRecovered[0] as 0 | 1;
+    const recoveryBit = sigRecovered[0] as 0 | 1;
     const signatureObj = sigRecovered.slice(1); // 64-byte compact r||s
-    const compactHex   = Buffer.from(signatureObj).toString('hex');
+    const compactHex = bytesToHex(signatureObj);
 
     return { msgHash, signatureObj, compactHex, recoveryBit, pubKeyUncompressed };
 }
@@ -291,14 +299,9 @@ export function verifyBlsPairing(S: mcl.G1, Y: mcl.G1, pkMint: mcl.G2): boolean 
  * Returns false for cryptographically invalid signatures.
  * Mirrors Python's verify_ecdsa_mev_protection().
  */
-export function verifyEcdsaMevProtection(
-    proof: RedemptionProof,
-    expectedAddressHex: string,
-): boolean {
+export function verifyEcdsaMevProtection(proof: RedemptionProof, expectedAddressHex: string): boolean {
     if (proof.compactHex.length !== 128) {
-        throw new VerificationError(
-            `compactHex must be 128 hex chars (64 bytes), got ${proof.compactHex.length}`
-        );
+        throw new VerificationError(`compactHex must be 128 hex chars (64 bytes), got ${proof.compactHex.length}`);
     }
 
     try {

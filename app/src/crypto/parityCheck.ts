@@ -1,4 +1,4 @@
-import { setMasterSeed, deriveTokenSecrets, hexToBytes } from './nozkClient';
+import { setMasterSeed, deriveTokenSecrets, hexToBytes } from './nozkClient'
 
 // Valores del .env de Ivan — estos son la fuente de verdad
 const MASTER_SEED_HEX =

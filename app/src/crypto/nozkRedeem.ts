@@ -4,9 +4,9 @@ import mcl from 'mcl-wasm'
 import {
   CURVE_ORDER,
   padHex64,
-} from './bn254-crypto'
+  formatG1ForSolidity,
+} from '@nozk/bn254-crypto.js'
 import { ensureNozkCrypto } from './nozkDeposit'
-import { formatG1ForSolidity } from './bn254'
 import {
   deriveTokenSecrets,
   generateRedemptionProof,
@@ -14,7 +14,7 @@ import {
   getSpendAddress,
   unblindSignature,
   type RedemptionProof,
-} from './nozk-library'
+} from '@nozk/nozk-library.js'
 
 const LS_KEY = 'nozk:redemption-draft-v1' as const
 

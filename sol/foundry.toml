@@ -12,8 +12,8 @@ fs_permissions = [
 [rpc_endpoints]
 # NozkVault.t.sol forks this in setUp (override URL in Solidity via FORK_RPC_URL).
 sepolia = "${SEPOLIA_RPC_URL}"
-sepolia-public = "${SEPOLIA_PUBLIC_RPC_URL-https://ethereum-sepolia-rpc.publicnode.com}"
-avalanche-fuji = "${AVALANCHE_FUJI_RPC_URL-https://api.avax-test.network/ext/bc/C/rpc}"
+sepolia-public = "https://ethereum-sepolia-rpc.publicnode.com"
+avalanche-fuji = "https://api.avax-test.network/ext/bc/C/rpc"
 
 # `forge script ... --verify` on Sepolia. Export `ETHERSCAN_API_KEY` (e.g. from `sol/.env`).
 [etherscan]

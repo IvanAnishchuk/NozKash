@@ -26,13 +26,11 @@ Then off-chain: `Y = H_G1(spend_addr)`, `B = r · Y`, mint signs `B`, user unbli
 
 On-chain (PoC), `H_G1` hashes **`abi.encodePacked(spend_addr)`** — **20-byte address only**. This NozkVault build has **no refund** path (trusted mint). **`forge test`** reads **`test/test-vectors/token_*.json`** by default (override with env **`NOZK_VECTOR_SUITE`**).
 
-Regenerate those fixtures with the backend stack (**`uv`** + **`scripts/pyproject.toml`** / **`scripts/requirements.txt`** — keep dependency versions in sync):
+Regenerate those fixtures from the repo root:
 
 ```bash
-cd scripts && uv sync && uv run generate_vectors.py
+cd nozk_py && uv run generate_vectors.py
 ```
-
-(`--out` defaults to repo **`test/test-vectors`**; use **`--keypairs 1`** if you want a single mint key across the whole suite instead of the last of several overwrites.)
 
 One shot: **`bash scripts/forge_test_generated_vectors.sh`** (optional args are passed to **`generate_vectors.py`** only).
 

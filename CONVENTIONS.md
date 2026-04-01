@@ -93,10 +93,12 @@ def mint_keypair():
 
 # Use test vectors for cross-language tests
 def test_against_vectors():
-    manifest = json.load(open("../test_vectors/manifest.json"))
-    for keypair_dir in manifest["keypair_dirs"]:
-        # Load and verify vectors
-        pass
+    # Python tests auto-discover vectors by scanning test_vectors/ directory
+    vectors_dir = Path(__file__).parent.parent / "test_vectors"
+    for keypair_dir in vectors_dir.iterdir():
+        if keypair_dir.is_dir():
+            # Load and verify vectors
+            pass
 ```
 
 ### Crypto Function Documentation
@@ -202,10 +204,15 @@ describe('blindToken', () => {
 
 // Use test vectors
 import { describe, it, expect } from 'vitest';
-import manifest from '../../test_vectors/manifest.json';
+import { readdirSync } from 'fs';
 
 describe('cross-language parity', () => {
-  for (const keypairDir of manifest.keypair_dirs) {
+  // TypeScript tests auto-discover vectors by scanning test_vectors/ directory
+  const vectorDirs = readdirSync('test_vectors', { withFileTypes: true })
+    .filter(d => d.isDirectory())
+    .map(d => d.name);
+  
+  for (const keypairDir of vectorDirs) {
     it(`verifies ${keypairDir}`, async () => {
       // Load vectors and verify
     });
@@ -449,9 +456,10 @@ Keep all four files in sync when architecture changes.
 
 ### Gas Targets
 
-- `deposit()`: 50k gas (target)
+- `deposit()`: 50k gas (target, locks 0.001 ETH)
 - `announce()`: 55k gas (target)
-- `redeem()`: 120k gas (target)
+- `redeem()`: 120k gas (target, transfers 0.001 ETH)
+- `refund()`: ~30k gas (only if mint never fulfilled)
 
 Run `forge snapshot` after contract changes and verify no regressions.
 
@@ -483,14 +491,14 @@ const spendAddr = privateKeyToAddress(spendPriv);
 
 ```python
 # Python
-abi_path = Path(__file__).parent.parent / "abi" / "NozkVault.json"
+abi_path = Path(__file__).parent.parent / "abi" / "nozk_vault_abi.json"
 with open(abi_path) as f:
     abi = json.load(f)
 ```
 
 ```typescript
 // TypeScript
-import abi from '../../abi/NozkVault.json';
+import abi from '../../abi/nozk_vault_abi.json';
 ```
 
 ### Error Handling in CLI

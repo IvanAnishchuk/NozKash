@@ -133,10 +133,11 @@ Test vectors are discovered via `test_vectors/manifest.json` which lists all key
 
 ### Smart Contract (`sol/src/NozkVault.sol`)
 
-Three entry points:
-- `deposit(address depositId, uint256[2] B)` — lock 0.01 ETH, register blinded point
+Four entry points:
+- `deposit(address depositId, uint256[2] B)` — lock 0.001 ETH, register blinded point
 - `announce(address depositId, uint256[2] S_prime)` — mint authority posts blind signature
 - `redeem(address recipient, bytes sig, address nullifier, uint256 deadline, uint256[2] S)` — verify and transfer
+- `refund(address depositId)` — reclaim locked ETH if mint never fulfilled (only before `announce()`)
 
 **Verification in `redeem()`:**
 1. `ecrecover` — confirm signer == nullifier
@@ -156,8 +157,8 @@ G2 pubkey stored in `pkMint[4]` in EIP-197 limb order: `[X_imag, X_real, Y_imag,
 
 ## Key Design Constraints
 
-- **Fixed denomination:** 0.01 ETH per token (hardcoded in contract)
-- **No refund path:** Mint is trusted for liveness in the current PoC
+- **Fixed denomination:** 0.001 ETH per token (hardcoded in contract)
+- **Limited refund path:** Depositors can reclaim ETH only if mint never fulfills (before `announce()` is called). Once announced, redemption is the only exit path
 - **Stateless mint:** The mint daemon stores nothing — all state is on-chain
 - **Stateless recovery:** Every wallet secret is re-derivable from `(masterSeed, index)` via scan
 - **MEV protection:** ECDSA in `redeem()` binds the nullifier to a specific recipient; a front-runner cannot redirect funds
@@ -221,5 +222,5 @@ forge script script/NozkVault.s.sol:NozkVaultScript \
 After deployment, update `CONTRACT_ADDRESS` in `.env` files and regenerate ABIs:
 ```bash
 cd sol
-python sync_abi.py  # copies ABI to abi/ directory
+python sync_abi.py  # copies ABI to abi/nozk_vault_abi.json
 ```

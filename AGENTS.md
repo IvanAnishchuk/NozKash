@@ -129,7 +129,7 @@ npm run deploy
 
 1. **Client derives secrets:** From `(masterSeed, index)` → `spend_priv`, `blind_priv`
 2. **Client blinds token:** `B = r · H_G1(spend_addr)` where `r` is blinding factor
-3. **Contract deposits:** User locks 0.01 ETH, contract emits `DepositLocked(depositId, B)`
+3. **Contract deposits:** User locks 0.001 ETH, contract emits `DepositLocked(depositId, B)`
 4. **Mint signs blindly:** Mint computes `S' = sk · B` and posts via `announce()`
 5. **Client unblinds:** `S = S' · r⁻¹ = sk · H(spend_addr)`
 6. **Client redeems:** Provides `S` + ECDSA proof binding to recipient
@@ -163,8 +163,8 @@ npm run deploy
 
 ### Fixed Architecture Constraints
 
-- **Denomination:** 0.01 ETH per token (hardcoded in contract, cannot change)
-- **No refunds:** Once deposited, tokens must be redeemed (no withdrawal of unblinded deposits)
+- **Denomination:** 0.001 ETH per token (hardcoded in contract, cannot change)
+- **Limited refund path:** Depositors can reclaim ETH only if mint never fulfills (before `announce()`). Once announced, redemption is the only exit path
 - **Stateless mint:** Mint stores nothing locally, all state is on-chain
 - **G2 pubkey format:** Stored in EIP-197 limb order `[X_imag, X_real, Y_imag, Y_real]`
 - **Hash-to-curve:** Uses try-and-increment with `keccak256(msg || counter_be32)`
@@ -231,7 +231,7 @@ VITE_NOZK_MASTER_SEED_HEX=0x...  # Dev only
 2. Run `forge build` to compile
 3. Run `forge test -vvv` to verify tests pass
 4. Update gas snapshots: `forge snapshot`
-5. If interface changed, sync ABI: `cd sol && python sync_abi.py`
+5. If interface changed, sync ABI: `cd sol && python sync_abi.py` (creates `abi/nozk_vault_abi.json`)
 6. Update TypeScript/Python clients if ABI changed
 
 ### Adding Frontend Features
@@ -271,9 +271,10 @@ VITE_NOZK_MASTER_SEED_HEX=0x...  # Dev only
 ## Gas Efficiency
 
 Target costs:
-- `deposit()`: ~50k gas
+- `deposit()`: ~50k gas (locks 0.001 ETH)
 - `announce()`: ~55k gas
-- `redeem()`: ~120k gas
+- `redeem()`: ~120k gas (transfers 0.001 ETH)
+- `refund()`: ~30k gas (only if mint never fulfilled)
 
 When modifying contract, always run `forge snapshot` and verify gas costs haven't increased significantly.
 

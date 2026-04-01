@@ -5,7 +5,7 @@ import {
   CURVE_ORDER,
   padHex64,
   formatG1ForSolidity,
-} from '@nozk/bn254-crypto.js'
+} from '@nozk/bn254-crypto'
 import { ensureNozkCrypto } from './nozkDeposit'
 import {
   deriveTokenSecrets,
@@ -14,7 +14,7 @@ import {
   getSpendAddress,
   unblindSignature,
   type RedemptionProof,
-} from '@nozk/nozk-library.js'
+} from '@nozk/nozk-library'
 
 const LS_KEY = 'nozk:redemption-draft-v1' as const
 

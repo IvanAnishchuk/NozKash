@@ -24,7 +24,7 @@ All values below use **Keccak-256** outputs as **32-byte big-endian** integers w
 
 Then off-chain: `Y = H_G1(spend_addr)`, `B = r · Y`, mint signs `B`, user unblinds to `S` for `NozkVault.redeem`.
 
-On-chain (PoC), `H_G1` hashes **`abi.encodePacked(spend_addr)`** — **20-byte address only**. This NozkVault build has **no refund** path (trusted mint). **`forge test`** reads **`test/test-vectors/token_*.json`** by default (override with env **`NOZK_VECTOR_SUITE`**).
+On-chain (PoC), `H_G1` hashes **`abi.encodePacked(spend_addr)`** — **20-byte address only**. If the mint never fulfils a deposit, the original depositor can reclaim the locked ETH via **`refund(depositId)`** (only before `announce`; once the blind signature is posted, refund is no longer possible). **`forge test`** reads **`test/test-vectors/token_*.json`** by default (override with env **`NOZK_VECTOR_SUITE`**).
 
 Regenerate those fixtures from the repo root:
 

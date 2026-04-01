@@ -3,7 +3,7 @@ import {
   deriveTokenSecrets,
   getDepositId,
   getSpendAddress,
-} from '@nozk/nozk-library.js'
+} from '@nozk/nozk-library'
 import { TARGET_NETWORK_LABEL } from './ethereum'
 import { chainRpcCall } from './chainPublicRpc'
 import { isNozkVaultDebugEnabled } from './nozkDebug'

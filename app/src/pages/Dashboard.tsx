@@ -14,7 +14,7 @@ import {
   useWallet,
 } from '../hooks/useWallet'
 import { DateRangePill } from '../components/DateRangePill'
-import { deriveTokenSecrets, getDepositId } from '@nozk/nozk-library.js'
+import { deriveTokenSecrets, getDepositId } from '@nozk/nozk-library'
 import {
   getEthereum,
   NATIVE_CURRENCY_SYMBOL,

@@ -161,6 +161,9 @@ def main() -> None:
             spend_signature_bytes=sig_65,
             unblinded_s_x=s_x,
             unblinded_s_y=s_y,
+            chain_id=_TEST_CHAIN_ID,
+            contract_address=_TEST_CONTRACT,
+            deadline=_TEST_DEADLINE,
         )
 
         print(f"    [Step 1] ecrecover → {result.ecrecover_address}")
@@ -178,6 +181,9 @@ def main() -> None:
             spend_signature_bytes=sig_65,
             unblinded_s_x=s_x,
             unblinded_s_y=s_y,
+            chain_id=_TEST_CHAIN_ID,
+            contract_address=_TEST_CONTRACT,
+            deadline=_TEST_DEADLINE,
         )
         assert not result2.success, "Double-spend should have been rejected!"
         assert result2.nullifier_spent is True

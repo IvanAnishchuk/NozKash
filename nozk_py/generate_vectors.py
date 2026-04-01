@@ -23,10 +23,9 @@ import os
 from pathlib import Path
 
 from py_ecc.bn128 import G2, curve_order
-from nozk_library import Scalar, G2Point, _mul_g2
 
 import nozk_library as gl
-from nozk_library import serialize_g1
+from nozk_library import G2Point, Scalar, _mul_g2
 
 VECTORS_DIR = Path(__file__).resolve().parent.parent / "test_vectors"
 
@@ -75,7 +74,7 @@ def compute_vector(master_seed_hex: str, sk_int: int, token_index: int) -> dict:
     # --- BLS protocol ---
     blinded = gl.blind_token(secrets.spend_address_bytes, secrets.r)
     S_prime = gl.mint_blind_sign(blinded.B, sk)
-    S       = gl.unblind_signature(S_prime, secrets.r)
+    S = gl.unblind_signature(S_prime, secrets.r)
 
     # ── MEV protection proof (EIP-712) ────────────────────────────────────────
     # The redemption proof binds the token to a fixed test recipient address.
@@ -87,19 +86,21 @@ def compute_vector(master_seed_hex: str, sk_int: int, token_index: int) -> dict:
     test_contract = "0x00000000000000000000000000000000DeaDBeef"
     test_deadline = 2**256 - 1
     proof = gl.generate_redemption_proof(
-        secrets.spend_priv, test_recipient,
-        test_chain_id, test_contract, test_deadline,
+        secrets.spend_priv,
+        test_recipient,
+        test_chain_id,
+        test_contract,
+        test_deadline,
     )
 
     s_x, s_y = gl.serialize_g1(S)
 
     return {
         # ── Inputs ────────────────────────────────────────────────────────────
-        "MASTER_SEED":      master_seed_hex,
-        "TOKEN_INDEX":      token_index,
+        "MASTER_SEED": master_seed_hex,
+        "TOKEN_INDEX": token_index,
         "MINT_BLS_PRIVKEY": hex(sk_int),
-        "RECIPIENT":        test_recipient,
-
+        "RECIPIENT": test_recipient,
         # ── Mint public key (G2) ──────────────────────────────────────────────
         "PK_MINT": {
             "X_real": hex(pk_g2[0].coeffs[0].n)[2:],
@@ -107,26 +108,23 @@ def compute_vector(master_seed_hex: str, sk_int: int, token_index: int) -> dict:
             "Y_real": hex(pk_g2[1].coeffs[0].n)[2:],
             "Y_imag": hex(pk_g2[1].coeffs[1].n)[2:],
         },
-
         # ── Spend keypair (nullifier) ─────────────────────────────────────────
         # The spend address is the nullifier — revealed at redemption.
         # The private key signs the anti-MEV payload.
         "SPEND_KEYPAIR": {
-            "priv":    secrets.spend.priv.to_bytes().hex(),
-            "pub":     secrets.spend.pub_hex,
+            "priv": secrets.spend.priv.to_bytes().hex(),
+            "pub": secrets.spend.pub_hex,
             "address": secrets.spend.address,
         },
-
         # ── Blind keypair (deposit ID + blinding factor) ──────────────────────
         # The blind address is the deposit ID — submitted with the deposit tx.
         # The private key as a BN254 scalar is the blinding factor r.
         "BLIND_KEYPAIR": {
-            "priv":    secrets.blind.priv.to_bytes().hex(),
-            "pub":     secrets.blind.pub_hex,
+            "priv": secrets.blind.priv.to_bytes().hex(),
+            "pub": secrets.blind.pub_hex,
             "address": secrets.blind.address,
-            "r":       hex(secrets.r),
+            "r": hex(secrets.r),
         },
-
         # ── BLS protocol intermediates ────────────────────────────────────────
         "Y_HASH_TO_CURVE": {
             "X": hex(blinded.Y[0].n)[2:],
@@ -144,33 +142,30 @@ def compute_vector(master_seed_hex: str, sk_int: int, token_index: int) -> dict:
             "X": hex(S[0].n)[2:],
             "Y": hex(S[1].n)[2:],
         },
-
         # ── EIP-712 domain parameters (fixed for deterministic vectors) ──────
         "EIP712": {
-            "chain_id":         test_chain_id,
+            "chain_id": test_chain_id,
             "contract_address": test_contract,
-            "deadline":         hex(test_deadline),
+            "deadline": hex(test_deadline),
         },
-
         # ── Redemption transaction (what the client submits on-chain) ─────────
         # redeem(recipient, spendSignature, nullifier, deadline, unblindedSignatureS)
         # spendSignature = r(32) || s(32) || v(1) where v = recovery_bit + 27
         "REDEEM_TX": {
             # Arguments to NozkVault.redeem()
-            "recipient":  test_recipient,
-            "deadline":   hex(test_deadline),
-            "S_x":        hex(s_x),   # uint256 — 0x-prefixed hex
-            "S_y":        hex(s_y),   # uint256
-
+            "recipient": test_recipient,
+            "deadline": hex(test_deadline),
+            "S_x": hex(s_x),  # uint256 — 0x-prefixed hex
+            "S_y": hex(s_y),  # uint256
             # MEV protection signature — EIP-712 typed data hash
-            "msg_hash":       proof.msg_hash.hex(),
-            "compact_hex":    proof.compact_hex,   # 128 hex chars: r(32) + s(32)
-            "recovery_bit":   proof.recovery_bit,  # 0 or 1; v = recovery_bit + 27
+            "msg_hash": proof.msg_hash.hex(),
+            "compact_hex": proof.compact_hex,  # 128 hex chars: r(32) + s(32)
+            "recovery_bit": proof.recovery_bit,  # 0 or 1; v = recovery_bit + 27
             # Full 65-byte spend signature as submitted to the contract
             "spend_signature": (
-                proof.compact_hex[:64]          # r (32 bytes)
-                + proof.compact_hex[64:]         # s (32 bytes)
-                + format(proof.recovery_bit + 27, '02x')  # v (1 byte)
+                proof.compact_hex[:64]  # r (32 bytes)
+                + proof.compact_hex[64:]  # s (32 bytes)
+                + format(proof.recovery_bit + 27, "02x")  # v (1 byte)
             ),
         },
     }
@@ -193,18 +188,19 @@ def write_vector(vector: dict, output_dir: Path) -> Path:
 def main():
     parser = argparse.ArgumentParser(description="Generate Nozk protocol test vectors")
     parser.add_argument(
-        "--keypairs", type=int, default=3,
-        help="Number of random (seed, mint keypair) combinations to generate (default: 3)"
+        "--keypairs",
+        type=int,
+        default=3,
+        help="Number of random (seed, mint keypair) combinations to generate (default: 3)",
     )
     parser.add_argument(
-        "--indices", type=int, nargs="+",
+        "--indices",
+        type=int,
+        nargs="+",
         default=[0, 1, 42, 255, 256, 1000],
-        help="Token indices to generate per keypair (default: 0 1 42 255 256 1000)"
+        help="Token indices to generate per keypair (default: 0 1 42 255 256 1000)",
     )
-    parser.add_argument(
-        "--out", type=Path, default=VECTORS_DIR,
-        help=f"Output directory (default: {VECTORS_DIR})"
-    )
+    parser.add_argument("--out", type=Path, default=VECTORS_DIR, help=f"Output directory (default: {VECTORS_DIR})")
     args = parser.parse_args()
 
     indices = sorted(set(args.indices))
@@ -215,26 +211,29 @@ def main():
         for child in list(out_dir.iterdir()):
             if child.is_dir():
                 import shutil
+
                 shutil.rmtree(child)
 
-    print(f"Generating {args.keypairs} keypair(s) × {len(indices)} index/indices "
-          f"= {args.keypairs * len(indices)} vector files\n")
+    print(
+        f"Generating {args.keypairs} keypair(s) × {len(indices)} index/indices "
+        f"= {args.keypairs * len(indices)} vector files\n"
+    )
 
     keypair_dirs: list[str] = []
     total = 0
     for kp_num in range(1, args.keypairs + 1):
         master_seed_hex, sk_int = generate_keypair()
         seed_prefix = master_seed_hex[:8]
-        sk_prefix   = hex(sk_int)[-8:]
-        kp_name     = f"{seed_prefix}_{sk_prefix}"
-        kp_dir      = out_dir / kp_name
+        sk_prefix = hex(sk_int)[-8:]
+        kp_name = f"{seed_prefix}_{sk_prefix}"
+        kp_dir = out_dir / kp_name
         keypair_dirs.append(kp_name)
 
         print(f"[{kp_num}/{args.keypairs}] seed={seed_prefix}...  sk=...{sk_prefix}")
 
         for idx in indices:
             vector = compute_vector(master_seed_hex, sk_int, idx)
-            path   = write_vector(vector, kp_dir)
+            path = write_vector(vector, kp_dir)
             print(f"    token_{idx:>5}  →  {path}")
             total += 1
 

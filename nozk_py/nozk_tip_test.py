@@ -17,6 +17,7 @@ Usage:
     uv run nozk_tip_test.py              # library-level verification
     uv run nozk_tip_test.py --mock       # full dry-run with mock mint + redeemer
 """
+
 import os
 import sys
 
@@ -24,7 +25,7 @@ from dotenv import load_dotenv
 from py_ecc.bn128 import G2
 
 import nozk_library as gl
-from nozk_library import Scalar, G2Point, _mul_g2, serialize_g1
+from nozk_library import G2Point, Scalar, _mul_g2, serialize_g1
 
 load_dotenv()
 
@@ -32,9 +33,11 @@ load_dotenv()
 # FORMATTING HELPERS
 # ==============================================================================
 
+
 def print_g1(name: str, point) -> None:
     print(f"    {name} (X) : {hex(point[0].n)[2:]}")
     print(f"    {name} (Y) : {hex(point[1].n)[2:]}")
+
 
 def print_g2(name: str, point) -> None:
     print(f"    {name} (X_real) : {hex(point[0].coeffs[0].n)[2:]}")
@@ -42,9 +45,11 @@ def print_g2(name: str, point) -> None:
     print(f"    {name} (Y_real) : {hex(point[1].coeffs[0].n)[2:]}")
     print(f"    {name} (Y_imag) : {hex(point[1].coeffs[1].n)[2:]}")
 
+
 # ==============================================================================
 # MAIN
 # ==============================================================================
+
 
 def main() -> None:
     mock_mode = "--mock" in sys.argv
@@ -123,7 +128,12 @@ def main() -> None:
     # ── 5. Redemption proof ───────────────────────────────────────────────────
     print("[5] Generating Redemption Proof for Smart Contract...")
     destination = "0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7"
-    proof = gl.generate_redemption_proof(secrets.spend_priv, destination)
+    _TEST_CHAIN_ID = 11155111
+    _TEST_CONTRACT = "0x00000000000000000000000000000000DeaDBeef"
+    _TEST_DEADLINE = 2**256 - 1
+    proof = gl.generate_redemption_proof(
+        secrets.spend_priv, destination, _TEST_CHAIN_ID, _TEST_CONTRACT, _TEST_DEADLINE
+    )
 
     print(f"    Destination      : {destination}")
     print(f"    msg_hash         : {proof.msg_hash.hex()}")
@@ -143,13 +153,12 @@ def main() -> None:
         # Encode the 65-byte spend signature (r || s || v)
         r_bytes = bytes.fromhex(proof.compact_hex[:64])
         s_bytes = bytes.fromhex(proof.compact_hex[64:])
-        v_byte  = bytes([proof.recovery_bit + 27])
-        sig_65  = r_bytes + s_bytes + v_byte
+        v_byte = bytes([proof.recovery_bit + 27])
+        sig_65 = r_bytes + s_bytes + v_byte
 
         result = mock_redeemer.redeem(
             recipient=destination,
             spend_signature_bytes=sig_65,
-            nullifier=secrets.spend.address,
             unblinded_s_x=s_x,
             unblinded_s_y=s_y,
         )
@@ -167,7 +176,6 @@ def main() -> None:
         result2 = mock_redeemer.redeem(
             recipient=destination,
             spend_signature_bytes=sig_65,
-            nullifier=secrets.spend.address,
             unblinded_s_x=s_x,
             unblinded_s_y=s_y,
         )
@@ -175,7 +183,7 @@ def main() -> None:
         assert result2.nullifier_spent is True
         print(f"    ✅ Double-spend correctly rejected: {result2.reason}")
 
-        print(f"\n🎉 FULL MOCK DRY-RUN SUCCESS: All contract checks passed off-chain! 🎉")
+        print("\n🎉 FULL MOCK DRY-RUN SUCCESS: All contract checks passed off-chain! 🎉")
 
     else:
         # Library-level verification only (original behavior)

@@ -38,7 +38,6 @@ from typing import Annotated, Optional
 import typer
 from dotenv import load_dotenv
 from py_ecc.bn128 import curve_order
-from rich import box
 from rich.console import Console
 from rich.panel import Panel
 from rich.rule import Rule
@@ -46,12 +45,18 @@ from rich.text import Text
 from rich.theme import Theme
 
 from nozk_library import (
-    G1Point, G2Point, Scalar,
-    derive_token_secrets, blind_token,
-    mint_blind_sign, unblind_signature,
-    serialize_g1, parse_g1,
-    verify_bls_pairing, _mul_g2,
-    InvalidPointError, NozkError,
+    G1Point,
+    G2Point,
+    NozkError,
+    Scalar,
+    _mul_g2,
+    blind_token,
+    derive_token_secrets,
+    mint_blind_sign,
+    parse_g1,
+    serialize_g1,
+    unblind_signature,
+    verify_bls_pairing,
 )
 
 load_dotenv()
@@ -60,6 +65,7 @@ load_dotenv()
 # ==============================================================================
 # MOCK MINT LIBRARY
 # ==============================================================================
+
 
 class MockMintError(NozkError):
     """Raised when the mock mint encounters a configuration or signing error."""
@@ -87,9 +93,7 @@ class MockMint:
     def from_sk(cls, sk_int: int) -> "MockMint":
         """Create from an integer scalar."""
         if sk_int <= 0 or sk_int >= curve_order:
-            raise MockMintError(
-                f"BLS scalar must be in (0, curve_order), got {sk_int}"
-            )
+            raise MockMintError(f"BLS scalar must be in (0, curve_order), got {sk_int}")
         return cls(sk=Scalar(sk_int))
 
     @classmethod
@@ -117,8 +121,7 @@ class MockMint:
             return cls.from_hex(sk_int_str)
 
         raise MockMintError(
-            "Missing MINT_BLS_PRIVKEY or MINT_BLS_PRIVKEY_INT in environment. "
-            "Run generate_keys.py first."
+            "Missing MINT_BLS_PRIVKEY or MINT_BLS_PRIVKEY_INT in environment. Run generate_keys.py first."
         )
 
     # ── Signing ───────────────────────────────────────────────────────────
@@ -147,22 +150,24 @@ class MockMint:
 # CLI — integrates with client.py's .nozk_wallet.json
 # ==============================================================================
 
-nozk_theme = Theme({
-    "primary":   "bold cyan",
-    "secondary": "dim cyan",
-    "success":   "bold green",
-    "warning":   "bold yellow",
-    "error":     "bold red",
-    "muted":     "dim white",
-    "label":     "bold white",
-    "value":     "cyan",
-    "addr":      "yellow",
-    "hash":      "magenta",
-    "num":       "bright_blue",
-    "banner":    "bold bright_cyan",
-    "step":      "bold cyan",
-    "mock":      "bold magenta",
-})
+nozk_theme = Theme(
+    {
+        "primary": "bold cyan",
+        "secondary": "dim cyan",
+        "success": "bold green",
+        "warning": "bold yellow",
+        "error": "bold red",
+        "muted": "dim white",
+        "label": "bold white",
+        "value": "cyan",
+        "addr": "yellow",
+        "hash": "magenta",
+        "num": "bright_blue",
+        "banner": "bold bright_cyan",
+        "step": "bold cyan",
+        "mock": "bold magenta",
+    }
+)
 
 console = Console(theme=nozk_theme, highlight=False)
 
@@ -170,8 +175,8 @@ WALLET_STATE_FILE = Path(".nozk_wallet.json")
 
 
 class Verbosity(str, Enum):
-    quiet   = "quiet"
-    normal  = "normal"
+    quiet = "quiet"
+    normal = "normal"
     verbose = "verbose"
 
 
@@ -216,15 +221,17 @@ def sign(
       [bold]scan command[/bold]   → unblinds S and writes to wallet state
     """
     is_verbose = verbosity == Verbosity.verbose
-    is_quiet   = verbosity == Verbosity.quiet
+    is_quiet = verbosity == Verbosity.quiet
 
     if not is_quiet:
-        console.print(Panel(
-            Text.assemble(("🧪  ", ""), ("MOCK MINT · SIGN", "banner"), ("  🧪", "")),
-            subtitle=Text("Offline blind signing · no chain required", style="secondary"),
-            border_style="magenta",
-            padding=(0, 4),
-        ))
+        console.print(
+            Panel(
+                Text.assemble(("🧪  ", ""), ("MOCK MINT · SIGN", "banner"), ("  🧪", "")),
+                subtitle=Text("Offline blind signing · no chain required", style="secondary"),
+                border_style="magenta",
+                padding=(0, 4),
+            )
+        )
         console.print()
 
     # ── Load config ───────────────────────────────────────────────────────
@@ -242,13 +249,16 @@ def sign(
 
     # Derive PK for BLS verification
     from py_ecc.bn128 import G2 as G2_gen
+
     pk_mint = _mul_g2(G2Point(G2_gen), mint.sk)
 
     if not is_quiet:
-        console.print(Text.assemble(
-            ("  BLS sk loaded  ", "label"),
-            (_short(hex(mint.sk), 12, 6), "hash"),
-        ))
+        console.print(
+            Text.assemble(
+                ("  BLS sk loaded  ", "label"),
+                (_short(hex(mint.sk), 12, 6), "hash"),
+            )
+        )
         console.print()
 
     # ── Load wallet state ─────────────────────────────────────────────────
@@ -269,13 +279,19 @@ def sign(
         secrets = derive_token_secrets(master_seed, idx)
 
         if not is_quiet:
-            console.print(Text.assemble(
-                ("  Spend address  ", "label"), (secrets.spend.address, "addr"),
-                ("  (nullifier)", "muted"),
-            ))
-            console.print(Text.assemble(
-                ("  Deposit ID     ", "label"), (secrets.deposit_id, "addr"),
-            ))
+            console.print(
+                Text.assemble(
+                    ("  Spend address  ", "label"),
+                    (secrets.spend.address, "addr"),
+                    ("  (nullifier)", "muted"),
+                )
+            )
+            console.print(
+                Text.assemble(
+                    ("  Deposit ID     ", "label"),
+                    (secrets.deposit_id, "addr"),
+                )
+            )
 
         # Step 2: Blind the token (re-derive B from spend address + r)
         blinded = blind_token(secrets.spend_address_bytes, secrets.r)
@@ -315,15 +331,15 @@ def sign(
         token_key = str(idx)
         existing = state.get("tokens", {}).get(token_key, {})
         state.setdefault("tokens", {})[token_key] = {
-            "index":         idx,
+            "index": idx,
             "spend_address": secrets.spend.address,
-            "deposit_id":    secrets.deposit_id,
-            "deposit_tx":    existing.get("deposit_tx", "mock-mint-offline"),
+            "deposit_id": secrets.deposit_id,
+            "deposit_tx": existing.get("deposit_tx", "mock-mint-offline"),
             "deposit_block": existing.get("deposit_block"),
             "s_unblinded_x": hex(s_x),
             "s_unblinded_y": hex(s_y),
-            "redeem_tx":     existing.get("redeem_tx"),
-            "spent":         existing.get("spent", False),
+            "redeem_tx": existing.get("redeem_tx"),
+            "spent": existing.get("spent", False),
         }
 
         signed_count += 1
@@ -336,11 +352,13 @@ def sign(
 
     if not is_quiet:
         console.print(Rule(style="dim magenta"))
-        console.print(Text.assemble(
-            ("  🧪  Mock mint complete: ", "mock"),
-            (str(signed_count), "num"),
-            (" token(s) signed → wallet state ready for redeem --dry-run", "mock"),
-        ))
+        console.print(
+            Text.assemble(
+                ("  🧪  Mock mint complete: ", "mock"),
+                (str(signed_count), "num"),
+                (" token(s) signed → wallet state ready for redeem --dry-run", "mock"),
+            )
+        )
         console.print()
 
 

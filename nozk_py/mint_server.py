@@ -25,19 +25,16 @@ import asyncio
 import json
 import logging
 import os
-import sys
-from pathlib import Path
 import time
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 from typing import Optional
 
 import typer
 from dotenv import load_dotenv
 from rich import box
 from rich.console import Console
-from rich.layout import Layout
-from rich.live import Live
 from rich.panel import Panel
 from rich.rule import Rule
 from rich.table import Table
@@ -50,8 +47,8 @@ from web3.types import EventData
 
 from contract_errors import decode_contract_error
 from nozk_library import (
-    NozkError,
     InvalidPointError,
+    NozkError,
     Scalar,
     mint_blind_sign,
     parse_g1,
@@ -64,19 +61,19 @@ load_dotenv()
 
 nozk_theme = Theme(
     {
-        "primary":    "bold cyan",
-        "secondary":  "dim cyan",
-        "success":    "bold green",
-        "warning":    "bold yellow",
-        "error":      "bold red",
-        "muted":      "dim white",
-        "label":      "bold white",
-        "value":      "cyan",
-        "addr":       "yellow",
-        "hash":       "magenta",
-        "num":        "bright_blue",
-        "accent":     "bright_cyan",
-        "banner":     "bold bright_cyan",
+        "primary": "bold cyan",
+        "secondary": "dim cyan",
+        "success": "bold green",
+        "warning": "bold yellow",
+        "error": "bold red",
+        "muted": "dim white",
+        "label": "bold white",
+        "value": "cyan",
+        "addr": "yellow",
+        "hash": "magenta",
+        "num": "bright_blue",
+        "accent": "bright_cyan",
+        "banner": "bold bright_cyan",
     }
 )
 
@@ -86,18 +83,19 @@ install_rich_traceback(console=console, show_locals=False)
 
 # ── Verbosity ─────────────────────────────────────────────────────────────────
 
+
 class Verbosity(str, Enum):
-    quiet   = "quiet"    # errors only
-    normal  = "normal"   # key events (default)
+    quiet = "quiet"  # errors only
+    normal = "normal"  # key events (default)
     verbose = "verbose"  # all intermediate values
-    debug   = "debug"    # everything + raw data
+    debug = "debug"  # everything + raw data
 
 
 VERBOSITY_TO_LOG_LEVEL = {
-    Verbosity.quiet:   logging.ERROR,
-    Verbosity.normal:  logging.INFO,
+    Verbosity.quiet: logging.ERROR,
+    Verbosity.normal: logging.INFO,
     Verbosity.verbose: logging.DEBUG,
-    Verbosity.debug:   logging.DEBUG,
+    Verbosity.debug: logging.DEBUG,
 }
 
 # Module-level verbosity (set at startup)
@@ -117,6 +115,7 @@ def is_quiet() -> bool:
 
 
 # ── Formatted output helpers ──────────────────────────────────────────────────
+
 
 def _shorten(val: str, head: int = 10, tail: int = 8) -> str:
     """Return a shortened hex string for display."""
@@ -167,8 +166,8 @@ def print_config(config: "MintConfig") -> None:
         padding=(0, 2),
         border_style="secondary",
     )
-    table.add_column("Key",   style="label",   no_wrap=True)
-    table.add_column("Value", style="value",   no_wrap=False)
+    table.add_column("Key", style="label", no_wrap=True)
+    table.add_column("Value", style="value", no_wrap=False)
 
     # Wallet
     table.add_row("Wallet", config.wallet_address)
@@ -181,9 +180,7 @@ def print_config(config: "MintConfig") -> None:
         sk_display = hex(config.sk)
         table.add_row("BLS sk", _shorten(sk_display, head=12, tail=6))
 
-    console.print(
-        Panel(table, title="[primary]Configuration[/primary]", border_style="secondary", padding=(0, 1))
-    )
+    console.print(Panel(table, title="[primary]Configuration[/primary]", border_style="secondary", padding=(0, 1)))
     console.print()
 
 
@@ -229,12 +226,12 @@ def log_deposit_received(
         padding=(0, 2),
         border_style="cyan",
     )
-    table.add_column("Field", style="label",  no_wrap=True)
-    table.add_column("Value", style="value",  no_wrap=False)
+    table.add_column("Field", style="label", no_wrap=True)
+    table.add_column("Value", style="value", no_wrap=False)
 
-    table.add_row("Event",      "DepositLocked")
+    table.add_row("Event", "DepositLocked")
     table.add_row("Deposit ID", deposit_id)
-    table.add_row("Tx hash",    _shorten(tx_hash, head=14, tail=8))
+    table.add_row("Tx hash", _shorten(tx_hash, head=14, tail=8))
     if block is not None:
         table.add_row("Block", str(block))
 
@@ -263,12 +260,12 @@ def log_signing(b_x: int, b_y: int, s_prime_x: int, s_prime_y: int) -> None:
         border_style="secondary",
     )
     table.add_column("Field", style="label", no_wrap=True)
-    table.add_column("Value", style="hash",  no_wrap=False)
+    table.add_column("Value", style="hash", no_wrap=False)
 
-    table.add_row("B.x  (input)",   _shorten(hex(b_x),       head=18, tail=6))
-    table.add_row("B.y  (input)",   _shorten(hex(b_y),       head=18, tail=6))
-    table.add_row("S'.x (output)",  _shorten(hex(s_prime_x), head=18, tail=6))
-    table.add_row("S'.y (output)",  _shorten(hex(s_prime_y), head=18, tail=6))
+    table.add_row("B.x  (input)", _shorten(hex(b_x), head=18, tail=6))
+    table.add_row("B.y  (input)", _shorten(hex(b_y), head=18, tail=6))
+    table.add_row("S'.x (output)", _shorten(hex(s_prime_x), head=18, tail=6))
+    table.add_row("S'.y (output)", _shorten(hex(s_prime_y), head=18, tail=6))
 
     console.print(
         Panel(
@@ -384,8 +381,9 @@ def log_debug_raw(label: str, data: object) -> None:
     if not is_debug():
         return
     import json
+
     try:
-        pretty = json.dumps(dict(data), indent=2, default=str)
+        pretty = json.dumps(dict(data), indent=2, default=str)  # ty: ignore[no-matching-overload]
     except Exception:
         pretty = str(data)
     console.print(
@@ -400,15 +398,16 @@ def log_debug_raw(label: str, data: object) -> None:
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class MintConfig:
-    sk:                  Scalar
-    contract_address:    str
-    rpc_ws_url:          str
-    wallet_address:      str
-    wallet_key:          str
-    poll_interval:       float
-    log_level:           str
+    sk: Scalar
+    contract_address: str
+    rpc_ws_url: str
+    wallet_address: str
+    wallet_key: str
+    poll_interval: float
+    log_level: str
 
 
 def load_config(verbosity: Verbosity) -> MintConfig:
@@ -420,21 +419,18 @@ def load_config(verbosity: Verbosity) -> MintConfig:
             missing.append(key)
         return val
 
-    sk_hex         = require("MINT_BLS_PRIVKEY")
-    contract_addr  = require("CONTRACT_ADDRESS")
-    rpc_ws_url     = require("RPC_WS_URL")
+    sk_hex = require("MINT_BLS_PRIVKEY")
+    contract_addr = require("CONTRACT_ADDRESS")
+    rpc_ws_url = require("RPC_WS_URL")
     wallet_address = require("MINT_WALLET_ADDRESS")
-    wallet_key     = require("MINT_WALLET_KEY")
+    wallet_key = require("MINT_WALLET_KEY")
 
     if missing:
         console.print(
             Panel(
                 Text.assemble(
                     ("Missing environment variables:\n\n", "error"),
-                    *[
-                        Text.assemble(("  • ", "muted"), (k, "label"), ("\n", ""))
-                        for k in missing
-                    ],
+                    *[Text.assemble(("  • ", "muted"), (k, "label"), ("\n", "")) for k in missing],
                     ("\nRun generate_keys.py to create a .env file.", "secondary"),
                 ),
                 title="[error]❌  Configuration Error[/error]",
@@ -468,6 +464,7 @@ NOZK_VAULT_ABI = json.loads(_ABI_PATH.read_text())
 
 # ── Signing logic ─────────────────────────────────────────────────────────────
 
+
 def sign_deposit(blinded_point_raw: list[int], sk: Scalar) -> tuple[int, int]:
     """
     Core mint operation: validates the submitted G1 point and blind-signs it.
@@ -480,6 +477,7 @@ def sign_deposit(blinded_point_raw: list[int], sk: Scalar) -> tuple[int, int]:
 
 
 # ── Mint daemon ───────────────────────────────────────────────────────────────
+
 
 class MintDaemon:
     def __init__(self, config: MintConfig) -> None:
@@ -504,7 +502,7 @@ class MintDaemon:
             if not await w3.is_connected():
                 raise ConnectionError("WebSocket handshake failed")
 
-            chain_id     = await w3.eth.chain_id
+            chain_id = await w3.eth.chain_id
             latest_block = await w3.eth.block_number
             log_connected(chain_id, latest_block)
 
@@ -513,9 +511,7 @@ class MintDaemon:
                 abi=NOZK_VAULT_ABI,
             )
 
-            event_filter = await contract.events.DepositLocked.create_filter(
-                from_block="latest"
-            )
+            event_filter = await contract.events.DepositLocked.create_filter(from_block="latest")
             log_listening()
 
             while True:
@@ -531,9 +527,9 @@ class MintDaemon:
         event: EventData,
     ) -> None:
         deposit_id = event["args"]["depositId"]
-        b_coords   = event["args"]["B"]
-        tx_hash    = event["transactionHash"].hex()
-        block_num  = event.get("blockNumber")
+        b_coords = event["args"]["B"]
+        tx_hash = event["transactionHash"].hex()
+        block_num = event.get("blockNumber")
 
         b_x = int(b_coords[0])
         b_y = int(b_coords[1])
@@ -577,8 +573,8 @@ class MintDaemon:
         deposit_id: str,
         s_prime_coords: list[int],
     ) -> None:
-        wallet    = AsyncWeb3.to_checksum_address(self.config.wallet_address)
-        nonce     = await w3.eth.get_transaction_count(wallet)
+        wallet = AsyncWeb3.to_checksum_address(self.config.wallet_address)
+        nonce = await w3.eth.get_transaction_count(wallet)
         gas_price = await w3.eth.gas_price
 
         if is_verbose():
@@ -596,15 +592,17 @@ class MintDaemon:
             tx = await contract.functions.announce(
                 deposit_id,
                 s_prime_coords,
-            ).build_transaction({
-                "from":     wallet,
-                "nonce":    nonce,
-                "gasPrice": gas_price,
-            })
+            ).build_transaction(
+                {
+                    "from": wallet,
+                    "nonce": nonce,
+                    "gasPrice": gas_price,
+                }
+            )
         except (ContractCustomError, ContractLogicError) as exc:
             raise Exception(f"announce() reverted: {decode_contract_error(exc)}") from exc
 
-        signed  = w3.eth.account.sign_transaction(tx, private_key=self.config.wallet_key)
+        signed = w3.eth.account.sign_transaction(tx, private_key=self.config.wallet_key)
         tx_hash = await w3.eth.send_raw_transaction(signed.raw_transaction)
 
         log_announce_sent(deposit_id, tx_hash.hex())
@@ -633,7 +631,8 @@ app = typer.Typer(
 def run(
     verbosity: Verbosity = typer.Option(
         Verbosity.normal,
-        "--verbosity", "-v",
+        "--verbosity",
+        "-v",
         help=(
             "[bold]quiet[/bold] errors only · "
             "[bold]normal[/bold] key events · "
@@ -664,9 +663,7 @@ def run(
 
     # Python logging — suppressed by Rich for normal use; enabled at debug level
     effective_log_level = (
-        getattr(logging, log_level.upper(), logging.WARNING)
-        if log_level
-        else VERBOSITY_TO_LOG_LEVEL[verbosity]
+        getattr(logging, log_level.upper(), logging.WARNING) if log_level else VERBOSITY_TO_LOG_LEVEL[verbosity]
     )
     logging.basicConfig(
         level=effective_log_level,

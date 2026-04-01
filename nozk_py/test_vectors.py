@@ -10,12 +10,13 @@ Then re-run pytest — new files are picked up automatically.
 """
 
 import json
-import pytest
 from pathlib import Path
+
+import pytest
 from py_ecc.bn128 import G2
 
 import nozk_library as gl
-from nozk_library import Scalar, G2Point, _mul_g2
+from nozk_library import G2Point, Scalar, _mul_g2
 
 # ==============================================================================
 # VECTOR DISCOVERY
@@ -33,10 +34,7 @@ def load_all_vectors() -> list[tuple[str, dict]]:
         return []
     # Only collect token_*.json inside keypair subdirectories (skip manifest.json etc.)
     files = sorted(f for f in VECTORS_DIR.rglob("token_*.json") if f.parent != VECTORS_DIR)
-    return [
-        (f"{f.parent.name}/{f.stem}", json.loads(f.read_text()))
-        for f in files
-    ]
+    return [(f"{f.parent.name}/{f.stem}", json.loads(f.read_text())) for f in files]
 
 
 ALL_VECTORS = load_all_vectors()
@@ -51,6 +49,7 @@ PARAMS = [v[1] for v in ALL_VECTORS]
 # ==============================================================================
 # PARAMETRIZED TESTS
 # ==============================================================================
+
 
 @pytest.mark.parametrize("v", PARAMS, ids=IDS)
 def test_mint_pk_vector(v):
@@ -83,8 +82,10 @@ def test_redemption_proof_vector(v):
     eip712 = v["EIP712"]
 
     proof = gl.generate_redemption_proof(
-        secrets.spend_priv, redeem["recipient"],
-        eip712["chain_id"], eip712["contract_address"],
+        secrets.spend_priv,
+        redeem["recipient"],
+        eip712["chain_id"],
+        eip712["contract_address"],
         int(eip712["deadline"], 16),
     )
 
@@ -95,18 +96,21 @@ def test_redemption_proof_vector(v):
     assert proof.recovery_bit == redeem["recovery_bit"]
 
     # Verify the proof reconstructs correctly from its parts
-    assert gl.verify_ecdsa_mev_protection(
-        proof.msg_hash,
-        proof.compact_hex,
-        proof.recovery_bit,
-        secrets.spend.address,
-    ) is True
+    assert (
+        gl.verify_ecdsa_mev_protection(
+            proof.msg_hash,
+            proof.compact_hex,
+            proof.recovery_bit,
+            secrets.spend.address,
+        )
+        is True
+    )
 
     # Verify the spend_signature encoding: r(32) || s(32) || v(1)
     expected_sig = redeem["spend_signature"]
     r_hex = proof.compact_hex[:64]
     s_hex = proof.compact_hex[64:]
-    v_hex = format(proof.recovery_bit + 27, '02x')
+    v_hex = format(proof.recovery_bit + 27, "02x")
     assert r_hex + s_hex + v_hex == expected_sig
 
 

@@ -27,7 +27,6 @@ from pathlib import Path
 
 from eth_utils import keccak
 
-
 # ── Build selector → name mapping from ABI ────────────────────────────────────
 
 _ABI_PATH = Path(__file__).resolve().parent / ".." / "abi" / "nozk_vault_abi.json"
@@ -47,18 +46,25 @@ for entry in _abi:
 # ── Diagnostic hints per error name ───────────────────────────────────────────
 
 _HINTS: dict[str, str] = {
-    "InvalidValue":            "msg.value must be exactly 0.001 ETH (DENOMINATION)",
-    "InvalidECDSA":            "ecrecover returned address(0) — spend signature is malformed or msg_hash doesn't match the contract's redemptionMessageHash()",
-    "AlreadySpent":            "this nullifier (spend address) has already been redeemed",
-    "InvalidBLS":              "the BLS pairing check failed on-chain — e(S, G2) != e(Y, PK_mint). Possible causes: wrong mint keypair, corrupted S from scan, or hash-to-curve mismatch between Python and Solidity",
-    "InvalidSignatureLength":  "spend signature must be exactly 65 bytes (r‖s‖v)",
-    "EthSendFailed":           "ETH transfer to recipient failed (recipient may be a contract that rejects ETH)",
-    "HashToCurveFailed":       "hash-to-curve did not converge within MAX_H2C_ITERS iterations",
-    "NotMintAuthority":        "caller is not the registered mintAuthority address",
-    "DepositNotFound":         "no pending deposit exists for this depositId",
-    "DepositIdAlreadyUsed":    "a deposit with this depositId has already been registered",
-    "AlreadyFulfilled":        "the mint has already announced a signature for this depositId",
-    "InvalidDepositId":        "depositId must not be address(0)",
+    "InvalidValue": "msg.value must be exactly 0.001 ETH (DENOMINATION)",
+    "InvalidECDSA": (
+        "ecrecover returned address(0) — spend signature is malformed"
+        " or msg_hash doesn't match the contract's redemptionMessageHash()"
+    ),
+    "AlreadySpent": "this nullifier (spend address) has already been redeemed",
+    "InvalidBLS": (
+        "the BLS pairing check failed on-chain — e(S, G2) != e(Y, PK_mint)."
+        " Possible causes: wrong mint keypair, corrupted S from scan,"
+        " or hash-to-curve mismatch between Python and Solidity"
+    ),
+    "InvalidSignatureLength": "spend signature must be exactly 65 bytes (r‖s‖v)",
+    "EthSendFailed": "ETH transfer to recipient failed (recipient may be a contract that rejects ETH)",
+    "HashToCurveFailed": "hash-to-curve did not converge within MAX_H2C_ITERS iterations",
+    "NotMintAuthority": "caller is not the registered mintAuthority address",
+    "DepositNotFound": "no pending deposit exists for this depositId",
+    "DepositIdAlreadyUsed": "a deposit with this depositId has already been registered",
+    "AlreadyFulfilled": "the mint has already announced a signature for this depositId",
+    "InvalidDepositId": "depositId must not be address(0)",
 }
 
 
@@ -119,6 +125,7 @@ def _extract_selector(error) -> str | None:
     # Last resort: str(error) might contain "0xXXXXXXXX"
     s = str(error)
     import re
+
     match = re.search(r"0x([0-9a-fA-F]{8,})", s)
     if match:
         return match.group(1)[:8].lower()

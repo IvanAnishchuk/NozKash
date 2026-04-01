@@ -1,6 +1,8 @@
 """Derive MINT_BLS_PUBKEY from a BLS private key scalar."""
+
 import sys
-from py_ecc.bn128 import G2, multiply, curve_order
+
+from py_ecc.bn128 import G2, curve_order, multiply
 
 if len(sys.argv) != 2:
     print(f"Usage: {sys.argv[0]} 0x<bls_privkey_hex>")

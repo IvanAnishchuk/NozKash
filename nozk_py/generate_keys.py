@@ -34,37 +34,37 @@ Usage:
     uv run generate_keys.py --with-wallet --with-mint-wallet  # generate both keypairs
 """
 
-import os
 import secrets
-import sys
-from enum import Enum
 from pathlib import Path
 from typing import Annotated, Optional
 
 import typer
-from py_ecc.bn128 import curve_order, G2, multiply as bn128_multiply
+from py_ecc.bn128 import G2, curve_order
+from py_ecc.bn128 import multiply as bn128_multiply
 from rich.console import Console
 from rich.panel import Panel
 from rich.rule import Rule
 from rich.text import Text
 from rich.theme import Theme
 
-nozk_theme = Theme({
-    "primary":   "bold cyan",
-    "secondary": "dim cyan",
-    "success":   "bold green",
-    "warning":   "bold yellow",
-    "error":     "bold red",
-    "muted":     "dim white",
-    "label":     "bold white",
-    "value":     "cyan",
-    "addr":      "yellow",
-    "hash":      "magenta",
-    "num":       "bright_blue",
-    "banner":    "bold bright_cyan",
-    "key":       "bold bright_yellow",
-    "secret":    "bold red",
-})
+nozk_theme = Theme(
+    {
+        "primary": "bold cyan",
+        "secondary": "dim cyan",
+        "success": "bold green",
+        "warning": "bold yellow",
+        "error": "bold red",
+        "muted": "dim white",
+        "label": "bold white",
+        "value": "cyan",
+        "addr": "yellow",
+        "hash": "magenta",
+        "num": "bright_blue",
+        "banner": "bold bright_cyan",
+        "key": "bold bright_yellow",
+        "secret": "bold red",
+    }
+)
 
 console = Console(theme=nozk_theme, highlight=False)
 
@@ -74,6 +74,7 @@ ENV_FILE = Path(".env")
 # ==============================================================================
 # KEY GENERATION
 # ==============================================================================
+
 
 def generate_master_seed() -> str:
     """Generate a 32-byte hex master seed for HD-style token derivation."""
@@ -128,6 +129,7 @@ def derive_bls_pubkey_hex(sk: int) -> str:
 # ==============================================================================
 # ENV FILE CONSTRUCTION
 # ==============================================================================
+
 
 def build_env_content(
     master_seed: str,
@@ -250,38 +252,65 @@ app = typer.Typer(
 
 @app.callback(invoke_without_command=True)
 def main(
-    force: Annotated[bool, typer.Option(
-        "--force", "-f",
-        help="Overwrite existing .env file.",
-    )] = False,
-    print_only: Annotated[bool, typer.Option(
-        "--print", "-p",
-        help="Print generated config to stdout without writing .env.",
-    )] = False,
-    with_wallet: Annotated[bool, typer.Option(
-        "--with-wallet", "-w",
-        help="Also generate an Ethereum deposit wallet keypair.",
-    )] = False,
-    with_mint_wallet: Annotated[bool, typer.Option(
-        "--with-mint-wallet",
-        help="Also generate an Ethereum keypair for the mint server (announce() gas).",
-    )] = False,
-    rpc_url: Annotated[Optional[str], typer.Option(
-        "--rpc-url",
-        help="HTTP RPC URL for the CLI wallet (e.g. your Infura Sepolia endpoint).",
-    )] = None,
-    rpc_ws_url: Annotated[Optional[str], typer.Option(
-        "--rpc-ws-url",
-        help="WebSocket RPC URL for the mint server (e.g. wss://sepolia.infura.io/ws/v3/...).",
-    )] = None,
-    contract: Annotated[Optional[str], typer.Option(
-        "--contract",
-        help="NozkVault contract address to include.",
-    )] = None,
-    scan_from: Annotated[Optional[str], typer.Option(
-        "--scan-from",
-        help="Block number to start scanning from.",
-    )] = None,
+    force: Annotated[
+        bool,
+        typer.Option(
+            "--force",
+            "-f",
+            help="Overwrite existing .env file.",
+        ),
+    ] = False,
+    print_only: Annotated[
+        bool,
+        typer.Option(
+            "--print",
+            "-p",
+            help="Print generated config to stdout without writing .env.",
+        ),
+    ] = False,
+    with_wallet: Annotated[
+        bool,
+        typer.Option(
+            "--with-wallet",
+            "-w",
+            help="Also generate an Ethereum deposit wallet keypair.",
+        ),
+    ] = False,
+    with_mint_wallet: Annotated[
+        bool,
+        typer.Option(
+            "--with-mint-wallet",
+            help="Also generate an Ethereum keypair for the mint server (announce() gas).",
+        ),
+    ] = False,
+    rpc_url: Annotated[
+        Optional[str],
+        typer.Option(
+            "--rpc-url",
+            help="HTTP RPC URL for the CLI wallet (e.g. your Infura Sepolia endpoint).",
+        ),
+    ] = None,
+    rpc_ws_url: Annotated[
+        Optional[str],
+        typer.Option(
+            "--rpc-ws-url",
+            help="WebSocket RPC URL for the mint server (e.g. wss://sepolia.infura.io/ws/v3/...).",
+        ),
+    ] = None,
+    contract: Annotated[
+        Optional[str],
+        typer.Option(
+            "--contract",
+            help="NozkVault contract address to include.",
+        ),
+    ] = None,
+    scan_from: Annotated[
+        Optional[str],
+        typer.Option(
+            "--scan-from",
+            help="Block number to start scanning from.",
+        ),
+    ] = None,
 ) -> None:
     """
     Generate keys and write a .env file.
@@ -293,50 +322,63 @@ def main(
     --with-mint-wallet to generate a mint server keypair, and
     --rpc-url / --rpc-ws-url / --contract to include chain settings.
     """
-    console.print(Panel(
-        Text.assemble(("🔑  ", ""), ("GHOST-TIP KEY GENERATOR", "banner"), ("  🔑", "")),
-        subtitle=Text("All secrets use CSPRNG · Never commit .env to git", style="secondary"),
-        border_style="cyan",
-        padding=(0, 4),
-    ))
+    console.print(
+        Panel(
+            Text.assemble(("🔑  ", ""), ("GHOST-TIP KEY GENERATOR", "banner"), ("  🔑", "")),
+            subtitle=Text("All secrets use CSPRNG · Never commit .env to git", style="secondary"),
+            border_style="cyan",
+            padding=(0, 4),
+        )
+    )
     console.print()
 
     # ── Safety check ──────────────────────────────────────────────────────
     if ENV_FILE.exists() and not force and not print_only:
-        console.print(Panel(
-            Text.assemble(
-                ("Existing .env found at ", "warning"),
-                (str(ENV_FILE.resolve()), "value"),
-                ("\n\nTo overwrite, run with ", "warning"),
-                ("--force", "key"),
-                ("\nTo preview without writing, run with ", "warning"),
-                ("--print", "key"),
-            ),
-            title="⚠️  File exists",
-            border_style="yellow",
-            padding=(1, 2),
-        ))
+        console.print(
+            Panel(
+                Text.assemble(
+                    ("Existing .env found at ", "warning"),
+                    (str(ENV_FILE.resolve()), "value"),
+                    ("\n\nTo overwrite, run with ", "warning"),
+                    ("--force", "key"),
+                    ("\nTo preview without writing, run with ", "warning"),
+                    ("--print", "key"),
+                ),
+                title="⚠️  File exists",
+                border_style="yellow",
+                padding=(1, 2),
+            )
+        )
         raise typer.Exit(code=1)
 
     # ── Generate secrets ──────────────────────────────────────────────────
     console.print(Rule("[step]Generating Protocol Secrets[/step]", style="dim cyan"))
 
     master_seed = generate_master_seed()
-    console.print(Text.assemble(
-        ("  MASTER_SEED        ", "label"), (master_seed[:16] + "…" + master_seed[-8:], "hash"),
-        ("  (64 hex chars)", "muted"),
-    ))
+    console.print(
+        Text.assemble(
+            ("  MASTER_SEED        ", "label"),
+            (master_seed[:16] + "…" + master_seed[-8:], "hash"),
+            ("  (64 hex chars)", "muted"),
+        )
+    )
 
     bls_sk = generate_bls_scalar()
     bls_sk_hex = hex(bls_sk)
-    console.print(Text.assemble(
-        ("  MINT_BLS_PRIVKEY   ", "label"), (bls_sk_hex[:20] + "…" + bls_sk_hex[-8:], "hash"),
-    ))
+    console.print(
+        Text.assemble(
+            ("  MINT_BLS_PRIVKEY   ", "label"),
+            (bls_sk_hex[:20] + "…" + bls_sk_hex[-8:], "hash"),
+        )
+    )
 
     pk_summary = derive_bls_pubkey_summary(bls_sk)
-    console.print(Text.assemble(
-        ("  PK_mint            ", "label"), (pk_summary, "value"),
-    ))
+    console.print(
+        Text.assemble(
+            ("  PK_mint            ", "label"),
+            (pk_summary, "value"),
+        )
+    )
     console.print()
 
     # ── Optional: deposit wallet ──────────────────────────────────────────
@@ -346,13 +388,19 @@ def main(
     if with_wallet:
         console.print(Rule("[step]Generating Deposit Wallet[/step]", style="dim cyan"))
         wallet_address, wallet_key = generate_eth_keypair()
-        console.print(Text.assemble(
-            ("  WALLET_ADDRESS     ", "label"), (wallet_address, "addr"),
-        ))
-        console.print(Text.assemble(
-            ("  WALLET_KEY         ", "label"), (wallet_key[:10] + "…" + wallet_key[-6:], "secret"),
-            ("  (keep secret!)", "muted"),
-        ))
+        console.print(
+            Text.assemble(
+                ("  WALLET_ADDRESS     ", "label"),
+                (wallet_address, "addr"),
+            )
+        )
+        console.print(
+            Text.assemble(
+                ("  WALLET_KEY         ", "label"),
+                (wallet_key[:10] + "…" + wallet_key[-6:], "secret"),
+                ("  (keep secret!)", "muted"),
+            )
+        )
         console.print()
 
     # ── Optional: mint wallet ─────────────────────────────────────────────
@@ -362,13 +410,19 @@ def main(
     if with_mint_wallet:
         console.print(Rule("[step]Generating Mint Wallet[/step]", style="dim cyan"))
         mint_wallet_address, mint_wallet_key = generate_eth_keypair()
-        console.print(Text.assemble(
-            ("  MINT_WALLET_ADDRESS ", "label"), (mint_wallet_address, "addr"),
-        ))
-        console.print(Text.assemble(
-            ("  MINT_WALLET_KEY     ", "label"), (mint_wallet_key[:10] + "…" + mint_wallet_key[-6:], "secret"),
-            ("  (keep secret!)", "muted"),
-        ))
+        console.print(
+            Text.assemble(
+                ("  MINT_WALLET_ADDRESS ", "label"),
+                (mint_wallet_address, "addr"),
+            )
+        )
+        console.print(
+            Text.assemble(
+                ("  MINT_WALLET_KEY     ", "label"),
+                (mint_wallet_key[:10] + "…" + mint_wallet_key[-6:], "secret"),
+                ("  (keep secret!)", "muted"),
+            )
+        )
         console.print()
 
     # ── Build .env content ────────────────────────────────────────────────
@@ -391,84 +445,122 @@ def main(
         console.print()
         console.print(env_content)
         console.print()
-        console.print(Text(
-            "  ℹ️   Run without --print to write to disk.",
-            style="muted",
-        ))
+        console.print(
+            Text(
+                "  ℹ️   Run without --print to write to disk.",
+                style="muted",
+            )
+        )
     else:
         ENV_FILE.write_text(env_content)
         console.print(Rule("[step]Configuration Written[/step]", style="dim cyan"))
-        console.print(Text.assemble(
-            ("  📄  Written to ", "success"), (str(ENV_FILE.resolve()), "value"),
-        ))
+        console.print(
+            Text.assemble(
+                ("  📄  Written to ", "success"),
+                (str(ENV_FILE.resolve()), "value"),
+            )
+        )
 
     console.print()
 
     # ── Next steps ────────────────────────────────────────────────────────
     console.print(Rule("[step]Next Steps[/step]", style="dim cyan"))
     console.print()
-    console.print(Text.assemble(
-        ("  1. ", "num"), ("Mock flow ", "label"), ("(works right now — no ETH needed):", "muted"),
-    ))
-    console.print(Text(
-        "     ./nozk_flow.sh --to 0xAnyAddress --mock",
-        style="value",
-    ))
+    console.print(
+        Text.assemble(
+            ("  1. ", "num"),
+            ("Mock flow ", "label"),
+            ("(works right now — no ETH needed):", "muted"),
+        )
+    )
+    console.print(
+        Text(
+            "     ./nozk_flow.sh --to 0xAnyAddress --mock",
+            style="value",
+        )
+    )
     console.print()
-    console.print(Text.assemble(
-        ("  2. ", "num"), ("Real flow ", "label"), ("(needs Sepolia ETH + contract):", "muted"),
-    ))
+    console.print(
+        Text.assemble(
+            ("  2. ", "num"),
+            ("Real flow ", "label"),
+            ("(needs Sepolia ETH + contract):", "muted"),
+        )
+    )
     if not with_wallet:
-        console.print(Text(
-            "     • Re-run with --with-wallet to generate a deposit keypair",
-            style="muted",
-        ))
+        console.print(
+            Text(
+                "     • Re-run with --with-wallet to generate a deposit keypair",
+                style="muted",
+            )
+        )
     else:
-        console.print(Text.assemble(
-            ("     • Fund ", "muted"), (wallet_address, "addr"),
-            (" with Sepolia ETH", "muted"),
-        ))
+        console.print(
+            Text.assemble(
+                ("     • Fund ", "muted"),
+                (wallet_address, "addr"),
+                (" with Sepolia ETH", "muted"),
+            )
+        )
     if not with_mint_wallet:
-        console.print(Text(
-            "     • Re-run with --with-mint-wallet to generate a mint server keypair",
-            style="muted",
-        ))
+        console.print(
+            Text(
+                "     • Re-run with --with-mint-wallet to generate a mint server keypair",
+                style="muted",
+            )
+        )
     else:
-        console.print(Text.assemble(
-            ("     • Fund ", "muted"), (mint_wallet_address, "addr"),
-            (" with Sepolia ETH (mint gas)", "muted"),
-        ))
+        console.print(
+            Text.assemble(
+                ("     • Fund ", "muted"),
+                (mint_wallet_address, "addr"),
+                (" with Sepolia ETH (mint gas)", "muted"),
+            )
+        )
     if not rpc_url:
-        console.print(Text(
-            "     • Edit .env → set RPC_HTTP_URL to your Infura/Alchemy endpoint",
-            style="muted",
-        ))
+        console.print(
+            Text(
+                "     • Edit .env → set RPC_HTTP_URL to your Infura/Alchemy endpoint",
+                style="muted",
+            )
+        )
     if not rpc_ws_url:
-        console.print(Text(
-            "     • Edit .env → set RPC_WS_URL to your WebSocket endpoint (for mint server)",
+        console.print(
+            Text(
+                "     • Edit .env → set RPC_WS_URL to your WebSocket endpoint (for mint server)",
+                style="muted",
+            )
+        )
+    console.print(
+        Text(
+            "     • Edit .env → set CONTRACT_ADDRESS after deploying NozkVault",
             style="muted",
-        ))
-    console.print(Text(
-        "     • Edit .env → set CONTRACT_ADDRESS after deploying NozkVault",
-        style="muted",
-    ))
-    console.print(Text(
-        "     • ./nozk_flow.sh --to 0xRecipient",
-        style="value",
-    ))
+        )
+    )
+    console.print(
+        Text(
+            "     • ./nozk_flow.sh --to 0xRecipient",
+            style="value",
+        )
+    )
     console.print()
 
     # ── Security reminder ─────────────────────────────────────────────────
-    console.print(Panel(
-        Text.assemble(
-            ("Back up .env securely. It contains private keys.\n", "warning"),
-            ("Add ", "muted"), (".env", "value"), (" to ", "muted"), (".gitignore", "value"),
-            (" — never commit secrets to version control.", "muted"),
-        ),
-        title="🔒  Security",
-        border_style="yellow",
-        padding=(0, 2),
-    ))
+    console.print(
+        Panel(
+            Text.assemble(
+                ("Back up .env securely. It contains private keys.\n", "warning"),
+                ("Add ", "muted"),
+                (".env", "value"),
+                (" to ", "muted"),
+                (".gitignore", "value"),
+                (" — never commit secrets to version control.", "muted"),
+            ),
+            title="🔒  Security",
+            border_style="yellow",
+            padding=(0, 2),
+        )
+    )
     console.print()
 
 

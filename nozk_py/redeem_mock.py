@@ -39,8 +39,7 @@ from typing import Annotated, Optional
 
 import typer
 from dotenv import load_dotenv
-from py_ecc.bn128 import G2 as G2_gen, curve_order
-from rich import box
+from py_ecc.bn128 import G2 as G2_gen
 from rich.console import Console
 from rich.panel import Panel
 from rich.rule import Rule
@@ -48,12 +47,17 @@ from rich.text import Text
 from rich.theme import Theme
 
 from nozk_library import (
-    G1Point, G2Point, Scalar,
-    derive_token_secrets, hash_to_curve, parse_g1, serialize_g1,
-    generate_redemption_proof,
-    verify_bls_pairing, verify_ecdsa_mev_protection,
+    G2Point,
+    InvalidPointError,
+    NozkError,
+    Scalar,
     _mul_g2,
-    NozkError, InvalidPointError,
+    derive_token_secrets,
+    generate_redemption_proof,
+    hash_to_curve,
+    parse_g1,
+    verify_bls_pairing,
+    verify_ecdsa_mev_protection,
 )
 
 load_dotenv()
@@ -63,6 +67,7 @@ load_dotenv()
 # MOCK REDEEMER LIBRARY
 # ==============================================================================
 
+
 class MockRedeemError(NozkError):
     """Raised for mock redeemer configuration errors."""
 
@@ -71,16 +76,16 @@ class MockRedeemError(NozkError):
 class RedeemResult:
     """Result of a mock redemption attempt."""
 
-    success:    bool
-    nullifier:  Optional[str] = None
-    recipient:  Optional[str] = None
-    reason:     Optional[str] = None
+    success: bool
+    nullifier: Optional[str] = None
+    recipient: Optional[str] = None
+    reason: Optional[str] = None
 
     # Intermediate values for debugging
     ecrecover_address: Optional[str] = None
-    bls_pairing_ok:    Optional[bool] = None
-    ecdsa_ok:          Optional[bool] = None
-    nullifier_spent:   Optional[bool] = None
+    bls_pairing_ok: Optional[bool] = None
+    ecdsa_ok: Optional[bool] = None
+    nullifier_spent: Optional[bool] = None
 
     def __str__(self) -> str:
         if self.success:
@@ -131,9 +136,7 @@ class MockRedeemer:
         elif sk_int_str:
             sk = int(sk_int_str, 16) if sk_int_str.startswith("0x") else int(sk_int_str)
         else:
-            raise MockRedeemError(
-                "Missing MINT_BLS_PRIVKEY or MINT_BLS_PRIVKEY_INT in environment."
-            )
+            raise MockRedeemError("Missing MINT_BLS_PRIVKEY or MINT_BLS_PRIVKEY_INT in environment.")
         return cls.from_sk(sk)
 
     # ── Core redemption ───────────────────────────────────────────────────
@@ -171,6 +174,7 @@ class MockRedeemer:
             return result
 
         from eth_keys import keys
+
         from nozk_library import eip712_redemption_hash
 
         # Match Solidity: EIP-712 redemptionMessageHash(recipient, deadline)
@@ -178,7 +182,7 @@ class MockRedeemer:
 
         r_bytes = spend_signature_bytes[:32]
         s_bytes = spend_signature_bytes[32:64]
-        v_byte  = spend_signature_bytes[64]
+        v_byte = spend_signature_bytes[64]
 
         if v_byte not in (27, 28):
             result.reason = f"Invalid v byte: {v_byte} (expected 27 or 28)"
@@ -202,7 +206,10 @@ class MockRedeemer:
 
         # ── Step 2: ECDSA verification ────────────────────────────────────
         result.ecdsa_ok = verify_ecdsa_mev_protection(
-            msg_hash, compact_hex, recovery_bit, nullifier,
+            msg_hash,
+            compact_hex,
+            recovery_bit,
+            nullifier,
         )
         if not result.ecdsa_ok:
             result.reason = "ECDSA verification failed (ecrecover address mismatch)"
@@ -252,8 +259,8 @@ class MockRedeemer:
         """
         r_bytes = bytes.fromhex(compact_hex[:64])
         s_bytes = bytes.fromhex(compact_hex[64:])
-        v_byte  = bytes([recovery_bit + 27])
-        sig_65  = r_bytes + s_bytes + v_byte
+        v_byte = bytes([recovery_bit + 27])
+        sig_65 = r_bytes + s_bytes + v_byte
         return self.redeem(recipient, sig_65, unblinded_s_x, unblinded_s_y)
 
     def is_spent(self, nullifier: str) -> bool:
@@ -267,22 +274,24 @@ class MockRedeemer:
 # CLI — reads wallet state, builds redeem payload, verifies everything
 # ==============================================================================
 
-nozk_theme = Theme({
-    "primary":   "bold cyan",
-    "secondary": "dim cyan",
-    "success":   "bold green",
-    "warning":   "bold yellow",
-    "error":     "bold red",
-    "muted":     "dim white",
-    "label":     "bold white",
-    "value":     "cyan",
-    "addr":      "yellow",
-    "hash":      "magenta",
-    "num":       "bright_blue",
-    "banner":    "bold bright_cyan",
-    "step":      "bold cyan",
-    "mock":      "bold magenta",
-})
+nozk_theme = Theme(
+    {
+        "primary": "bold cyan",
+        "secondary": "dim cyan",
+        "success": "bold green",
+        "warning": "bold yellow",
+        "error": "bold red",
+        "muted": "dim white",
+        "label": "bold white",
+        "value": "cyan",
+        "addr": "yellow",
+        "hash": "magenta",
+        "num": "bright_blue",
+        "banner": "bold bright_cyan",
+        "step": "bold cyan",
+        "mock": "bold magenta",
+    }
+)
 
 console = Console(theme=nozk_theme, highlight=False)
 
@@ -290,8 +299,8 @@ WALLET_STATE_FILE = Path(".nozk_wallet.json")
 
 
 class Verbosity(str, Enum):
-    quiet   = "quiet"
-    normal  = "normal"
+    quiet = "quiet"
+    normal = "normal"
     verbose = "verbose"
 
 
@@ -315,7 +324,7 @@ def _encode_spend_signature(compact_hex: str, recovery_bit: int) -> bytes:
     """Encode compact_hex + recovery_bit into the 65-byte format the contract expects."""
     r_bytes = bytes.fromhex(compact_hex[:64])
     s_bytes = bytes.fromhex(compact_hex[64:])
-    v_byte  = bytes([recovery_bit + 27])
+    v_byte = bytes([recovery_bit + 27])
     return r_bytes + s_bytes + v_byte
 
 
@@ -344,15 +353,17 @@ def verify(
     ecrecover → nullifier check → BLS pairing.
     """
     is_verbose = verbosity == Verbosity.verbose
-    is_quiet   = verbosity == Verbosity.quiet
+    is_quiet = verbosity == Verbosity.quiet
 
     if not is_quiet:
-        console.print(Panel(
-            Text.assemble(("🔍  ", ""), ("MOCK REDEEMER · VERIFY", "banner"), ("  🔍", "")),
-            subtitle=Text("NozkVault.redeem() simulation · no chain required", style="secondary"),
-            border_style="magenta",
-            padding=(0, 4),
-        ))
+        console.print(
+            Panel(
+                Text.assemble(("🔍  ", ""), ("MOCK REDEEMER · VERIFY", "banner"), ("  🔍", "")),
+                subtitle=Text("NozkVault.redeem() simulation · no chain required", style="secondary"),
+                border_style="magenta",
+                padding=(0, 4),
+            )
+        )
         console.print()
 
     # ── Load config ───────────────────────────────────────────────────────
@@ -389,12 +400,18 @@ def verify(
 
     if not is_quiet:
         console.print(Rule(f"[step]Step 1 · Load Token #{index}[/step]", style="dim magenta"))
-        console.print(Text.assemble(
-            ("  Spend address  ", "label"), (rec["spend_address"], "addr"),
-        ))
-        console.print(Text.assemble(
-            ("  Deposit ID     ", "label"), (rec["deposit_id"], "addr"),
-        ))
+        console.print(
+            Text.assemble(
+                ("  Spend address  ", "label"),
+                (rec["spend_address"], "addr"),
+            )
+        )
+        console.print(
+            Text.assemble(
+                ("  Deposit ID     ", "label"),
+                (rec["deposit_id"], "addr"),
+            )
+        )
         if is_verbose:
             console.print(Text.assemble(("  S.x            ", "label"), (_short(hex(s_x), 18, 8), "hash")))
             console.print(Text.assemble(("  S.y            ", "label"), (_short(hex(s_y), 18, 8), "hash")))
@@ -409,24 +426,42 @@ def verify(
     chain_id = int(os.getenv("CHAIN_ID", "11155111"))
     deadline = int(time.time()) + 3600
     proof = generate_redemption_proof(
-        secrets.spend_priv, to, chain_id, contract_addr, deadline,
+        secrets.spend_priv,
+        to,
+        chain_id,
+        contract_addr,
+        deadline,
     )
 
     if not is_quiet:
-        console.print(Text.assemble(
-            ("  Payload        ", "label"), (f'EIP-712 NozkRedeem(recipient={to}, deadline={deadline})', "value"),
-        ))
-        console.print(Text.assemble(
-            ("  msg_hash       ", "label"), (_short(proof.msg_hash.hex(), 18, 8), "hash"),
-        ))
-        console.print(Text.assemble(
-            ("  recovery_bit   ", "label"), (str(proof.recovery_bit), "num"),
-            ("  (v = ", "muted"), (str(proof.recovery_bit + 27), "num"), (")", "muted"),
-        ))
+        console.print(
+            Text.assemble(
+                ("  Payload        ", "label"),
+                (f"EIP-712 NozkRedeem(recipient={to}, deadline={deadline})", "value"),
+            )
+        )
+        console.print(
+            Text.assemble(
+                ("  msg_hash       ", "label"),
+                (_short(proof.msg_hash.hex(), 18, 8), "hash"),
+            )
+        )
+        console.print(
+            Text.assemble(
+                ("  recovery_bit   ", "label"),
+                (str(proof.recovery_bit), "num"),
+                ("  (v = ", "muted"),
+                (str(proof.recovery_bit + 27), "num"),
+                (")", "muted"),
+            )
+        )
         if is_verbose:
-            console.print(Text.assemble(
-                ("  compact_hex    ", "label"), (_short("0x" + proof.compact_hex, 22, 8), "hash"),
-            ))
+            console.print(
+                Text.assemble(
+                    ("  compact_hex    ", "label"),
+                    (_short("0x" + proof.compact_hex, 22, 8), "hash"),
+                )
+            )
         console.print()
 
     # ── Build 65-byte signature and run mock redeem ───────────────────────
@@ -446,23 +481,33 @@ def verify(
     )
 
     if not is_quiet:
-        console.print(Text.assemble(
-            ("  [ecrecover]    → ", "muted"), (result.ecrecover_address or "FAILED", "addr"),
-        ))
-        console.print(Text.assemble(
-            ("  [ECDSA check]  ", "label"),
-            ("✅ PASS" if result.ecdsa_ok else "❌ FAIL", "success" if result.ecdsa_ok else "error"),
-        ))
-        console.print(Text.assemble(
-            ("  [Nullifier]    ", "label"),
-            ("✅ NOT SPENT" if not result.nullifier_spent else "❌ ALREADY SPENT",
-             "success" if not result.nullifier_spent else "error"),
-        ))
-        console.print(Text.assemble(
-            ("  [BLS pairing]  ", "label"),
-            ("✅ PASS" if result.bls_pairing_ok else "❌ FAIL",
-             "success" if result.bls_pairing_ok else "error"),
-        ))
+        console.print(
+            Text.assemble(
+                ("  [ecrecover]    → ", "muted"),
+                (result.ecrecover_address or "FAILED", "addr"),
+            )
+        )
+        console.print(
+            Text.assemble(
+                ("  [ECDSA check]  ", "label"),
+                ("✅ PASS" if result.ecdsa_ok else "❌ FAIL", "success" if result.ecdsa_ok else "error"),
+            )
+        )
+        console.print(
+            Text.assemble(
+                ("  [Nullifier]    ", "label"),
+                (
+                    "✅ NOT SPENT" if not result.nullifier_spent else "❌ ALREADY SPENT",
+                    "success" if not result.nullifier_spent else "error",
+                ),
+            )
+        )
+        console.print(
+            Text.assemble(
+                ("  [BLS pairing]  ", "label"),
+                ("✅ PASS" if result.bls_pairing_ok else "❌ FAIL", "success" if result.bls_pairing_ok else "error"),
+            )
+        )
         console.print()
 
     if result.success:
@@ -473,16 +518,20 @@ def verify(
 
         if not is_quiet:
             console.print(Rule(style="dim magenta"))
-            console.print(Text.assemble(
-                ("  🎉  ", ""),
-                ("Mock redeem PASSED", "success"),
-                (" — all 4 contract checks verified off-chain.", "success"),
-            ))
-            console.print(Text.assemble(
-                ("  📝  Wallet state updated: token ", "muted"),
-                (str(index), "num"),
-                (" → SPENT", "muted"),
-            ))
+            console.print(
+                Text.assemble(
+                    ("  🎉  ", ""),
+                    ("Mock redeem PASSED", "success"),
+                    (" — all 4 contract checks verified off-chain.", "success"),
+                )
+            )
+            console.print(
+                Text.assemble(
+                    ("  📝  Wallet state updated: token ", "muted"),
+                    (str(index), "num"),
+                    (" → SPENT", "muted"),
+                )
+            )
             console.print()
     else:
         console.print(f"[error]  ❌  Redemption FAILED: {result.reason}[/error]")

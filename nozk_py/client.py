@@ -39,11 +39,9 @@ Usage:
 """
 
 import json
-import logging
 import os
-import sys
 import time
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Annotated, Optional
@@ -61,48 +59,58 @@ from rich.theme import Theme
 from rich.traceback import install as install_rich_traceback
 from web3 import Web3
 from web3.exceptions import ContractCustomError, ContractLogicError
+from web3.types import Wei
 
 from contract_errors import decode_contract_error
 from nozk_library import (
-    G1Point, G2Point, Scalar,
-    derive_token_secrets, blind_token, unblind_signature,
-    generate_redemption_proof, serialize_g1, parse_g1,
-    verify_bls_pairing, verify_ecdsa_mev_protection,
-    NozkError, InvalidPointError, _mul_g2,
+    G2Point,
+    Scalar,
+    _mul_g2,
+    blind_token,
+    derive_token_secrets,
+    generate_redemption_proof,
+    parse_g1,
+    serialize_g1,
+    unblind_signature,
+    verify_bls_pairing,
+    verify_ecdsa_mev_protection,
 )
 
 load_dotenv()
 
 # ── Rich setup ─────────────────────────────────────────────────────────────────
 
-nozk_theme = Theme({
-    "primary":   "bold cyan",
-    "secondary": "dim cyan",
-    "success":   "bold green",
-    "warning":   "bold yellow",
-    "error":     "bold red",
-    "muted":     "dim white",
-    "label":     "bold white",
-    "value":     "cyan",
-    "addr":      "yellow",
-    "hash":      "magenta",
-    "num":       "bright_blue",
-    "accent":    "bright_cyan",
-    "banner":    "bold bright_cyan",
-    "dryrun":    "bold magenta",
-    "step":      "bold cyan",
-})
+nozk_theme = Theme(
+    {
+        "primary": "bold cyan",
+        "secondary": "dim cyan",
+        "success": "bold green",
+        "warning": "bold yellow",
+        "error": "bold red",
+        "muted": "dim white",
+        "label": "bold white",
+        "value": "cyan",
+        "addr": "yellow",
+        "hash": "magenta",
+        "num": "bright_blue",
+        "accent": "bright_cyan",
+        "banner": "bold bright_cyan",
+        "dryrun": "bold magenta",
+        "step": "bold cyan",
+    }
+)
 
 console = Console(theme=nozk_theme, highlight=False)
 install_rich_traceback(console=console, show_locals=False)
 
 # ── Verbosity ──────────────────────────────────────────────────────────────────
 
+
 class Verbosity(str, Enum):
-    quiet   = "quiet"    # minimal output, just final result
-    normal  = "normal"   # key steps and results (default)
+    quiet = "quiet"  # minimal output, just final result
+    normal = "normal"  # key steps and results (default)
     verbose = "verbose"  # all intermediate cryptographic values
-    debug   = "debug"    # + raw hex, encoded calldata, etc.
+    debug = "debug"  # + raw hex, encoded calldata, etc.
 
 
 _verbosity: Verbosity = Verbosity.normal
@@ -132,7 +140,7 @@ def is_mock() -> bool:
 
 # ── Formatting helpers ─────────────────────────────────────────────────────────
 
-DENOMINATION_WEI = 1_000_000_000_000_000  # 0.001 ETH
+DENOMINATION_WEI: Wei = Wei(1_000_000_000_000_000)  # 0.001 ETH
 
 
 def _short(val: str, head: int = 10, tail: int = 8) -> str:
@@ -156,7 +164,7 @@ def _fmt_hex(value: str, width: int = 22) -> Text:
 
 def _kv_table(rows: list[tuple[str, object]], title: str = "", border: str = "secondary") -> Panel:
     table = Table(box=box.SIMPLE, show_header=False, padding=(0, 2), border_style=border)
-    table.add_column("Key",   style="label", no_wrap=True)
+    table.add_column("Key", style="label", no_wrap=True)
     table.add_column("Value", style="value", no_wrap=False)
     for k, v in rows:
         if isinstance(v, Text):
@@ -173,12 +181,14 @@ def print_banner() -> None:
     elif _dry_run:
         mode_tag = "  [dryrun][ DRY-RUN ][/dryrun]"
     console.print()
-    console.print(Panel(
-        Text.assemble(("👻  ", ""), ("GHOST-TIP CLI WALLET", "banner"), ("  👻", ""), (mode_tag, "")),
-        subtitle=Text("eCash · BLS Blind Signatures · Sepolia", style="secondary"),
-        border_style="cyan",
-        padding=(0, 4),
-    ))
+    console.print(
+        Panel(
+            Text.assemble(("👻  ", ""), ("GHOST-TIP CLI WALLET", "banner"), ("  👻", ""), (mode_tag, "")),
+            subtitle=Text("eCash · BLS Blind Signatures · Sepolia", style="secondary"),
+            border_style="cyan",
+            padding=(0, 4),
+        )
+    )
     console.print()
 
 
@@ -213,10 +223,12 @@ def kv(label: str, value: object, style: str = "value") -> None:
     if is_quiet():
         return
     v = str(value) if not isinstance(value, Text) else value
-    console.print(Text.assemble(
-        (f"    {label:<28} ", "label"),
-        (v if isinstance(v, str) else str(v), style),
-    ))
+    console.print(
+        Text.assemble(
+            (f"    {label:<28} ", "label"),
+            (v if isinstance(v, str) else str(v), style),
+        )
+    )
 
 
 def kv_hex(label: str, value: str) -> None:
@@ -231,17 +243,18 @@ def kv_hex(label: str, value: str) -> None:
 
 WALLET_STATE_FILE = Path(__file__).resolve().parent / ".." / ".nozk_wallet.json"
 
+
 @dataclass
 class TokenRecord:
-    index:         int
+    index: int
     spend_address: str
-    deposit_id:    str
-    deposit_tx:    Optional[str] = None
+    deposit_id: str
+    deposit_tx: Optional[str] = None
     deposit_block: Optional[int] = None
     s_unblinded_x: Optional[str] = None
     s_unblinded_y: Optional[str] = None
-    redeem_tx:     Optional[str] = None
-    spent:         bool = False
+    redeem_tx: Optional[str] = None
+    spent: bool = False
 
     @property
     def has_token(self) -> bool:
@@ -259,10 +272,10 @@ class TokenRecord:
     def status_styled(self) -> Text:
         s = self.status
         colours = {
-            "SPENT":            "dim white",
-            "READY_TO_REDEEM":  "bold green",
-            "AWAITING_MINT":    "yellow",
-            "FRESH":            "dim",
+            "SPENT": "dim white",
+            "READY_TO_REDEEM": "bold green",
+            "AWAITING_MINT": "yellow",
+            "FRESH": "dim",
         }
         return Text(s, style=colours.get(s, "white"))
 
@@ -290,15 +303,16 @@ class WalletState:
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class ClientConfig:
-    master_seed:      bytes
-    wallet_address:   str            # may be empty in mock mode
-    wallet_key:       str            # may be empty in mock mode
-    contract_address: str            # may be empty in mock mode
-    rpc_http_url:     str            # may be empty in mock mode
-    scan_from_block:  int
-    mint_bls_pubkey:  G2Point | None = None  # parsed G2 point, None if not configured
+    master_seed: bytes
+    wallet_address: str  # may be empty in mock mode
+    wallet_key: str  # may be empty in mock mode
+    contract_address: str  # may be empty in mock mode
+    rpc_http_url: str  # may be empty in mock mode
+    scan_from_block: int
+    mint_bls_pubkey: G2Point | None = None  # parsed G2 point, None if not configured
 
 
 def _parse_mint_bls_pubkey(raw: str) -> G2Point | None:
@@ -307,7 +321,8 @@ def _parse_mint_bls_pubkey(raw: str) -> G2Point | None:
     X_imag, X_real, Y_imag, Y_real) into a py_ecc G2Point.
     Falls back to deriving from MINT_BLS_PRIVKEY if available.
     """
-    from py_ecc.bn128 import FQ2, G2 as G2_gen
+    from py_ecc.bn128 import FQ2
+    from py_ecc.bn128 import G2 as G2_gen
 
     if raw:
         parts = [p.strip() for p in raw.split(",")]
@@ -336,43 +351,54 @@ def load_config() -> ClientConfig:
     seed_hex = os.getenv("MASTER_SEED", "").strip()
 
     if not seed_hex:
-        console.print(Panel(
-            Text.assemble(
-                ("Missing MASTER_SEED in .env.\n\n", "error"),
-                ("Run ", "secondary"), ("uv run generate_keys.py", "label"),
-                (" to create all required keys.", "secondary"),
-            ),
-            title="[error]❌  Configuration Error[/error]",
-            border_style="red",
-        ))
+        console.print(
+            Panel(
+                Text.assemble(
+                    ("Missing MASTER_SEED in .env.\n\n", "error"),
+                    ("Run ", "secondary"),
+                    ("uv run generate_keys.py", "label"),
+                    (" to create all required keys.", "secondary"),
+                ),
+                title="[error]❌  Configuration Error[/error]",
+                border_style="red",
+            )
+        )
         raise typer.Exit(code=1)
 
     wallet_addr = os.getenv("WALLET_ADDRESS", "").strip()
-    wallet_key  = os.getenv("WALLET_KEY", "").strip()
-    contract    = os.getenv("CONTRACT_ADDRESS", "").strip()
-    rpc_url     = os.getenv("RPC_HTTP_URL", "").strip()
+    wallet_key = os.getenv("WALLET_KEY", "").strip()
+    contract = os.getenv("CONTRACT_ADDRESS", "").strip()
+    rpc_url = os.getenv("RPC_HTTP_URL", "").strip()
 
     # In normal (non-mock) mode, require chain settings
     if not is_mock():
         missing = []
-        if not wallet_addr: missing.append("WALLET_ADDRESS")
-        if not wallet_key:  missing.append("WALLET_KEY")
-        if not contract:    missing.append("CONTRACT_ADDRESS")
-        if not rpc_url:     missing.append("RPC_HTTP_URL")
+        if not wallet_addr:
+            missing.append("WALLET_ADDRESS")
+        if not wallet_key:
+            missing.append("WALLET_KEY")
+        if not contract:
+            missing.append("CONTRACT_ADDRESS")
+        if not rpc_url:
+            missing.append("RPC_HTTP_URL")
 
         if missing:
-            console.print(Panel(
-                Text.assemble(
-                    ("Missing .env variables:\n\n", "error"),
-                    *[Text.assemble(("  • ", "muted"), (k, "label"), ("\n", "")) for k in missing],
-                    ("\nRun ", "secondary"), ("uv run generate_keys.py", "label"),
-                    (" then add wallet/rpc settings.\n", "secondary"),
-                    ("Or use ", "secondary"), ("--mock", "label"),
-                    (" for offline testing (only MASTER_SEED needed).", "secondary"),
-                ),
-                title="[error]❌  Configuration Error[/error]",
-                border_style="red",
-            ))
+            console.print(
+                Panel(
+                    Text.assemble(
+                        ("Missing .env variables:\n\n", "error"),
+                        *[Text.assemble(("  • ", "muted"), (k, "label"), ("\n", "")) for k in missing],
+                        ("\nRun ", "secondary"),
+                        ("uv run generate_keys.py", "label"),
+                        (" then add wallet/rpc settings.\n", "secondary"),
+                        ("Or use ", "secondary"),
+                        ("--mock", "label"),
+                        (" for offline testing (only MASTER_SEED needed).", "secondary"),
+                    ),
+                    title="[error]❌  Configuration Error[/error]",
+                    border_style="red",
+                )
+            )
             raise typer.Exit(code=1)
 
     pk = _parse_mint_bls_pubkey(os.getenv("MINT_BLS_PUBKEY", "").strip())
@@ -396,10 +422,11 @@ NOZK_VAULT_ABI = json.loads(_ABI_PATH.read_text())
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
+
 def encode_spend_signature(compact_hex: str, recovery_bit: int) -> bytes:
     r_bytes = bytes.fromhex(compact_hex[:64])
     s_bytes = bytes.fromhex(compact_hex[64:])
-    v_byte  = bytes([recovery_bit + 27])
+    v_byte = bytes([recovery_bit + 27])
     return r_bytes + s_bytes + v_byte
 
 
@@ -413,6 +440,7 @@ def build_web3(config: ClientConfig) -> Web3:
 
 # ── Command: deposit ───────────────────────────────────────────────────────────
 
+
 def cmd_deposit(config: ClientConfig, token_index: int) -> None:
     print_banner()
     section(f"DEPOSIT  ·  Token #{token_index}", "📥")
@@ -423,9 +451,9 @@ def cmd_deposit(config: ClientConfig, token_index: int) -> None:
     section("Step 1 · Derive Token Secrets", "🔑")
     secrets = derive_token_secrets(config.master_seed, token_index)
 
-    kv("Token index",    str(token_index))
-    kv("Spend address",  secrets.spend.address, style="addr")
-    kv("Blind address",  secrets.blind.address, style="addr")
+    kv("Token index", str(token_index))
+    kv("Spend address", secrets.spend.address, style="addr")
+    kv("Blind address", secrets.blind.address, style="addr")
     if is_verbose():
         kv_hex("Blinding scalar r", hex(secrets.r))
 
@@ -435,7 +463,7 @@ def cmd_deposit(config: ClientConfig, token_index: int) -> None:
 
     # Step 2: blind
     section("Step 2 · Blind Token → G1", "🎭")
-    blinded  = blind_token(secrets.spend_address_bytes, secrets.r)
+    blinded = blind_token(secrets.spend_address_bytes, secrets.r)
     b_x, b_y = serialize_g1(blinded.B)
     y_x, y_y = serialize_g1(blinded.Y)
 
@@ -444,7 +472,7 @@ def cmd_deposit(config: ClientConfig, token_index: int) -> None:
         kv_hex("Y = H(spend_addr) y", hex(y_y))
     kv_hex("B = r·Y  x", hex(b_x))
     kv_hex("B = r·Y  y", hex(b_y))
-    kv("Deposit ID",  secrets.deposit_id, style="addr")
+    kv("Deposit ID", secrets.deposit_id, style="addr")
     info("B is the blinded point — mint cannot derive spend address without r", muted=True)
     console.print()
 
@@ -477,16 +505,16 @@ def cmd_deposit(config: ClientConfig, token_index: int) -> None:
         address=Web3.to_checksum_address(config.contract_address),
         abi=NOZK_VAULT_ABI,
     )
-    wallet    = Web3.to_checksum_address(config.wallet_address)
-    nonce     = w3.eth.get_transaction_count(wallet)
+    wallet = Web3.to_checksum_address(config.wallet_address)
+    nonce = w3.eth.get_transaction_count(wallet)
     gas_price = w3.eth.gas_price
-    balance   = w3.eth.get_balance(wallet)
+    balance = w3.eth.get_balance(wallet)
 
-    kv("Wallet address",  wallet, style="addr")
-    kv("Balance",         f"{Web3.from_wei(balance, 'ether'):.6f} ETH")
-    kv("Nonce",           str(nonce))
-    kv("Gas price",       f"{Web3.from_wei(gas_price, 'gwei'):.2f} gwei")
-    kv("Deposit amount",  "0.001 ETH")
+    kv("Wallet address", wallet, style="addr")
+    kv("Balance", f"{Web3.from_wei(balance, 'ether'):.6f} ETH")
+    kv("Nonce", str(nonce))
+    kv("Gas price", f"{Web3.from_wei(gas_price, 'gwei'):.2f} gwei")
+    kv("Deposit amount", "0.001 ETH")
 
     if not is_dry_run() and balance < DENOMINATION_WEI:
         err("Insufficient balance: need at least 0.001 ETH")
@@ -496,18 +524,20 @@ def cmd_deposit(config: ClientConfig, token_index: int) -> None:
         tx = contract.functions.deposit(
             Web3.to_checksum_address(secrets.deposit_id),
             [b_x, b_y],
-        ).build_transaction({
-            "from":     wallet,
-            "value":    DENOMINATION_WEI,
-            "nonce":    nonce,
-            "gasPrice": gas_price,
-        })
+        ).build_transaction(
+            {
+                "from": wallet,
+                "value": DENOMINATION_WEI,
+                "nonce": nonce,
+                "gasPrice": gas_price,
+            }
+        )
     except (ContractCustomError, ContractLogicError) as exc:
         err(f"Contract reverted: {decode_contract_error(exc)}")
         raise typer.Exit(code=1) from exc
 
     if is_debug():
-        kv_hex("Calldata", tx["data"][:80] + "…")
+        kv_hex("Calldata", str(tx["data"][:80]) + "…")
 
     console.print()
 
@@ -515,7 +545,7 @@ def cmd_deposit(config: ClientConfig, token_index: int) -> None:
     section("Step 4 · Broadcast", "📡")
 
     if is_dry_run():
-        dry(f"deposit([B.x, B.y], depositId) with value=0.001 ETH")
+        dry("deposit([B.x, B.y], depositId) with value=0.001 ETH")
         dry(f"from={wallet}")
         dry(f"to={config.contract_address}")
         dry(f"B.x = {hex(b_x)}")
@@ -534,7 +564,7 @@ def cmd_deposit(config: ClientConfig, token_index: int) -> None:
         ok("Dry-run complete. Run without --dry-run to broadcast.")
         return
 
-    signed  = w3.eth.account.sign_transaction(tx, private_key=config.wallet_key)
+    signed = w3.eth.account.sign_transaction(tx, private_key=config.wallet_key)
     tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
     kv("Transaction sent", tx_hash.hex(), style="hash")
     info("Waiting for confirmation…")
@@ -544,9 +574,9 @@ def cmd_deposit(config: ClientConfig, token_index: int) -> None:
         err(f"Transaction REVERTED  tx={tx_hash.hex()}")
         raise typer.Exit(code=1)
 
-    kv("Confirmed block",   str(receipt["blockNumber"]))
-    kv("Gas used",          str(receipt["gasUsed"]))
-    kv("Deposit ID",        secrets.deposit_id, style="addr")
+    kv("Confirmed block", str(receipt["blockNumber"]))
+    kv("Gas used", str(receipt["gasUsed"]))
+    kv("Deposit ID", secrets.deposit_id, style="addr")
 
     state.tokens[token_index] = TokenRecord(
         index=token_index,
@@ -563,6 +593,7 @@ def cmd_deposit(config: ClientConfig, token_index: int) -> None:
 
 # ── Command: scan ──────────────────────────────────────────────────────────────
 
+
 def cmd_scan(
     config: ClientConfig,
     from_block: Optional[int],
@@ -572,18 +603,18 @@ def cmd_scan(
     print_banner()
     section(f"SCAN  ·  Tokens {index_from}–{index_to}", "🔍")
 
-    state    = WalletState.load()
-    w3       = build_web3(config)
+    state = WalletState.load()
+    w3 = build_web3(config)
     contract = w3.eth.contract(
         address=Web3.to_checksum_address(config.contract_address),
         abi=NOZK_VAULT_ABI,
     )
 
-    start_block  = from_block if from_block is not None else state.last_scanned_block
+    start_block = from_block if from_block is not None else state.last_scanned_block
     latest_block = w3.eth.block_number
 
     kv("Scanning blocks", f"{start_block} → {latest_block}")
-    kv("Token indices",   f"{index_from} – {index_to}")
+    kv("Token indices", f"{index_from} – {index_to}")
     console.print()
 
     # Fetch events
@@ -610,7 +641,7 @@ def cmd_scan(
 
     for idx in scan_indices:
         existing = state.tokens.get(idx)
-        secrets    = derive_token_secrets(config.master_seed, idx)
+        secrets = derive_token_secrets(config.master_seed, idx)
         deposit_id = Web3.to_checksum_address(secrets.deposit_id)
 
         # Ensure a record exists
@@ -629,28 +660,40 @@ def cmd_scan(
         # Already redeemed — just show status
         if existing.spent:
             if not is_quiet():
-                console.print(Text.assemble(
-                    ("\n  Token ", "muted"), (str(idx), "num"),
-                    ("  ·  ", "muted"), existing.status_styled,
-                ))
+                console.print(
+                    Text.assemble(
+                        ("\n  Token ", "muted"),
+                        (str(idx), "num"),
+                        ("  ·  ", "muted"),
+                        existing.status_styled,
+                    )
+                )
             continue
 
         # Already have unblinded signature — show cached status, skip re-processing
         if existing.has_token:
             if not is_quiet():
-                console.print(Text.assemble(
-                    ("\n  Token ", "muted"), (str(idx), "num"),
-                    ("  ·  ", "muted"), existing.status_styled,
-                    ("  (cached)", "muted"),
-                ))
+                console.print(
+                    Text.assemble(
+                        ("\n  Token ", "muted"),
+                        (str(idx), "num"),
+                        ("  ·  ", "muted"),
+                        existing.status_styled,
+                        ("  (cached)", "muted"),
+                    )
+                )
             continue
 
         # AWAITING_MINT — deposited but no signature yet, check events
         if not is_quiet():
-            console.print(Text.assemble(
-                ("\n  Token ", "muted"), (str(idx), "num"),
-                ("  ·  ", "muted"), existing.status_styled,
-            ))
+            console.print(
+                Text.assemble(
+                    ("\n  Token ", "muted"),
+                    (str(idx), "num"),
+                    ("  ·  ", "muted"),
+                    existing.status_styled,
+                )
+            )
 
         if deposit_id not in fulfilled:
             info(f"  No MintFulfilled yet for deposit ID {_short(deposit_id, 8, 6)}", muted=True)
@@ -662,8 +705,8 @@ def cmd_scan(
             kv_hex("  S'.y (blind sig)", hex(s_prime_y))
 
         info("  Unblinding: S = S' · r⁻¹ mod q …")
-        S_prime  = parse_g1(s_prime_x, s_prime_y)
-        S        = unblind_signature(S_prime, secrets.r)
+        S_prime = parse_g1(s_prime_x, s_prime_y)
+        S = unblind_signature(S_prime, secrets.r)
         s_x, s_y = serialize_g1(S)
 
         if is_verbose():
@@ -684,16 +727,19 @@ def cmd_scan(
 
         # On-chain nullifier check
         nullifier_addr = Web3.to_checksum_address(secrets.spend.address)
-        is_spent       = contract.functions.spentNullifiers(nullifier_addr).call()
+        is_spent = contract.functions.spentNullifiers(nullifier_addr).call()
 
         existing.s_unblinded_x = hex(s_x)
         existing.s_unblinded_y = hex(s_y)
-        existing.spent         = is_spent
+        existing.spent = is_spent
         recovered += 1
 
-        console.print(Text.assemble(
-            ("  → ", "muted"), existing.status_styled,
-        ))
+        console.print(
+            Text.assemble(
+                ("  → ", "muted"),
+                existing.status_styled,
+            )
+        )
 
     state.last_scanned_block = latest_block
     state.save()
@@ -704,6 +750,7 @@ def cmd_scan(
 
 
 # ── Command: redeem ────────────────────────────────────────────────────────────
+
 
 def cmd_redeem(
     config: ClientConfig,
@@ -737,20 +784,21 @@ def cmd_redeem(
     if is_verbose():
         section("Intermediate Values", "🔬")
         kv("Spend address (nullifier)", secrets.spend.address, style="addr")
-        kv("Deposit ID",               secrets.deposit_id, style="addr")
-        kv_hex("Blinding scalar r",     hex(secrets.r))
+        kv("Deposit ID", secrets.deposit_id, style="addr")
+        kv_hex("Blinding scalar r", hex(secrets.r))
         blinded = blind_token(secrets.spend_address_bytes, secrets.r)
-        kv_hex("Y.x (hash-to-curve)",   hex(blinded.Y[0].n))
-        kv_hex("Y.y (hash-to-curve)",   hex(blinded.Y[1].n))
-        kv_hex("B.x (blinded point)",   hex(blinded.B[0].n))
-        kv_hex("B.y (blinded point)",   hex(blinded.B[1].n))
+        kv_hex("Y.x (hash-to-curve)", hex(blinded.Y[0].n))
+        kv_hex("Y.y (hash-to-curve)", hex(blinded.Y[1].n))
+        kv_hex("B.x (blinded point)", hex(blinded.B[0].n))
+        kv_hex("B.y (blinded point)", hex(blinded.B[1].n))
         console.print()
 
     # Step 1: load S
     section("Step 1 · Load Unblinded Signature", "🔓")
+    assert rec.s_unblinded_x is not None and rec.s_unblinded_y is not None, "Token has no unblinded signature"
     s_x = int(rec.s_unblinded_x, 16)
     s_y = int(rec.s_unblinded_y, 16)
-    S   = parse_g1(s_x, s_y)
+    S = parse_g1(s_x, s_y)
     kv_hex("S.x", hex(s_x))
     kv_hex("S.y", hex(s_y))
 
@@ -771,7 +819,7 @@ def cmd_redeem(
     # Step 2: derive spend key
     section("Step 2 · Derive Spend Key", "🔑")
     kv("Spend address (nullifier)", secrets.spend.address, style="addr")
-    kv("Deposit ID",               secrets.blind.address,  style="addr")
+    kv("Deposit ID", secrets.blind.address, style="addr")
     info("The spend address is the nullifier — recorded as spent after redemption.", muted=True)
     console.print()
 
@@ -785,20 +833,26 @@ def cmd_redeem(
         w3_tmp = build_web3(config)
         chain_id = w3_tmp.eth.chain_id
     proof = generate_redemption_proof(
-        secrets.spend_priv, recipient_checksum,
-        chain_id, config.contract_address, deadline,
+        secrets.spend_priv,
+        recipient_checksum,
+        chain_id,
+        config.contract_address,
+        deadline,
     )
 
-    kv("Payload",       f'EIP-712 NozkRedeem(recipient={recipient_checksum}, deadline={deadline})')
-    kv_hex("msg_hash",  proof.msg_hash.hex())
+    kv("Payload", f"EIP-712 NozkRedeem(recipient={recipient_checksum}, deadline={deadline})")
+    kv_hex("msg_hash", proof.msg_hash.hex())
     kv_hex("compact_hex", "0x" + proof.compact_hex)
-    kv("recovery_bit",  str(proof.recovery_bit))
-    kv("v (EVM)",       str(proof.recovery_bit + 27))
+    kv("recovery_bit", str(proof.recovery_bit))
+    kv("v (EVM)", str(proof.recovery_bit + 27))
     info("ecrecover on-chain will recover the spend address from this signature.", muted=True)
 
     # Local ecrecover verification
     is_valid = verify_ecdsa_mev_protection(
-        proof.msg_hash, proof.compact_hex, proof.recovery_bit, secrets.spend.address,
+        proof.msg_hash,
+        proof.compact_hex,
+        proof.recovery_bit,
+        secrets.spend.address,
     )
     if is_valid:
         ok("Local ecrecover check passed")
@@ -860,19 +914,24 @@ def cmd_redeem(
     ZERO = "0x0000000000000000000000000000000000000000"
     try:
         calldata = contract.functions.redeem(
-            recipient_checksum, spend_sig_bytes, nullifier_checksum, deadline, [s_x, s_y],
+            recipient_checksum,
+            spend_sig_bytes,
+            nullifier_checksum,
+            deadline,
+            [s_x, s_y],
         ).build_transaction({"from": ZERO})["data"]
     except (ContractCustomError, ContractLogicError) as exc:
         err(f"Contract reverted during simulation: {decode_contract_error(exc)}")
         raise typer.Exit(code=1) from exc
 
-    kv("Recipient",     recipient_checksum, style="addr")
-    kv("Nullifier",     nullifier_checksum, style="addr")
-    kv("S.x",          str(s_x), style="num")
-    kv("S.y",          str(s_y), style="num")
-    kv("Calldata size", f"{len(bytes.fromhex(calldata[2:]))} bytes")
+    kv("Recipient", recipient_checksum, style="addr")
+    kv("Nullifier", nullifier_checksum, style="addr")
+    kv("S.x", str(s_x), style="num")
+    kv("S.y", str(s_y), style="num")
+    calldata_hex = str(calldata)
+    kv("Calldata size", f"{len(bytes.fromhex(calldata_hex[2:]))} bytes")
     if is_debug():
-        kv_hex("Calldata prefix", calldata[:40] + "…")
+        kv_hex("Calldata prefix", calldata_hex[:40] + "…")
     console.print()
 
     # Step 5: dry-run or broadcast
@@ -910,31 +969,39 @@ def cmd_redeem(
 
         result = resp.json()
         tx_hex = result["tx_hash"]
-        kv("Transaction hash",    tx_hex, style="hash")
-        kv("Confirmed at block",  str(result["block_number"]))
-        kv("Gas used",            str(result["gas_used"]))
+        kv("Transaction hash", tx_hex, style="hash")
+        kv("Confirmed at block", str(result["block_number"]))
+        kv("Gas used", str(result["gas_used"]))
     else:
         section("Step 5 · Broadcast Directly", "📡")
-        wallet    = Web3.to_checksum_address(config.wallet_address)
-        nonce     = w3.eth.get_transaction_count(wallet)
+        wallet = Web3.to_checksum_address(config.wallet_address)
+        nonce = w3.eth.get_transaction_count(wallet)
         gas_price = w3.eth.gas_price
         kv("Caller (pays gas)", wallet, style="addr")
-        kv("Nonce",             str(nonce))
-        kv("Gas price",         f"{Web3.from_wei(gas_price, 'gwei'):.2f} gwei")
+        kv("Nonce", str(nonce))
+        kv("Gas price", f"{Web3.from_wei(gas_price, 'gwei'):.2f} gwei")
 
         try:
             tx = contract.functions.redeem(
-                recipient_checksum, spend_sig_bytes, nullifier_checksum, deadline, [s_x, s_y],
-            ).build_transaction({
-                "from": wallet, "nonce": nonce, "gasPrice": gas_price,
-            })
+                recipient_checksum,
+                spend_sig_bytes,
+                nullifier_checksum,
+                deadline,
+                [s_x, s_y],
+            ).build_transaction(
+                {
+                    "from": wallet,
+                    "nonce": nonce,
+                    "gasPrice": gas_price,
+                }
+            )
         except (ContractCustomError, ContractLogicError) as exc:
             err(f"Contract reverted during simulation: {decode_contract_error(exc)}")
             raise typer.Exit(code=1) from exc
 
-        signed  = w3.eth.account.sign_transaction(tx, private_key=config.wallet_key)
+        signed = w3.eth.account.sign_transaction(tx, private_key=config.wallet_key)
         tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
-        tx_hex  = tx_hash.hex()
+        tx_hex = tx_hash.hex()
         kv("Transaction sent", tx_hex, style="hash")
         info("Waiting for confirmation…")
 
@@ -943,8 +1010,8 @@ def cmd_redeem(
             err(f"Transaction REVERTED  tx={tx_hex}")
             raise typer.Exit(code=1)
 
-        kv("Confirmed block",  str(receipt["blockNumber"]))
-        kv("Gas used",         str(receipt["gasUsed"]))
+        kv("Confirmed block", str(receipt["blockNumber"]))
+        kv("Gas used", str(receipt["gasUsed"]))
 
     console.print()
     ok("On-chain checks passed:")
@@ -954,7 +1021,7 @@ def cmd_redeem(
     info(f"  ✔  0.001 ETH transferred to {recipient_checksum}")
 
     rec.redeem_tx = tx_hex
-    rec.spent     = True
+    rec.spent = True
     state.save()
 
     console.print()
@@ -962,6 +1029,7 @@ def cmd_redeem(
 
 
 # ── Command: status ────────────────────────────────────────────────────────────
+
 
 def cmd_status(config: ClientConfig) -> None:
     print_banner()
@@ -971,20 +1039,30 @@ def cmd_status(config: ClientConfig) -> None:
 
     if is_mock():
         # Mock mode: show wallet state without chain queries
-        console.print(_kv_table([
-            ("Mode",           "🧪 MOCK (offline)"),
-            ("Last scanned",   f"block {state.last_scanned_block}"),
-        ], title="📊  Wallet Status"))
+        console.print(
+            _kv_table(
+                [
+                    ("Mode", "🧪 MOCK (offline)"),
+                    ("Last scanned", f"block {state.last_scanned_block}"),
+                ],
+                title="📊  Wallet Status",
+            )
+        )
     else:
-        w3      = build_web3(config)
-        wallet  = Web3.to_checksum_address(config.wallet_address)
+        w3 = build_web3(config)
+        wallet = Web3.to_checksum_address(config.wallet_address)
         balance = w3.eth.get_balance(wallet)
 
-        console.print(_kv_table([
-            ("Wallet address", wallet),
-            ("ETH balance",    f"{Web3.from_wei(balance, 'ether'):.6f} ETH"),
-            ("Last scanned",   f"block {state.last_scanned_block}"),
-        ], title="💰  On-chain Balance"))
+        console.print(
+            _kv_table(
+                [
+                    ("Wallet address", wallet),
+                    ("ETH balance", f"{Web3.from_wei(balance, 'ether'):.6f} ETH"),
+                    ("Last scanned", f"block {state.last_scanned_block}"),
+                ],
+                title="💰  On-chain Balance",
+            )
+        )
 
     console.print()
 
@@ -1000,12 +1078,12 @@ def cmd_status(config: ClientConfig) -> None:
         show_lines=False,
         padding=(0, 1),
     )
-    table.add_column("#",           style="num",    justify="right", no_wrap=True)
-    table.add_column("Status",      no_wrap=True)
-    table.add_column("Spend addr",  style="addr",   no_wrap=True)
-    table.add_column("Deposit ID",  style="secondary", no_wrap=True)
-    table.add_column("Deposit tx",  style="hash",   no_wrap=True)
-    table.add_column("Redeem tx",   style="hash",   no_wrap=True)
+    table.add_column("#", style="num", justify="right", no_wrap=True)
+    table.add_column("Status", no_wrap=True)
+    table.add_column("Spend addr", style="addr", no_wrap=True)
+    table.add_column("Deposit ID", style="secondary", no_wrap=True)
+    table.add_column("Deposit tx", style="hash", no_wrap=True)
+    table.add_column("Redeem tx", style="hash", no_wrap=True)
 
     for idx in sorted(state.tokens):
         rec = state.tokens[idx]
@@ -1015,13 +1093,14 @@ def cmd_status(config: ClientConfig) -> None:
             _short(rec.spend_address, 6, 4),
             _short(rec.deposit_id, 6, 4),
             _short(rec.deposit_tx, 8, 6) if rec.deposit_tx else "—",
-            _short(rec.redeem_tx,  8, 6) if rec.redeem_tx  else "—",
+            _short(rec.redeem_tx, 8, 6) if rec.redeem_tx else "—",
         )
 
     console.print(table)
 
 
 # ── Command: balance ───────────────────────────────────────────────────────────
+
 
 def cmd_balance(config: ClientConfig) -> None:
     print_banner()
@@ -1030,15 +1109,20 @@ def cmd_balance(config: ClientConfig) -> None:
         warn("Balance check is not available in mock mode (no chain connection).")
         return
 
-    w3      = build_web3(config)
-    wallet  = Web3.to_checksum_address(config.wallet_address)
+    w3 = build_web3(config)
+    wallet = Web3.to_checksum_address(config.wallet_address)
     balance = w3.eth.get_balance(wallet)
 
-    console.print(_kv_table([
-        ("Address", wallet),
-        ("Balance", f"{Web3.from_wei(balance, 'ether'):.8f} ETH"),
-        ("Wei",     str(balance)),
-    ], title="💰  Balance"))
+    console.print(
+        _kv_table(
+            [
+                ("Address", wallet),
+                ("Balance", f"{Web3.from_wei(balance, 'ether'):.8f} ETH"),
+                ("Wei", str(balance)),
+            ],
+            title="💰  Balance",
+        )
+    )
 
 
 # ── Typer app ──────────────────────────────────────────────────────────────────
@@ -1054,7 +1138,8 @@ app = typer.Typer(
 VerbosityOpt = Annotated[
     Verbosity,
     typer.Option(
-        "--verbosity", "-v",
+        "--verbosity",
+        "-v",
         help="[bold]quiet[/bold] · [bold]normal[/bold] · [bold]verbose[/bold] · [bold]debug[/bold]",
         show_default=True,
     ),
@@ -1063,7 +1148,8 @@ VerbosityOpt = Annotated[
 DryRunOpt = Annotated[
     bool,
     typer.Option(
-        "--dry-run", "-n",
+        "--dry-run",
+        "-n",
         help="Simulate without broadcasting any transaction to the chain.",
         is_flag=True,
     ),
@@ -1090,8 +1176,8 @@ def _set_modes(verbosity: Verbosity, dry_run: bool = False, mock: bool = False) 
 @app.command()
 def deposit(
     index: Annotated[int, typer.Option("--index", "-i", help="Token index (0-based).", min=0)],
-    dry_run:   DryRunOpt   = False,
-    mock:      MockOpt     = False,
+    dry_run: DryRunOpt = False,
+    mock: MockOpt = False,
     verbosity: VerbosityOpt = Verbosity.normal,
 ) -> None:
     """Blind a token secret and submit (or simulate) a deposit to NozkVault."""
@@ -1103,8 +1189,8 @@ def deposit(
 def scan(
     from_block: Annotated[Optional[int], typer.Option("--from-block", help="Start block.", min=0)] = None,
     index_from: Annotated[int, typer.Option("--index-from", help="First token index.", min=0)] = 0,
-    index_to:   Annotated[int, typer.Option("--index-to",   help="Last token index.",  min=0)] = 9,
-    verbosity:  VerbosityOpt = Verbosity.normal,
+    index_to: Annotated[int, typer.Option("--index-to", help="Last token index.", min=0)] = 9,
+    verbosity: VerbosityOpt = Verbosity.normal,
 ) -> None:
     """Scan chain for MintFulfilled events and recover tokens in [index-from, index-to]."""
     _set_modes(verbosity)
@@ -1116,11 +1202,11 @@ def scan(
 
 @app.command()
 def redeem(
-    index:    Annotated[int, typer.Option("--index", "-i", help="Token index to redeem.", min=0)],
-    to:       Annotated[str, typer.Option("--to",          help="Recipient Ethereum address.")],
-    relayer:  Annotated[Optional[str], typer.Option("--relayer", help="Relayer base URL (relayer pays gas).")] = None,
-    dry_run:  DryRunOpt   = False,
-    mock:     MockOpt     = False,
+    index: Annotated[int, typer.Option("--index", "-i", help="Token index to redeem.", min=0)],
+    to: Annotated[str, typer.Option("--to", help="Recipient Ethereum address.")],
+    relayer: Annotated[Optional[str], typer.Option("--relayer", help="Relayer base URL (relayer pays gas).")] = None,
+    dry_run: DryRunOpt = False,
+    mock: MockOpt = False,
     verbosity: VerbosityOpt = Verbosity.normal,
 ) -> None:
     """Unblind a recovered token and submit redeem() directly or via a relayer."""
@@ -1130,7 +1216,7 @@ def redeem(
 
 @app.command()
 def status(
-    mock:      MockOpt     = False,
+    mock: MockOpt = False,
     verbosity: VerbosityOpt = Verbosity.normal,
 ) -> None:
     """Show wallet state: token lifecycle statuses and on-chain balance."""
@@ -1140,7 +1226,7 @@ def status(
 
 @app.command()
 def balance(
-    mock:      MockOpt     = False,
+    mock: MockOpt = False,
     verbosity: VerbosityOpt = Verbosity.normal,
 ) -> None:
     """Query on-chain ETH balance for the configured wallet address."""

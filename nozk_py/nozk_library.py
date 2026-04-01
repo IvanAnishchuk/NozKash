@@ -1,15 +1,15 @@
 import os
 from dataclasses import dataclass
 from typing import NewType
+
 from eth_keys import keys
 from eth_utils import keccak
-from py_ecc.bn128 import (
-    G2, multiply, curve_order, field_modulus, pairing, is_on_curve, FQ, FQ2, b
-)
+from py_ecc.bn128 import FQ, FQ2, G2, b, curve_order, field_modulus, is_on_curve, multiply, pairing
 
 # ==============================================================================
 # EXCEPTION HIERARCHY
 # ==============================================================================
+
 
 class NozkError(Exception):
     """Base class for all Nozk protocol errors."""
@@ -21,6 +21,7 @@ class CurveError(NozkError):
 
 class InvalidPointError(CurveError):
     """Raised when a supplied point does not lie on the expected curve."""
+
     def __init__(self, x: int, y: int, curve: str = "BN254 G1") -> None:
         super().__init__(f"Point (0x{x:x}, 0x{y:x}) is not on the {curve} curve")
         self.x = x
@@ -45,20 +46,16 @@ class VerificationError(NozkError):
 # TYPE ALIASES
 # ==============================================================================
 
-G1Point = NewType("G1Point", tuple[FQ,  FQ])
+G1Point = NewType("G1Point", tuple[FQ, FQ])
 G2Point = NewType("G2Point", tuple[FQ2, FQ2])
-Scalar  = NewType("Scalar",  int)
+Scalar = NewType("Scalar", int)
 
 # ==============================================================================
 # EIP-712 CONSTANTS
 # ==============================================================================
 
-EIP712_DOMAIN_TYPEHASH = keccak(
-    b"EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
-)
-NOZKREDEEM_TYPEHASH = keccak(
-    b"NozkRedeem(address recipient,uint256 deadline)"
-)
+EIP712_DOMAIN_TYPEHASH = keccak(b"EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)")
+NOZKREDEEM_TYPEHASH = keccak(b"NozkRedeem(address recipient,uint256 deadline)")
 
 
 def eip712_domain_separator(chain_id: int, contract_address: str) -> bytes:
@@ -69,7 +66,7 @@ def eip712_domain_separator(chain_id: int, contract_address: str) -> bytes:
         + keccak(b"NozkVault")
         + keccak(b"1")
         + chain_id.to_bytes(32, "big")
-        + addr.rjust(32, b'\x00')
+        + addr.rjust(32, b"\x00")
     )
 
 
@@ -81,11 +78,7 @@ def eip712_redemption_hash(
 ) -> bytes:
     """Compute the full EIP-712 signed hash for a NozkRedeem struct."""
     addr = bytes.fromhex(recipient_address.replace("0x", "").lower())
-    struct_hash = keccak(
-        NOZKREDEEM_TYPEHASH
-        + addr.rjust(32, b'\x00')
-        + deadline.to_bytes(32, "big")
-    )
+    struct_hash = keccak(NOZKREDEEM_TYPEHASH + addr.rjust(32, b"\x00") + deadline.to_bytes(32, "big"))
     domain_sep = eip712_domain_separator(chain_id, contract_address)
     return keccak(b"\x19\x01" + domain_sep + struct_hash)
 
@@ -118,6 +111,7 @@ def _mul_g2(point: G2Point, scalar: Scalar) -> G2Point:
 # DATA CLASSES
 # ==============================================================================
 
+
 @dataclass
 class TokenKeypair:
     """
@@ -128,9 +122,10 @@ class TokenKeypair:
       - spend keypair address → nullifier (prevents double-spend)
       - blind keypair address → deposit ID (deterministic, unlinkable identifier)
     """
-    priv:         keys.PrivateKey
-    pub_hex:      str     # 0x04-prefixed uncompressed public key (65 bytes, 132 hex chars)
-    address:      str     # 0x-prefixed Ethereum address (20 bytes)
+
+    priv: keys.PrivateKey
+    pub_hex: str  # 0x04-prefixed uncompressed public key (65 bytes, 132 hex chars)
+    address: str  # 0x-prefixed Ethereum address (20 bytes)
     address_bytes: bytes  # raw 20 bytes
 
 
@@ -149,6 +144,7 @@ class TokenSecrets:
     The deposit ID (blind.address) is revealed at deposit time but cannot be linked
     to the spend address (spend.address) without the master seed, preserving privacy.
     """
+
     spend: TokenKeypair
     blind: TokenKeypair
 
@@ -181,27 +177,28 @@ class TokenSecrets:
 
 @dataclass
 class BlindedPoints:
-    Y: G1Point      # H(spend_address) — unblinded hash-to-curve result
-    B: G1Point      # r·Y              — blinded point sent to mint
+    Y: G1Point  # H(spend_address) — unblinded hash-to-curve result
+    B: G1Point  # r·Y              — blinded point sent to mint
 
 
 @dataclass
 class RedemptionProof:
-    msg_hash:      bytes
-    compact_hex:   str              # 128-char r||s hex, matches TS compactHex
-    recovery_bit:  int              # 0 or 1 — EVM ecrecover uses v = recovery_bit + 27
-    signature_obj: keys.Signature   # raw eth_keys object for local verify
+    msg_hash: bytes
+    compact_hex: str  # 128-char r||s hex, matches TS compactHex
+    recovery_bit: int  # 0 or 1 — EVM ecrecover uses v = recovery_bit + 27
+    signature_obj: keys.Signature  # raw eth_keys object for local verify
 
 
 @dataclass
 class MintKeypair:
-    sk: Scalar      # BLS scalar private key in Z_q
-    pk: G2Point     # sk·G2 — public verification key
+    sk: Scalar  # BLS scalar private key in Z_q
+    pk: G2Point  # sk·G2 — public verification key
 
 
 # ==============================================================================
 # HELPERS
 # ==============================================================================
+
 
 def _derive_keypair(domain: bytes, base_material: bytes) -> TokenKeypair:
     """
@@ -209,9 +206,9 @@ def _derive_keypair(domain: bytes, base_material: bytes) -> TokenKeypair:
     Domain separators used by this library: b"spend", b"blind".
     """
     priv_bytes = keccak(domain + base_material)
-    priv       = keys.PrivateKey(priv_bytes)
-    pub_hex    = "0x04" + priv.public_key.to_bytes().hex()
-    address    = priv.public_key.to_address()
+    priv = keys.PrivateKey(priv_bytes)
+    pub_hex = "0x04" + priv.public_key.to_bytes().hex()
+    address = priv.public_key.to_address()
     return TokenKeypair(
         priv=priv,
         pub_hex=pub_hex,
@@ -223,6 +220,7 @@ def _derive_keypair(domain: bytes, base_material: bytes) -> TokenKeypair:
 # ==============================================================================
 # 1. CORE CRYPTOGRAPHY UTILS
 # ==============================================================================
+
 
 def hash_to_curve(message_bytes: bytes) -> G1Point:
     """
@@ -266,6 +264,7 @@ def generate_mint_keypair() -> MintKeypair:
 # ==============================================================================
 # 2. CLIENT OPERATIONS (User Wallet)
 # ==============================================================================
+
 
 def derive_token_secrets(master_seed: bytes, token_index: int) -> TokenSecrets:
     """
@@ -349,6 +348,7 @@ def generate_redemption_proof(
 # 3. MINT OPERATIONS (Server Daemon)
 # ==============================================================================
 
+
 def mint_blind_sign(B: G1Point, sk_mint: Scalar) -> G1Point:
     """
     Blindly signs a client's G1 point using the mint's scalar private key.
@@ -366,6 +366,7 @@ def mint_blind_sign(B: G1Point, sk_mint: Scalar) -> G1Point:
 # 4. VERIFICATION LOGIC (EVM Equivalents)
 # ==============================================================================
 
+
 def verify_ecdsa_mev_protection(
     msg_hash: bytes,
     compact_hex: str,
@@ -380,13 +381,9 @@ def verify_ecdsa_mev_protection(
     malformed inputs that indicate a programming error (wrong hex length, etc.).
     """
     if len(compact_hex) != 128:
-        raise VerificationError(
-            f"compact_hex must be 128 hex chars (64 bytes), got {len(compact_hex)}"
-        )
+        raise VerificationError(f"compact_hex must be 128 hex chars (64 bytes), got {len(compact_hex)}")
     if recovery_bit not in (0, 1):
-        raise VerificationError(
-            f"recovery_bit must be 0 or 1, got {recovery_bit}"
-        )
+        raise VerificationError(f"recovery_bit must be 0 or 1, got {recovery_bit}")
     try:
         r = int(compact_hex[:64], 16)
         s = int(compact_hex[64:], 16)
@@ -427,7 +424,13 @@ if __name__ == "__main__":
 
     S_prime = mint_blind_sign(blinded.B, keypair.sk)
     S = unblind_signature(S_prime, secrets.r)
-    proof = generate_redemption_proof(secrets.spend_priv, destination)
+    proof = generate_redemption_proof(
+        secrets.spend_priv,
+        destination,
+        chain_id=11155111,
+        contract_address="0x00000000000000000000000000000000DeaDBeef",
+        deadline=2**256 - 1,
+    )
 
     is_valid_ecdsa = verify_ecdsa_mev_protection(
         proof.msg_hash,

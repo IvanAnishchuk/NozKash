@@ -111,7 +111,7 @@ CONTRACT: deposit(depositId, B) → emits DepositLocked
 MINT: announce(depositId, S') where S' = sk · B
 CLIENT: unblind_signature() → S = S' · r⁻¹ = sk · H(spend_addr)
 CLIENT: generate_redemption_proof() → ECDSA binding token to recipient
-CONTRACT: redeem() verifies ecPairing + ecrecover, transfers 0.01 ETH
+CONTRACT: redeem() verifies ecPairing + ecrecover, transfers 0.001 ETH
 ```
 
 ### Cross-Language Cryptographic Parity
@@ -129,7 +129,7 @@ CONTRACT: redeem() verifies ecPairing + ecrecover, transfers 0.01 ETH
 3. Regenerate test vectors: `cd nozk_py && uv run generate_vectors.py`
 4. Verify parity: `cd nozk_py && uv run pytest test_vectors.py -v` and `cd nozk_ts && npx vitest run`
 
-Test vectors are discovered via `test_vectors/manifest.json` which lists all keypair directories and token indices. Foundry, pytest, and vitest all read from this manifest.
+Test vectors are stored in `test_vectors/manifest.json` which lists all keypair directories and token indices. Foundry reads from this manifest, while pytest and vitest auto-discover vectors by scanning the `test_vectors/` directory structure.
 
 ### Smart Contract (`sol/src/NozkVault.sol`)
 

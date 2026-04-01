@@ -7,7 +7,7 @@ This document defines code style, patterns, and conventions specific to the NozK
 ### Source of Truth Hierarchy
 
 1. **Cryptography:** `nozk_py/nozk_library.py` is the canonical implementation
-2. **Contract ABI:** `abi/NozkVault.json` is the single source
+2. **Contract ABI:** `abi/nozk_vault_abi.json` is the single source
 3. **Test vectors:** `test_vectors/manifest.json` defines the authoritative test set
 4. **Environment template:** `example.env` is the reference for required variables
 
@@ -290,7 +290,7 @@ contract NozkVaultTest is Test {
         uint256[2] memory B = [uint256(1), uint256(2)];
         
         // Act
-        vault.deposit{value: 0.01 ether}(depositId, B);
+        vault.deposit{value: 0.001 ether}(depositId, B);
         
         // Assert
         assertEq(vault.deposits(depositId).x, B[0]);
@@ -522,7 +522,7 @@ import abi from '../../abi/nozk_vault_abi.json';
 1. Use `forge test -vvvv` for full traces
 2. Check custom error selectors: `cast sig "ErrorName()"`
 3. Verify precompile success: all calls to 0x06/0x07/0x08 must succeed
-4. Check msg.value: deposit requires exactly 0.01 ETH
+4. Check msg.value: deposit requires exactly 0.001 ETH
 
 ### RPC Issues
 

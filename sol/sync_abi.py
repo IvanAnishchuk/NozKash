@@ -22,8 +22,7 @@ if not ARTIFACT.exists():
 with open(ARTIFACT) as f:
     abi = json.load(f)["abi"]
 
-lines = [json.dumps(entry, separators=(", ", ": ")) for entry in abi]
-output = "[\n  " + ",\n  ".join(lines) + "\n]\n"
+output = json.dumps(abi, indent=2) + "\n"
 
 ABI_OUT.parent.mkdir(parents=True, exist_ok=True)
 ABI_OUT.write_text(output)

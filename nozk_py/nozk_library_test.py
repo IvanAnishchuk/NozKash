@@ -423,19 +423,28 @@ def test_eip712_domain_separator_changes_with_chain_id():
     assert a != b
 
 
-def test_eip712_redemption_hash_matches_vector():
+def test_eip712_redemption_hash_matches_all_vectors():
+    """Check EIP-712 msg_hash against every test vector file."""
     import json
     from pathlib import Path
 
-    vec_path = Path(__file__).resolve().parent / ".." / "test_vectors" / "fb609bc5_c7e9cab4" / "token_0.json"
-    vec = json.loads(vec_path.read_text())
-    h = gl.eip712_redemption_hash(
-        vec["REDEEM_TX"]["recipient"],
-        int(vec["EIP712"]["deadline"], 16),
-        vec["EIP712"]["chain_id"],
-        vec["EIP712"]["contract_address"],
-    )
-    assert h.hex() == vec["REDEEM_TX"]["msg_hash"]
+    vectors_dir = Path(__file__).resolve().parent / ".." / "test_vectors"
+    manifest = json.loads((vectors_dir / "manifest.json").read_text())
+
+    checked = 0
+    for kp_dir in manifest["keypairs"]:
+        for idx in manifest["indices"]:
+            vec_path = vectors_dir / kp_dir / f"token_{idx}.json"
+            vec = json.loads(vec_path.read_text())
+            h = gl.eip712_redemption_hash(
+                vec["REDEEM_TX"]["recipient"],
+                int(vec["EIP712"]["deadline"], 16),
+                vec["EIP712"]["chain_id"],
+                vec["EIP712"]["contract_address"],
+            )
+            assert h.hex() == vec["REDEEM_TX"]["msg_hash"], f"mismatch in {kp_dir}/token_{idx}"
+            checked += 1
+    assert checked == len(manifest["keypairs"]) * len(manifest["indices"])
 
 
 def test_eip712_redemption_hash_changes_with_recipient():

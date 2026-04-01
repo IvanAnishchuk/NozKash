@@ -1,5 +1,5 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import mcl from 'mcl-wasm';
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -35,11 +35,32 @@ import {
 } from './nozk-library.js';
 
 // ==============================================================================
-// TEST VECTOR
+// MANIFEST + ALL VECTORS
 // ==============================================================================
 
-const VECTOR_PATH = resolve('../test_vectors/fb609bc5_c7e9cab4/token_0.json');
-const VEC = JSON.parse(readFileSync(VECTOR_PATH, 'utf-8'));
+const VECTORS_DIR = resolve('../test_vectors');
+const MANIFEST = JSON.parse(readFileSync(join(VECTORS_DIR, 'manifest.json'), 'utf-8'));
+
+interface VectorFile {
+    id: string;
+    v: Record<string, any>;
+}
+
+function loadAllVectors(): VectorFile[] {
+    const results: VectorFile[] = [];
+    for (const kpDir of MANIFEST.keypairs as string[]) {
+        const dirPath = join(VECTORS_DIR, kpDir);
+        for (const file of readdirSync(dirPath)) {
+            if (!file.endsWith('.json')) continue;
+            const id = `${kpDir}/${file.replace('.json', '')}`;
+            const v = JSON.parse(readFileSync(join(dirPath, file), 'utf-8'));
+            results.push({ id, v });
+        }
+    }
+    return results;
+}
+
+const ALL_VECTORS = loadAllVectors();
 
 // ==============================================================================
 // padHex64
@@ -131,36 +152,25 @@ describe('modularInverse', () => {
 });
 
 // ==============================================================================
-// BN254 G1 helpers (require mcl)
+// BN254 G1 helpers — parametrized over ALL vectors
 // ==============================================================================
 
-describe('BN254 G1 helpers', () => {
+describe.each(ALL_VECTORS.map(({ id, v }) => ({ id, v })))('BN254 G1 [$id]', ({ v }) => {
     beforeAll(async () => {
         await initBN254();
     });
 
     it('g1FromHexCoords round-trips through formatG1ForSolidity', () => {
-        const xHex = VEC.Y_HASH_TO_CURVE.X;
-        const yHex = VEC.Y_HASH_TO_CURVE.Y;
+        const xHex = v.Y_HASH_TO_CURVE.X;
+        const yHex = v.Y_HASH_TO_CURVE.Y;
         const point = g1FromHexCoords(xHex, yHex);
         const [xDec, yDec] = formatG1ForSolidity(point);
-        // BigInt.toString(16) strips leading zeros, so pad back to compare
         expect(padHex64(BigInt(xDec).toString(16))).toBe(padHex64(xHex));
         expect(padHex64(BigInt(yDec).toString(16))).toBe(padHex64(yHex));
     });
 
-    it('g1FromHexCoords with and without leading zeros yields same point', () => {
-        // Use real vector coordinates — X has a leading zero when padded to 64
-        const xShort = VEC.Y_HASH_TO_CURVE.X; // may lack leading zeros
-        const xPadded = padHex64(xShort);
-        const yHex = VEC.Y_HASH_TO_CURVE.Y;
-        const p1 = g1FromHexCoords(xShort, yHex);
-        const p2 = g1FromHexCoords(xPadded, yHex);
-        expect(p1.isEqual(p2)).toBe(true);
-    });
-
-    it('formatG1ForSolidity returns valid decimal strings', () => {
-        const point = g1FromHexCoords(VEC.B_BLINDED.X, VEC.B_BLINDED.Y);
+    it('formatG1ForSolidity returns valid decimal strings for B', () => {
+        const point = g1FromHexCoords(v.B_BLINDED.X, v.B_BLINDED.Y);
         const [xDec, yDec] = formatG1ForSolidity(point);
         expect(BigInt(xDec)).toBeGreaterThan(0n);
         expect(BigInt(yDec)).toBeGreaterThan(0n);
@@ -264,33 +274,55 @@ describe('generateMintKeypair', () => {
 });
 
 // ==============================================================================
-// EIP-712 helpers
+// EIP-712 helpers — manifest params + parametrized over ALL vectors
 // ==============================================================================
 
 describe('EIP-712 helpers', () => {
     it('eip712DomainSeparator is deterministic', () => {
-        const a = eip712DomainSeparator(11155111, '0x00000000000000000000000000000000DeaDBeef');
-        const b = eip712DomainSeparator(11155111, '0x00000000000000000000000000000000DeaDBeef');
+        const a = eip712DomainSeparator(MANIFEST.chain_id, MANIFEST.contract_address);
+        const b = eip712DomainSeparator(MANIFEST.chain_id, MANIFEST.contract_address);
         expect(bytesToHex(a)).toBe(bytesToHex(b));
     });
 
-    it('eip712RedemptionHash matches test vector msg_hash', () => {
-        const hash = eip712RedemptionHash(
-            VEC.REDEEM_TX.recipient,
-            BigInt(VEC.EIP712.deadline),
-            VEC.EIP712.chain_id,
-            VEC.EIP712.contract_address,
-        );
-        expect(bytesToHex(hash)).toBe(VEC.REDEEM_TX.msg_hash);
-    });
-
     it('eip712RedemptionHash changes with different recipient', () => {
-        const deadline = BigInt(VEC.EIP712.deadline);
-        const chainId = VEC.EIP712.chain_id;
-        const contract = VEC.EIP712.contract_address;
+        const deadline = BigInt(MANIFEST.deadline);
+        const chainId = MANIFEST.chain_id;
+        const contract = MANIFEST.contract_address;
         const h1 = eip712RedemptionHash('0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa', deadline, chainId, contract);
         const h2 = eip712RedemptionHash('0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB', deadline, chainId, contract);
         expect(bytesToHex(h1)).not.toBe(bytesToHex(h2));
+    });
+});
+
+describe.each(ALL_VECTORS.map(({ id, v }) => ({ id, v })))('EIP-712 parity [$id]', ({ v }) => {
+    it('eip712RedemptionHash matches vector msg_hash', () => {
+        const hash = eip712RedemptionHash(
+            v.REDEEM_TX.recipient,
+            BigInt(v.EIP712.deadline),
+            v.EIP712.chain_id,
+            v.EIP712.contract_address,
+        );
+        expect(bytesToHex(hash)).toBe(v.REDEEM_TX.msg_hash);
+    });
+});
+
+// ==============================================================================
+// g1FromHexCoords leading-zero handling
+// ==============================================================================
+
+describe('g1FromHexCoords leading zeros', () => {
+    beforeAll(async () => {
+        await initBN254();
+    });
+
+    it('padded and unpadded hex yield the same point', () => {
+        const v = ALL_VECTORS[0].v;
+        const xShort = v.Y_HASH_TO_CURVE.X;
+        const xPadded = padHex64(xShort);
+        const yHex = v.Y_HASH_TO_CURVE.Y;
+        const p1 = g1FromHexCoords(xShort, yHex);
+        const p2 = g1FromHexCoords(xPadded, yHex);
+        expect(p1.isEqual(p2)).toBe(true);
     });
 });
 
@@ -360,9 +392,9 @@ describe('standalone protocol lifecycle', () => {
         const proof = await generateRedemptionProof(
             getSpendPriv(secrets),
             recipient,
-            11155111,
-            '0x00000000000000000000000000000000DeaDBeef',
-            BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'),
+            MANIFEST.chain_id,
+            MANIFEST.contract_address,
+            BigInt(MANIFEST.deadline),
         );
 
         expect(verifyEcdsaMevProtection(proof, getSpendAddress(secrets))).toBe(true);

@@ -74,6 +74,10 @@ contract NozkVault {
         "NozkRedeem(address recipient,uint256 deadline)"
     );
 
+    /// @dev Pre-hashed EIP-712 domain name and version for cross-language parity.
+    bytes32 internal constant NAME_HASH    = keccak256(bytes("NozkVault"));
+    bytes32 internal constant VERSION_HASH = keccak256(bytes("1"));
+
     // -- State ------------------------------------------------------------------
 
     /// @dev BLS public key of the Mint on G2 (EIP-197 limb order).
@@ -140,8 +144,8 @@ contract NozkVault {
         mintAuthority = mintAuthority_;
         DOMAIN_SEPARATOR = keccak256(abi.encode(
             EIP712_DOMAIN_TYPEHASH,
-            keccak256("NozkVault"),
-            keccak256("1"),
+            NAME_HASH,
+            VERSION_HASH,
             block.chainid,
             address(this)
         ));

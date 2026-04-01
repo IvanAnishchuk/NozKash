@@ -144,6 +144,8 @@ def compute_vector(master_seed_hex: str, sk_int: int, token_index: int) -> dict:
         },
         # ── EIP-712 domain parameters (fixed for deterministic vectors) ──────
         "EIP712": {
+            "domain_name": "NozkVault",
+            "domain_version": "1",
             "chain_id": test_chain_id,
             "contract_address": test_contract,
             "deadline": hex(test_deadline),
@@ -239,6 +241,8 @@ def main():
 
     # Write manifest so consumers (e.g. Foundry tests) can discover all keypair suites.
     manifest = {
+        "eip712_domain_name": "NozkVault",
+        "eip712_domain_version": "1",
         "chain_id": 11155111,
         "contract_address": "0x00000000000000000000000000000000DeaDBeef",
         "recipient": "0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7",

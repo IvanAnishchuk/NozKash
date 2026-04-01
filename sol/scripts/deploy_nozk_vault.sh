@@ -6,7 +6,7 @@
 #   bash scripts/deploy_nozk_vault.sh --skip-verify   # broadcast only
 #
 # Requires `sol/.env` (or pre-exported variables) with:
-#   PRIVATE_KEY              — deployer (hex, with or without 0x)
+#   DEPLOYER_PRIVATE_KEY              — deployer (hex, with or without 0x)
 #   PK_MINT_X_IMAG           — BLS pk limb (uint256 string, decimal or 0x hex)
 #   PK_MINT_X_REAL
 #   PK_MINT_Y_IMAG
@@ -51,7 +51,7 @@ else
 fi
 
 required=(
-  PRIVATE_KEY
+  DEPLOYER_PRIVATE_KEY
   PK_MINT_X_IMAG
   PK_MINT_X_REAL
   PK_MINT_Y_IMAG
@@ -85,7 +85,7 @@ forge_args=(
   script/NozkVault.s.sol:NozkVaultScript
   --rpc-url "$RPC_URL"
   --broadcast
-  --private-key "$PRIVATE_KEY"
+  --private-key "$DEPLOYER_PRIVATE_KEY"
 )
 
 if $VERIFY; then

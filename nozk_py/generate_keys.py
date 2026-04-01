@@ -16,6 +16,10 @@ mint, and flow scripts. Writes a complete .env file with:
     • MINT_WALLET_ADDRESS     Ethereum address that pays gas for announce() calls
     • MINT_WALLET_KEY         Private key for MINT_WALLET_ADDRESS
 
+    ── Deployer Wallet (--with-deployer) ──
+    • DEPLOYER_ADDRESS        Ethereum address that deploys the contract
+    • DEPLOYER_PRIVATE_KEY    Private key for DEPLOYER_ADDRESS
+
     ── Network (passed via flags or edited later) ──
     • RPC_HTTP_URL            Sepolia JSON-RPC endpoint (client)
     • RPC_WS_URL              Sepolia WebSocket endpoint (mint server)
@@ -138,12 +142,21 @@ def build_env_content(
     wallet_key: str = "",
     mint_wallet_address: str = "",
     mint_wallet_key: str = "",
+    deployer_address: str = "",
+    deployer_key: str = "",
     rpc_url: str = "",
     rpc_ws_url: str = "",
     contract_address: str = "",
     scan_from_block: str = "0",
 ) -> str:
     """Build the .env file content with clear section headers."""
+
+    # Derive BLS pubkey limbs for Forge deployment script
+    pk = bn128_multiply(G2, bls_sk)
+    pk_x_imag = hex(pk[0].coeffs[1].n)
+    pk_x_real = hex(pk[0].coeffs[0].n)
+    pk_y_imag = hex(pk[1].coeffs[1].n)
+    pk_y_real = hex(pk[1].coeffs[0].n)
 
     # Chain settings: only include if provided (non-empty)
     chain_section = ""
@@ -161,8 +174,18 @@ WALLET_KEY={wallet_key}
 # ── Mint Wallet ───────────────────────────────────────────────────────────────
 # Ethereum keypair for the mint server (pays gas for announce() calls).
 # Fund this address with Sepolia ETH before starting the mint daemon.
+# MINT_AUTHORITY in the contract constructor should be set to this address.
 MINT_WALLET_ADDRESS={mint_wallet_address}
 MINT_WALLET_KEY={mint_wallet_key}
+"""
+
+    if deployer_address and deployer_key:
+        chain_section += f"""
+# ── Deployer Wallet ──────────────────────────────────────────────────────────
+# Ethereum keypair for deploying the NozkVault contract (forge script).
+# Fund this address with Sepolia ETH to cover deployment gas.
+DEPLOYER_ADDRESS={deployer_address}
+DEPLOYER_PRIVATE_KEY={deployer_key}
 """
 
     if rpc_url:
@@ -199,10 +222,15 @@ CONTRACT_ADDRESS={contract_address}
 # WALLET_KEY=0xYourPrivateKey
 # MINT_WALLET_ADDRESS=0xMintAddress
 # MINT_WALLET_KEY=0xMintPrivateKey
+# DEPLOYER_ADDRESS=0xDeployerAddress
+# DEPLOYER_PRIVATE_KEY=0xDeployerPrivateKey
 # RPC_HTTP_URL=https://sepolia.infura.io/v3/YOUR_PROJECT_ID
 # RPC_WS_URL=wss://sepolia.infura.io/ws/v3/YOUR_PROJECT_ID
 # CONTRACT_ADDRESS=0xDeployedContractAddress
 """
+
+    # MINT_AUTHORITY defaults to MINT_WALLET_ADDRESS (the account calling announce())
+    mint_authority = mint_wallet_address or "0x0000000000000000000000000000000000000000"
 
     return f"""\
 # ==============================================================================
@@ -214,6 +242,8 @@ CONTRACT_ADDRESS={contract_address}
 # Mock mode (offline):  only MASTER_SEED + MINT_BLS_PRIVKEY are needed.
 # Chain mode (Sepolia): all settings below must be filled in.
 # ==============================================================================
+
+CHAIN_ID=11155111
 
 # ── Token Derivation ──────────────────────────────────────────────────────────
 # 32-byte hex seed used to deterministically derive all token keypairs.
@@ -229,6 +259,15 @@ MINT_BLS_PRIVKEY={hex(bls_sk)}
 # Used by the client to verify unblinded signatures locally before redeeming.
 # Derived deterministically from MINT_BLS_PRIVKEY — do not edit manually.
 MINT_BLS_PUBKEY={derive_bls_pubkey_hex(bls_sk)}
+
+# ── Forge Deployment (split BLS pubkey limbs + mint authority) ────────────────
+# These are read by sol/script/NozkVault.s.sol via vm.envOr().
+# MINT_AUTHORITY must be the address authorized to call announce().
+PK_MINT_X_IMAG={pk_x_imag}
+PK_MINT_X_REAL={pk_x_real}
+PK_MINT_Y_IMAG={pk_y_imag}
+PK_MINT_Y_REAL={pk_y_real}
+MINT_AUTHORITY={mint_authority}
 {chain_section}
 # ── Scanning ──────────────────────────────────────────────────────────────────
 # Block number to start scanning for MintFulfilled events.
@@ -283,6 +322,13 @@ def main(
             help="Also generate an Ethereum keypair for the mint server (announce() gas).",
         ),
     ] = False,
+    with_deployer: Annotated[
+        bool,
+        typer.Option(
+            "--with-deployer",
+            help="Also generate an Ethereum keypair for contract deployment (forge script).",
+        ),
+    ] = False,
     rpc_url: Annotated[
         Optional[str],
         typer.Option(
@@ -324,7 +370,7 @@ def main(
     """
     console.print(
         Panel(
-            Text.assemble(("🔑  ", ""), ("GHOST-TIP KEY GENERATOR", "banner"), ("  🔑", "")),
+            Text.assemble(("🔑  ", ""), ("NOZK KEY GENERATOR", "banner"), ("  🔑", "")),
             subtitle=Text("All secrets use CSPRNG · Never commit .env to git", style="secondary"),
             border_style="cyan",
             padding=(0, 4),
@@ -425,6 +471,28 @@ def main(
         )
         console.print()
 
+    # ── Optional: deployer wallet ────────────────────────────────────────
+    deployer_address = ""
+    deployer_key = ""
+
+    if with_deployer:
+        console.print(Rule("[step]Generating Deployer Wallet[/step]", style="dim cyan"))
+        deployer_address, deployer_key = generate_eth_keypair()
+        console.print(
+            Text.assemble(
+                ("  DEPLOYER_ADDRESS   ", "label"),
+                (deployer_address, "addr"),
+            )
+        )
+        console.print(
+            Text.assemble(
+                ("  DEPLOYER_KEY       ", "label"),
+                (deployer_key[:10] + "…" + deployer_key[-6:], "secret"),
+                ("  (keep secret!)", "muted"),
+            )
+        )
+        console.print()
+
     # ── Build .env content ────────────────────────────────────────────────
     env_content = build_env_content(
         master_seed=master_seed,
@@ -433,6 +501,8 @@ def main(
         wallet_key=wallet_key,
         mint_wallet_address=mint_wallet_address,
         mint_wallet_key=mint_wallet_key,
+        deployer_address=deployer_address,
+        deployer_key=deployer_key,
         rpc_url=rpc_url or "",
         rpc_ws_url=rpc_ws_url or "",
         contract_address=contract or "",
@@ -515,6 +585,21 @@ def main(
                 ("     • Fund ", "muted"),
                 (mint_wallet_address, "addr"),
                 (" with Sepolia ETH (mint gas)", "muted"),
+            )
+        )
+    if not with_deployer:
+        console.print(
+            Text(
+                "     • Re-run with --with-deployer to generate a deployer keypair",
+                style="muted",
+            )
+        )
+    else:
+        console.print(
+            Text.assemble(
+                ("     • Fund ", "muted"),
+                (deployer_address, "addr"),
+                (" with Sepolia ETH (deployment gas)", "muted"),
             )
         )
     if not rpc_url:

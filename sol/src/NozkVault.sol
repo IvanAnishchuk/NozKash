@@ -2,12 +2,24 @@
 pragma solidity ^0.8.20;
 
 /**
- * @title NozkVault — Revision D (minimal PoC)
- * @notice Ingress (deposit), delivery (announce), and egress (redeem) for
- *         fixed-denomination eCash with ECDSA nullifier + BLS pairing on BN254.
- *         Refund path: if the mint never fulfils, the original depositor can
- *         reclaim the locked ETH (see `refund`). `depositors[depositId]` links
- *         the blind depositId to the EOA that sent `deposit()` (PoC tradeoff).
+ * @title NozkVault — Revision E (reveal / redeem split)
+ * @notice Ingress (deposit), delivery (announce), reveal (BLS verification),
+ *         and egress (redeem) for eCash with ECDSA nullifier + BLS pairing
+ *         on BN254.
+ *
+ *         Token lifecycle:
+ *           deposit → announce → reveal → redeem
+ *
+ *         reveal() is permissionless — anyone can submit a valid BLS signature
+ *         to register a nullifier.  redeem() is also permissionless — the ECDSA
+ *         spend signature binds the nullifier to a specific recipient, preventing
+ *         front-running.  A relayer service provides gas abstraction and
+ *         anonymisation but is not enforced at the contract level.
+ *
+ *         The denomination is recorded per-nullifier at reveal time.  Currently
+ *         a single DENOMINATION constant, but the storage is sized for future
+ *         multi-denomination support (different BLS signers per tier, following
+ *         the original Chaumian blind-signature design).
  *
  * Key derivation (client-side only — never sent to mint):
  *
@@ -15,7 +27,7 @@ pragma solidity ^0.8.20;
  *
  *   spend keypair:
  *     spend_priv = keccak256("spend" ‖ base)   [secp256k1 scalar]
- *     spend_addr = address(spend_priv · G)      [nullifier — revealed only at redeem]
+ *     spend_addr = address(spend_priv · G)      [nullifier — revealed at reveal time]
  *
  *   blind keypair:
  *     blind_priv = keccak256("blind" ‖ base)   [secp256k1 scalar → also BN254 scalar r]
@@ -28,7 +40,7 @@ pragma solidity ^0.8.20;
  * Privacy design:
  *   - depositId = blind_addr.  Revealed at deposit but cannot be linked to
  *     spend_addr without the master seed.
- *   - spend_addr never appears on-chain until redeem.
+ *   - spend_addr never appears on-chain until reveal.
  *   - announce() is restricted to mintAuthority to prevent scan-DoS.
  *   - S' is emitted in plaintext (safe: useless without r).
  *
@@ -36,7 +48,8 @@ pragma solidity ^0.8.20;
  *   - Deposits:  recompute blind_addr_i from seed; query DepositLocked indexed
  *                by depositId = blind_addr_i directly (O(n) RPC calls, no scan).
  *   - Minted:    fetch MintFulfilled for the matched depositId; unblind locally.
- *   - Redeemed:  call spentNullifiers[spend_addr_i] for each known index.
+ *   - Revealed:  query NullifierRevealed events or nullifierState[spend_addr_i].
+ *   - Redeemed:  check nullifierState[spend_addr_i] == SPENT.
  *
  * Implementation notes:
  *   - depositId is type address (20 bytes) — matches blind_addr naturally.
@@ -78,6 +91,11 @@ contract NozkVault {
     bytes32 internal constant NAME_HASH    = keccak256(bytes("NozkVault"));
     bytes32 internal constant VERSION_HASH = keccak256(bytes("1"));
 
+    // -- Types ------------------------------------------------------------------
+
+    /// @dev Nullifier lifecycle: UNREVEALED (default) → REVEALED → SPENT.
+    enum NullifierState { UNREVEALED, REVEALED, SPENT }
+
     // -- State ------------------------------------------------------------------
 
     /// @dev BLS public key of the Mint on G2 (EIP-197 limb order).
@@ -86,8 +104,13 @@ contract NozkVault {
     /// @dev Address authorised to call announce().  Set to Mint's funded account.
     address public immutable mintAuthority;
 
-    /// @dev Tracks spent nullifiers (spend_addr) to prevent double-spend.
-    mapping(address => bool) public spentNullifiers;
+    /// @dev Nullifier (spend_addr) lifecycle state.
+    mapping(address => NullifierState) public nullifierState;
+
+    /// @dev Amount (in wei) recorded when the nullifier was revealed.
+    ///      Currently always DENOMINATION; stored explicitly for future
+    ///      multi-denomination support (different BLS signer per tier).
+    mapping(address => uint256) public revealedAmount;
 
     /// @dev depositId (blind_addr) => deposit registered and not yet fulfilled by mint.
     mapping(address => bool) internal awaitingFulfillment;
@@ -104,17 +127,16 @@ contract NozkVault {
     // -- Events -----------------------------------------------------------------
 
     /// @dev Emitted when a deposit is locked.
-    ///      depositId = blind.address derived from the blind keypair.
-    ///      No msg.sender in event.  Clients recover deposits by computing
-    ///      blind_addr_i from seed and querying this event by depositId directly.
     event DepositLocked(address indexed depositId, uint256[2] B);
 
     /// @dev Emitted by the Mint after blind signing.
-    ///      S' is safe in plaintext — useless without the blinding factor r.
     event MintFulfilled(address indexed depositId, uint256[2] S_prime);
 
+    /// @dev Emitted when a nullifier is revealed (BLS verified, entered the tree).
+    event NullifierRevealed(address indexed nullifier, uint256 amount);
+
     /// @dev Emitted when a token is redeemed.
-    event Redeemed(address indexed nullifier, address indexed recipient);
+    event Redeemed(address indexed nullifier, address indexed recipient, uint256 amount);
 
     /// @dev Emitted when a pending deposit is refunded to the original depositor.
     event Refunded(address indexed depositId, address indexed to);
@@ -132,10 +154,13 @@ contract NozkVault {
     error DepositNotFound();
     error DepositIdAlreadyUsed();
     error AlreadyFulfilled();
+    error AlreadyRevealed();
+    error NotRevealed();
     error InvalidDepositId();
     error NotDepositor();
     error NothingToRefund();
     error ExpiredSignature();
+    error BatchLengthMismatch();
 
     // -- Constructor ------------------------------------------------------------
 
@@ -177,7 +202,8 @@ contract NozkVault {
 
     /**
      * @notice Called by the Mint to deliver the blind signature S' on-chain.
-     * @dev Clears `depositors[depositId]` once fulfilled so the depositor↔id link is not kept on-chain (refund is impossible after announce anyway).
+     * @dev Clears `depositors[depositId]` once fulfilled so the depositor↔id
+     *      link is not kept on-chain (refund is impossible after announce anyway).
      */
     function announce(
         address             depositId,
@@ -211,37 +237,101 @@ contract NozkVault {
         emit Refunded(depositId, msg.sender);
     }
 
+    // -- External: reveal -------------------------------------------------------
+
+    /**
+     * @notice Permissionless: verify a BLS signature and register the nullifier.
+     * @dev    The BLS pairing check proves possession of a valid blind-signed
+     *         token.  The nullifier enters the "tree" with the current
+     *         DENOMINATION recorded (for future multi-denomination support).
+     *
+     * @param nullifier            The spend address (nullifier).
+     * @param unblindedSignatureS  G1 point S = sk_mint · H(nullifier).
+     */
+    function reveal(
+        address             nullifier,
+        uint256[2] calldata unblindedSignatureS
+    ) external {
+        _reveal(nullifier, unblindedSignatureS);
+    }
+
+    /**
+     * @notice Batch reveal: verify and register multiple nullifiers in one tx.
+     * @dev    Saves per-tx overhead when revealing many tokens at once.
+     */
+    function revealBatch(
+        address[]           calldata nullifiers,
+        uint256[2][] calldata unblindedSignatures
+    ) external {
+        if (nullifiers.length != unblindedSignatures.length) revert BatchLengthMismatch();
+        for (uint256 i; i < nullifiers.length; i++) {
+            _reveal(nullifiers[i], unblindedSignatures[i]);
+        }
+    }
+
+    function _reveal(
+        address             nullifier,
+        uint256[2] calldata unblindedSignatureS
+    ) internal {
+        if (nullifierState[nullifier] != NullifierState.UNREVEALED) revert AlreadyRevealed();
+
+        uint256[2] memory y = hashNullifierPoint(nullifier);
+        if (!verifyBLS(unblindedSignatureS, y, pkMint)) revert InvalidBLS();
+
+        nullifierState[nullifier] = NullifierState.REVEALED;
+        revealedAmount[nullifier] = DENOMINATION;
+
+        emit NullifierRevealed(nullifier, DENOMINATION);
+    }
+
     // -- External: redeem -------------------------------------------------------
 
     /**
-     * @notice Verify and redeem a token.  Transfers 0.001 ETH to recipient.
-     * @param nullifier The spend / nullifier address; must match `ecrecover` on the redemption hash.
+     * @notice Redeem a previously revealed token.  Transfers ETH to recipient.
+     * @dev    BLS was already verified in reveal().  This function only checks
+     *         the ECDSA binding (nullifier→recipient) and transfers the
+     *         revealedAmount.  Permissionless — the ECDSA signature binds the
+     *         nullifier to a specific recipient, preventing front-running.
+     *         A relayer service can submit on the user's behalf for gas
+     *         abstraction and anonymisation.
+     *
+     * @param recipient      Address to receive the ETH.
+     * @param spendSignature 65-byte ECDSA signature (r‖s‖v) over the EIP-712 hash.
+     * @param nullifier      The spend address; must match ecrecover on the hash.
+     * @param deadline       Unix timestamp after which the signature expires.
      */
     function redeem(
-        address             recipient,
-        bytes      calldata spendSignature,
-        address             nullifier,
-        uint256             deadline,
-        uint256[2] calldata unblindedSignatureS
+        address        recipient,
+        bytes calldata spendSignature,
+        address        nullifier,
+        uint256        deadline
     ) external {
         if (block.timestamp > deadline) revert ExpiredSignature();
+
         bytes32 txHash = redemptionMessageHash(recipient, deadline);
         address recoveredNullifier = recoverSigner(txHash, spendSignature);
         if (recoveredNullifier == address(0)) revert InvalidECDSA();
         if (recoveredNullifier != nullifier) revert InvalidECDSA();
 
-        if (spentNullifiers[nullifier]) revert AlreadySpent();
-        spentNullifiers[nullifier] = true;
+        if (nullifierState[nullifier] != NullifierState.REVEALED) {
+            if (nullifierState[nullifier] == NullifierState.SPENT) revert AlreadySpent();
+            revert NotRevealed();
+        }
 
-        uint256[2] memory y = hashNullifierPoint(nullifier);
-        if (!verifyBLS(unblindedSignatureS, y, pkMint)) revert InvalidBLS();
+        nullifierState[nullifier] = NullifierState.SPENT;
+        uint256 amount = revealedAmount[nullifier];
 
-        (bool sent,) = payable(recipient).call{value: DENOMINATION}("");
+        (bool sent,) = payable(recipient).call{value: amount}("");
         if (!sent) revert EthSendFailed();
-        emit Redeemed(nullifier, recipient);
+        emit Redeemed(nullifier, recipient, amount);
     }
 
     // -- Public view helpers ----------------------------------------------------
+
+    /// @dev Backward-compatible view: returns true iff nullifier has been spent.
+    function spentNullifiers(address nullifier) external view returns (bool) {
+        return nullifierState[nullifier] == NullifierState.SPENT;
+    }
 
     function redemptionMessageHash(address recipient, uint256 deadline) public view returns (bytes32) {
         bytes32 structHash = keccak256(abi.encode(NOZKREDEEM_TYPEHASH, recipient, deadline));

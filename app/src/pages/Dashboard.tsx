@@ -2,9 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import {
   buildRedemptionDraftFromSeed,
-  isHomeRedeemReady,
   loadRedemptionDraft,
-  saveRedemptionDraft,
   type RedemptionDraftV1,
 } from '../crypto/nozkRedeem'
 import { useNozkMasterSeed } from '../context/NozkMasterSeedProvider'
@@ -17,7 +15,6 @@ import { DateRangePill } from '../components/DateRangePill'
 import { deriveTokenSecrets, getDepositId } from '@nozk/nozk-library'
 import {
   getEthereum,
-  NATIVE_CURRENCY_SYMBOL,
   targetChainMismatchUserMessage,
   TARGET_NETWORK_LABEL,
 } from '../lib/ethereum'
@@ -26,9 +23,8 @@ import {
   filterVaultActivity,
   formatTxAmountDisplay,
 } from '../lib/historyQuery'
-import { sendVaultRedeemTransaction } from '../lib/sendVaultRedeem'
+import { sendVaultRedeemTransaction, sendVaultRevealTransaction } from '../lib/sendVaultRedeem'
 import { sendVaultRefundTransaction } from '../lib/sendVaultRefund'
-import { isStartRedeemVisible, shouldShowRedeemHere } from '../lib/redeemUiGates'
 import { mergeVaultRowsWithRedeemDraft } from '../lib/vaultRedeemMerge'
 import { useNozkVaultActivityLive } from '../hooks/useNozkVaultActivityLive'
 import type { LayoutOutletContext } from '../layoutOutletContext'
@@ -41,6 +37,8 @@ function kindToClass(k: ActivityKind) {
   switch (k) {
     case 'Deposit':
       return 'deposit'
+    case 'Revealed':
+      return 'revealed'
     case 'Redeem':
       return 'redeem'
     case 'Pending':
@@ -61,6 +59,20 @@ function ActivityIcon({ kind }: { kind: ActivityKind }) {
           strokeWidth="2"
           strokeLinecap="round"
         />
+      </svg>
+    )
+  }
+  if (cls === 'revealed') {
+    return (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+        <path
+          d="M9 12l2 2 4-4"
+          stroke="var(--green)"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <circle cx="12" cy="12" r="10" stroke="var(--green)" strokeWidth="2" />
       </svg>
     )
   }
@@ -120,9 +132,10 @@ export function Dashboard() {
     () => loadRedemptionDraft()
   )
   const [redeemingId, setRedeemingId] = useState<string | null>(null)
+  const [revealingId, setRevealingId] = useState<string | null>(null)
   const [refundingId, setRefundingId] = useState<string | null>(null)
-  const [startingRedeemId, setStartingRedeemId] = useState<string | null>(null)
-  const [changeWalletModalOpen, setChangeWalletModalOpen] = useState(false)
+  /** Per-row recipient address for inline redeem */
+  const [redeemRecipients, setRedeemRecipients] = useState<Record<string, string>>({})
 
   const [activeFilter, setActiveFilter] =
     useState<HistoryFilterType>('all')
@@ -179,12 +192,15 @@ export function Dashboard() {
   }, [activeFilter, dateFrom, dateTo, displayRows])
 
   const homeStats = useMemo(() => {
-    const validCount = vaultChainRows.filter((r) => r.type === 'Deposit').length
+    const revealedCount = vaultChainRows.filter((r) => r.type === 'Revealed').length
+    const pendingCount = vaultChainRows.filter((r) => r.type === 'Deposit').length
     const spentCount = vaultChainRows.filter((r) => r.type === 'Redeem').length
     return {
-      validCount,
+      revealedCount,
+      pendingCount,
       spentCount,
-      validEth: `${(validCount * VAULT_DENOMINATION_ETH).toFixed(3)} ETH`,
+      revealedEth: `${(revealedCount * VAULT_DENOMINATION_ETH).toFixed(3)} ETH`,
+      pendingEth: `${(pendingCount * VAULT_DENOMINATION_ETH).toFixed(3)} ETH`,
       spentEth: `${(spentCount * VAULT_DENOMINATION_ETH).toFixed(3)} ETH`,
     }
   }, [vaultChainRows])
@@ -194,9 +210,9 @@ export function Dashboard() {
     setDateTo('')
   }
 
-  const handleStartRedeem = (item: VaultTx) => {
+  const handleReveal = async (item: VaultTx) => {
     if (item.tokenIndex === undefined || !effectiveMasterSeed) {
-      showToast('Unlock the vault (sign) to prepare redeem.', 'error')
+      showToast('Unlock the vault (sign) to reveal.', 'error')
       return
     }
     if (!account) {
@@ -207,25 +223,44 @@ export function Dashboard() {
       showToast(targetChainMismatchUserMessage(), 'error')
       return
     }
-    setStartingRedeemId(item.id)
+    const ethereum = getEthereum()
+    if (!ethereum) {
+      showToast('No Ethereum wallet found', 'error')
+      return
+    }
+    setRevealingId(item.id)
     try {
       const draft = buildRedemptionDraftFromSeed(
         effectiveMasterSeed,
         item.tokenIndex,
         account
       )
-      saveRedemptionDraft(draft)
-      setRedemptionDraft(draft)
-      setChangeWalletModalOpen(true)
-    } catch (e) {
-      showToast(
-        e instanceof Error ? e.message : 'Could not prepare redeem',
-        'error'
-      )
+      await sendVaultRevealTransaction({
+        ethereum,
+        draft,
+        masterSeed: effectiveMasterSeed,
+      })
+      requestWalletBalanceRefresh()
+      showToast('Reveal confirmed · nullifier registered on-chain', 'success')
+    } catch (err: unknown) {
+      const e = err as { code?: number; message?: string }
+      if (e?.code === 4001) {
+        showToast('Transaction cancelled in your wallet', 'error')
+        return
+      }
+      const msg =
+        typeof e?.message === 'string' ? e.message : 'Could not reveal token'
+      if (/user rejected|denied/i.test(msg)) {
+        showToast('Transaction cancelled in your wallet', 'error')
+      } else {
+        showToast(msg, 'error')
+      }
     } finally {
-      setStartingRedeemId(null)
+      setRevealingId(null)
     }
   }
+
+  const isEthAddress = (s: string) => /^0x[a-fA-F0-9]{40}$/.test(s.trim())
 
   const handleRefund = async (item: VaultTx) => {
     if (item.type !== 'Pending' || item.tokenIndex === undefined) return
@@ -271,11 +306,24 @@ export function Dashboard() {
     }
   }
 
-  const handleHomeRedeem = async (item: VaultTx) => {
-    if (!account || item.tokenIndex === undefined) return
-    const draft = loadRedemptionDraft()
-    if (!draft || !isHomeRedeemReady(item, draft, account)) return
-
+  const handleInlineRedeem = async (item: VaultTx) => {
+    if (item.tokenIndex === undefined || !effectiveMasterSeed) {
+      showToast('Unlock the vault (sign) to redeem.', 'error')
+      return
+    }
+    if (!account) {
+      showToast('Connect your wallet first.', 'error')
+      return
+    }
+    if (network !== TARGET_NETWORK_LABEL) {
+      showToast(targetChainMismatchUserMessage(), 'error')
+      return
+    }
+    const recipient = (redeemRecipients[item.id] ?? '').trim()
+    if (!isEthAddress(recipient)) {
+      showToast('Enter a valid recipient address (0x…)', 'error')
+      return
+    }
     const ethereum = getEthereum()
     if (!ethereum) {
       showToast('No Ethereum wallet found', 'error')
@@ -284,15 +332,24 @@ export function Dashboard() {
 
     setRedeemingId(item.id)
     try {
+      const draft = buildRedemptionDraftFromSeed(
+        effectiveMasterSeed,
+        item.tokenIndex,
+        account
+      )
       await sendVaultRedeemTransaction({
         ethereum,
-        recipient: account,
+        recipient,
         draft,
         masterSeed: effectiveMasterSeed,
       })
       requestWalletBalanceRefresh()
-      showToast('Redeem confirmed · funds sent to this account', 'success')
-      setRedemptionDraft(null)
+      showToast(`Redeem confirmed · 0.001 ETH sent to ${recipient.slice(0, 8)}…`, 'success')
+      setRedeemRecipients((prev) => {
+        const next = { ...prev }
+        delete next[item.id]
+        return next
+      })
     } catch (err: unknown) {
       const e = err as { code?: number; message?: string }
       if (e?.code === 4001) {
@@ -311,8 +368,6 @@ export function Dashboard() {
     }
   }
 
-  const balStr = homeBalanceMain ?? '—'
-
   return (
     <div className="page-inner page-inner--home">
       <div className="balance-card">
@@ -326,7 +381,7 @@ export function Dashboard() {
         <div className="balance-cols">
           <div className="balance-main">
             <div className="balance-amount">
-              {privacyOn ? '••••' : balStr}
+              {privacyOn ? '••••' : homeStats.revealedEth}
             </div>
           </div>
           <div className="balance-stats-col">
@@ -334,11 +389,22 @@ export function Dashboard() {
               <div className="stat-block-row">
                 <span className="stat-block-label valid">AVAILABLE</span>
                 <span className="stat-block-num valid">
-                  {privacyOn ? '••' : homeStats.validCount}
+                  {privacyOn ? '••' : homeStats.revealedCount}
                 </span>
               </div>
               <div className="stat-block-eth">
-                {privacyOn ? '••••' : homeStats.validEth}
+                {privacyOn ? '••••' : homeStats.revealedEth}
+              </div>
+            </div>
+            <div className="stat-block">
+              <div className="stat-block-row">
+                <span className="stat-block-label pending-label">PENDING</span>
+                <span className="stat-block-num pending-label">
+                  {privacyOn ? '••' : homeStats.pendingCount}
+                </span>
+              </div>
+              <div className="stat-block-eth">
+                {privacyOn ? '••••' : homeStats.pendingEth}
               </div>
             </div>
             <div className="stat-block">
@@ -481,49 +547,64 @@ export function Dashboard() {
                     ) : null}
                     {item.type === 'Deposit' ? (
                       <div className="activity-redeem-actions">
-                        {isStartRedeemVisible(
-                          account,
-                          redemptionDraft,
-                          item
-                        ) &&
-                          effectiveMasterSeed && (
-                            <button
-                              type="button"
-                              className="history-redeem-btn history-redeem-btn--secondary"
-                              disabled={
-                                startingRedeemId === item.id ||
-                                redeemingId === item.id ||
-                                network !== TARGET_NETWORK_LABEL
-                              }
-                              onClick={() => handleStartRedeem(item)}
-                            >
-                              {startingRedeemId === item.id
-                                ? 'Saving…'
-                                : 'Start redeem'}
-                            </button>
-                          )}
-                        {shouldShowRedeemHere(
-                          account,
-                          isHomeRedeemReady(
-                            item,
-                            redemptionDraft,
-                            account
-                          )
-                        ) && (
+                        {effectiveMasterSeed && (
                           <button
                             type="button"
-                            className="history-redeem-btn"
+                            className="history-redeem-btn history-redeem-btn--secondary"
+                            style={{ fontSize: 11, padding: '4px 10px' }}
                             disabled={
-                              redeemingId === item.id ||
+                              revealingId === item.id ||
                               network !== TARGET_NETWORK_LABEL
                             }
-                            onClick={() => void handleHomeRedeem(item)}
+                            onClick={() => void handleReveal(item)}
                           >
-                            {redeemingId === item.id
-                              ? 'Sending…'
-                              : 'Redeem here'}
+                            {revealingId === item.id
+                              ? 'Revealing…'
+                              : 'Reveal'}
                           </button>
                         )}
+                      </div>
+                    ) : null}
+                    {item.type === 'Revealed' && effectiveMasterSeed ? (
+                      <div className="activity-redeem-actions" style={{ gap: 4, flexDirection: 'column', alignItems: 'flex-end' }}>
+                        <input
+                          className="redeem-recipient-input"
+                          type="text"
+                          value={redeemRecipients[item.id] ?? ''}
+                          onChange={(e) =>
+                            setRedeemRecipients((prev) => ({
+                              ...prev,
+                              [item.id]: e.target.value,
+                            }))
+                          }
+                          placeholder="Recipient 0x…"
+                          spellCheck={false}
+                          autoComplete="off"
+                          style={{
+                            fontFamily: 'var(--mono)',
+                            fontSize: 10,
+                            padding: '3px 6px',
+                            width: 140,
+                            background: 'var(--bg2)',
+                            border: '1px solid var(--border)',
+                            borderRadius: 4,
+                            color: 'var(--text)',
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="history-redeem-btn"
+                          disabled={
+                            redeemingId === item.id ||
+                            !isEthAddress(redeemRecipients[item.id] ?? '') ||
+                            network !== TARGET_NETWORK_LABEL
+                          }
+                          onClick={() => void handleInlineRedeem(item)}
+                        >
+                          {redeemingId === item.id
+                            ? 'Sending…'
+                            : 'Redeem'}
+                        </button>
                       </div>
                     ) : null}
                   </div>
@@ -533,79 +614,6 @@ export function Dashboard() {
           )}
         </div>
       </div>
-
-      {changeWalletModalOpen ? (
-        <div
-          className="modal-overlay open"
-          style={{ zIndex: 220 }}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="change-wallet-redeem-title"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setChangeWalletModalOpen(false)
-          }}
-        >
-          <div
-            className="modal-sheet"
-            style={{ paddingBottom: 24, maxWidth: 400 }}
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            <div className="modal-handle" />
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: 12,
-              }}
-            >
-              <span
-                id="change-wallet-redeem-title"
-                style={{
-                  fontFamily: 'var(--mono)',
-                  fontSize: 14,
-                  color: 'var(--text)',
-                  letterSpacing: '0.5px',
-                }}
-              >
-                Change wallet
-              </span>
-              <button
-                type="button"
-                className="import-close"
-                onClick={() => setChangeWalletModalOpen(false)}
-                aria-label="Close"
-              >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path
-                    d="M4 4l8 8M12 4l-8 8"
-                    stroke="var(--text2)"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              </button>
-            </div>
-            <p
-              className="modal-sub-label"
-              style={{ marginBottom: 16, lineHeight: 1.45 }}
-            >
-              In your wallet, switch to the account that will{' '}
-              <strong>pay gas</strong> and <strong>receive</strong> the 0.001{' '}
-              {NATIVE_CURRENCY_SYMBOL}
-              (e.g. Account 2). When you come back to this page,{' '}
-              <strong>Redeem here</strong> will appear on the mint row.
-            </p>
-            <button
-              type="button"
-              className="btn-full"
-              onClick={() => setChangeWalletModalOpen(false)}
-            >
-              Got it
-            </button>
-          </div>
-        </div>
-      ) : null}
 
     </div>
   )

@@ -46,6 +46,8 @@ contract NozkVaultTest is Test {
     uint256 internal constant P = 21888242871839275222246405745257275088696311157297823662689037894645226208583;
 
     event MintFulfilled(address indexed depositId, uint256[2] S_prime);
+    event NullifierRevealed(address indexed nullifier, uint256 amount);
+    event Redeemed(address indexed nullifier, address indexed recipient, uint256 amount);
 
     function setUp() public {
         string memory forkUrl = vm.envOr("FORK_RPC_URL", string(""));
@@ -130,7 +132,11 @@ contract NozkVaultTest is Test {
         p[1] = _hexU256(j, string.concat(baseKey, ".Y"));
     }
 
-    function test_allTestVectors_metadataBlsH2cEcdsaAndRedeem() public {
+    // =========================================================================
+    // Full vector suite: crypto + reveal + redeem
+    // =========================================================================
+
+    function test_allTestVectors_metadataBlsH2cEcdsaRevealAndRedeem() public {
         for (uint256 k; k < keypairDirs.length; k++) {
             // Deploy a fresh vault at the vector contract address for each keypair's pkMint.
             string memory j0 = vm.readFile(_tokenFileIn(keypairDirs[k], tokenIndices[0]));
@@ -148,11 +154,11 @@ contract NozkVaultTest is Test {
                 _assertTokenCryptoFor(kpVault, j);
             }
 
-            // Redeem every token index.
+            // Reveal then redeem every token index.
             vm.deal(vectorContract, tokenIndices.length * kpVault.DENOMINATION());
             for (uint256 t; t < tokenIndices.length; t++) {
                 string memory j = vm.readFile(_tokenFileIn(keypairDirs[k], tokenIndices[t]));
-                _redeemOneFor(kpVault, j);
+                _revealAndRedeemOneFor(kpVault, j);
             }
         }
     }
@@ -184,17 +190,25 @@ contract NozkVaultTest is Test {
         assertEq(recovered, spend, "ECDSA must recover spend_addr");
     }
 
-    function _redeemOneFor(NozkVaultHarness v_, string memory j) internal {
-        address recipient = j.readAddress(".REDEEM_TX.recipient");
+    function _revealAndRedeemOneFor(NozkVaultHarness v_, string memory j) internal {
         address nullifier = j.readAddress(".SPEND_KEYPAIR.address");
-        uint256 deadline = _hexU256(j, ".REDEEM_TX.deadline");
-        bytes memory sig = _hexBytes(j, ".REDEEM_TX.spend_signature");
         uint256[2] memory sG1 = [j.readUint(".REDEEM_TX.S_x"), j.readUint(".REDEEM_TX.S_y")];
 
+        // --- reveal ---
+        v_.reveal(nullifier, sG1);
+        assertTrue(v_.nullifierState(nullifier) == NozkVault.NullifierState.REVEALED);
+        assertEq(v_.revealedAmount(nullifier), v_.DENOMINATION());
+
+        // --- redeem ---
+        address recipient = j.readAddress(".REDEEM_TX.recipient");
+        uint256 deadline = _hexU256(j, ".REDEEM_TX.deadline");
+        bytes memory sig = _hexBytes(j, ".REDEEM_TX.spend_signature");
+
         uint256 balBefore = recipient.balance;
-        v_.redeem(recipient, sig, nullifier, deadline, sG1);
+        v_.redeem(recipient, sig, nullifier, deadline);
         assertEq(recipient.balance - balBefore, v_.DENOMINATION());
         assertTrue(v_.spentNullifiers(nullifier));
+        assertTrue(v_.nullifierState(nullifier) == NozkVault.NullifierState.SPENT);
     }
 
     function _splitSig(bytes memory sig) internal pure returns (bytes32 r, bytes32 s, uint8 v) {
@@ -206,6 +220,10 @@ contract NozkVaultTest is Test {
         }
     }
 
+    // =========================================================================
+    // Unit tests: hash-to-curve
+    // =========================================================================
+
     function test_hashNullifierPointOnCurve() public view {
         string memory j = vm.readFile(_tokenFile(42));
         address spend = j.readAddress(".SPEND_KEYPAIR.address");
@@ -214,6 +232,10 @@ contract NozkVaultTest is Test {
         uint256 rhs = addmod(mulmod(mulmod(x, x, P), x, P), 3, P);
         assertEq(mulmod(pt[1], pt[1], P), rhs);
     }
+
+    // =========================================================================
+    // Unit tests: deposit
+    // =========================================================================
 
     function test_deposit_twoBlindAddrsLockEth() public {
         string memory j = vm.readFile(_tokenFile(42));
@@ -266,6 +288,10 @@ contract NozkVaultTest is Test {
         vault.deposit{value: den}(blind, b);
         vm.stopPrank();
     }
+
+    // =========================================================================
+    // Unit tests: announce
+    // =========================================================================
 
     function test_announce_emitsMintFulfilled_afterDeposit() public {
         string memory j = vm.readFile(_tokenFile(42));
@@ -330,7 +356,76 @@ contract NozkVaultTest is Test {
         vm.stopPrank();
     }
 
-    function test_redeem_succeedsAgainstVectors() public {
+    // =========================================================================
+    // Unit tests: reveal
+    // =========================================================================
+
+    function test_reveal_succeedsWithValidBLS() public {
+        string memory j = vm.readFile(_tokenFile(42));
+        address nullifier = j.readAddress(".SPEND_KEYPAIR.address");
+        uint256[2] memory sG1 = [j.readUint(".REDEEM_TX.S_x"), j.readUint(".REDEEM_TX.S_y")];
+
+        vm.expectEmit(true, true, true, true);
+        emit NullifierRevealed(nullifier, vault.DENOMINATION());
+        vault.reveal(nullifier, sG1);
+
+        assertTrue(vault.nullifierState(nullifier) == NozkVault.NullifierState.REVEALED);
+        assertEq(vault.revealedAmount(nullifier), vault.DENOMINATION());
+    }
+
+    function test_reveal_revertsAlreadyRevealed() public {
+        string memory j = vm.readFile(_tokenFile(42));
+        address nullifier = j.readAddress(".SPEND_KEYPAIR.address");
+        uint256[2] memory sG1 = [j.readUint(".REDEEM_TX.S_x"), j.readUint(".REDEEM_TX.S_y")];
+
+        vault.reveal(nullifier, sG1);
+
+        vm.expectRevert(NozkVault.AlreadyRevealed.selector);
+        vault.reveal(nullifier, sG1);
+    }
+
+    function test_reveal_revertsInvalidBLS() public {
+        address nullifier = makeAddr("fakeNullifier");
+        uint256[2] memory badS = [uint256(1), uint256(2)];
+
+        vm.expectRevert(NozkVault.InvalidBLS.selector);
+        vault.reveal(nullifier, badS);
+    }
+
+    function test_revealBatch_succeedsMultiple() public {
+        address[] memory nullifiers = new address[](tokenIndices.length);
+        uint256[2][] memory sigs = new uint256[2][](tokenIndices.length);
+
+        for (uint256 t; t < tokenIndices.length; t++) {
+            string memory j = vm.readFile(_tokenFileIn(keypairDirs[0], tokenIndices[t]));
+            nullifiers[t] = j.readAddress(".SPEND_KEYPAIR.address");
+            sigs[t] = [j.readUint(".REDEEM_TX.S_x"), j.readUint(".REDEEM_TX.S_y")];
+        }
+
+        vault.revealBatch(nullifiers, sigs);
+
+        for (uint256 t; t < nullifiers.length; t++) {
+            assertTrue(vault.nullifierState(nullifiers[t]) == NozkVault.NullifierState.REVEALED);
+            assertEq(vault.revealedAmount(nullifiers[t]), vault.DENOMINATION());
+        }
+    }
+
+    function test_revealBatch_revertsLengthMismatch() public {
+        address[] memory nullifiers = new address[](2);
+        uint256[2][] memory sigs = new uint256[2][](1);
+        nullifiers[0] = makeAddr("a");
+        nullifiers[1] = makeAddr("b");
+        sigs[0] = [uint256(1), uint256(2)];
+
+        vm.expectRevert(NozkVault.BatchLengthMismatch.selector);
+        vault.revealBatch(nullifiers, sigs);
+    }
+
+    // =========================================================================
+    // Unit tests: redeem (with reveal)
+    // =========================================================================
+
+    function test_redeem_succeedsAfterReveal() public {
         string memory j = vm.readFile(_tokenFile(42));
         address recipient = j.readAddress(".REDEEM_TX.recipient");
         address nullifier = j.readAddress(".SPEND_KEYPAIR.address");
@@ -339,12 +434,30 @@ contract NozkVaultTest is Test {
         uint256[2] memory sG1 = [j.readUint(".REDEEM_TX.S_x"), j.readUint(".REDEEM_TX.S_y")];
 
         vm.deal(address(vault), vault.DENOMINATION());
+
+        // Reveal first
+        vault.reveal(nullifier, sG1);
+
+        // Then redeem
         uint256 balBefore = recipient.balance;
-
-        vault.redeem(recipient, sig, nullifier, deadline, sG1);
-
+        vm.expectEmit(true, true, true, true);
+        emit Redeemed(nullifier, recipient, vault.DENOMINATION());
+        vault.redeem(recipient, sig, nullifier, deadline);
         assertEq(recipient.balance - balBefore, vault.DENOMINATION());
         assertTrue(vault.spentNullifiers(nullifier));
+    }
+
+    function test_redeem_revertsNotRevealed() public {
+        string memory j = vm.readFile(_tokenFile(42));
+        address recipient = j.readAddress(".REDEEM_TX.recipient");
+        address nullifier = j.readAddress(".SPEND_KEYPAIR.address");
+        uint256 deadline = _hexU256(j, ".REDEEM_TX.deadline");
+        bytes memory sig = _hexBytes(j, ".REDEEM_TX.spend_signature");
+
+        vm.deal(address(vault), vault.DENOMINATION());
+
+        vm.expectRevert(NozkVault.NotRevealed.selector);
+        vault.redeem(recipient, sig, nullifier, deadline);
     }
 
     function test_redeem_revertsDoubleSpend() public {
@@ -356,10 +469,11 @@ contract NozkVaultTest is Test {
         uint256[2] memory sG1 = [j.readUint(".REDEEM_TX.S_x"), j.readUint(".REDEEM_TX.S_y")];
 
         vm.deal(address(vault), 2 * vault.DENOMINATION());
-        vault.redeem(recipient, sig, nullifier, deadline, sG1);
+        vault.reveal(nullifier, sG1);
+        vault.redeem(recipient, sig, nullifier, deadline);
 
         vm.expectRevert(NozkVault.AlreadySpent.selector);
-        vault.redeem(recipient, sig, nullifier, deadline, sG1);
+        vault.redeem(recipient, sig, nullifier, deadline);
     }
 
     function test_redeem_revertsInvalidECDSA() public {
@@ -374,21 +488,10 @@ contract NozkVaultTest is Test {
         }
 
         vm.deal(address(vault), vault.DENOMINATION());
+        vault.reveal(spend, sG1);
+
         vm.expectRevert(NozkVault.InvalidECDSA.selector);
-        vault.redeem(recipient, badSig, spend, deadline, sG1);
-    }
-
-    function test_redeem_revertsInvalidBLS() public {
-        string memory j = vm.readFile(_tokenFile(42));
-        address recipient = j.readAddress(".REDEEM_TX.recipient");
-        address spend = j.readAddress(".SPEND_KEYPAIR.address");
-        uint256 deadline = _hexU256(j, ".REDEEM_TX.deadline");
-        bytes memory sig = _hexBytes(j, ".REDEEM_TX.spend_signature");
-        uint256[2] memory badS = [uint256(1), uint256(2)];
-
-        vm.deal(address(vault), vault.DENOMINATION());
-        vm.expectRevert(NozkVault.InvalidBLS.selector);
-        vault.redeem(recipient, sig, spend, deadline, badS);
+        vault.redeem(recipient, badSig, spend, deadline);
     }
 
     function test_redeem_revertsExpiredDeadline() public {
@@ -396,16 +499,23 @@ contract NozkVaultTest is Test {
         address recipient = j.readAddress(".REDEEM_TX.recipient");
         address nullifier = j.readAddress(".SPEND_KEYPAIR.address");
         uint256 spendPriv = _hexU256(j, ".SPEND_KEYPAIR.priv");
+        uint256[2] memory sG1 = [j.readUint(".REDEEM_TX.S_x"), j.readUint(".REDEEM_TX.S_y")];
+
+        vm.deal(address(vault), vault.DENOMINATION());
+        vault.reveal(nullifier, sG1);
+
         uint256 deadline = block.timestamp - 1; // already expired
         bytes32 digest = vault.redemptionMessageHash(recipient, deadline);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(spendPriv, digest);
         bytes memory sig = abi.encodePacked(r, s, v);
-        uint256[2] memory sG1 = [j.readUint(".REDEEM_TX.S_x"), j.readUint(".REDEEM_TX.S_y")];
 
-        vm.deal(address(vault), vault.DENOMINATION());
         vm.expectRevert(NozkVault.ExpiredSignature.selector);
-        vault.redeem(recipient, sig, nullifier, deadline, sG1);
+        vault.redeem(recipient, sig, nullifier, deadline);
     }
+
+    // =========================================================================
+    // Unit tests: refund
+    // =========================================================================
 
     function test_refund_succeedsForDepositor() public {
         string memory j = vm.readFile(_tokenFile(42));
@@ -443,5 +553,28 @@ contract NozkVaultTest is Test {
         vm.prank(other);
         vm.expectRevert(NozkVault.NotDepositor.selector);
         vault.refund(blindId);
+    }
+
+    // =========================================================================
+    // Unit tests: backward-compat view
+    // =========================================================================
+
+    function test_spentNullifiers_backcompat() public {
+        string memory j = vm.readFile(_tokenFile(42));
+        address nullifier = j.readAddress(".SPEND_KEYPAIR.address");
+        uint256[2] memory sG1 = [j.readUint(".REDEEM_TX.S_x"), j.readUint(".REDEEM_TX.S_y")];
+
+        assertFalse(vault.spentNullifiers(nullifier));
+
+        vault.reveal(nullifier, sG1);
+        assertFalse(vault.spentNullifiers(nullifier)); // revealed but not spent
+
+        address recipient = j.readAddress(".REDEEM_TX.recipient");
+        uint256 deadline = _hexU256(j, ".REDEEM_TX.deadline");
+        bytes memory sig = _hexBytes(j, ".REDEEM_TX.spend_signature");
+        vm.deal(address(vault), vault.DENOMINATION());
+        vault.redeem(recipient, sig, nullifier, deadline);
+
+        assertTrue(vault.spentNullifiers(nullifier));
     }
 }

@@ -14,6 +14,9 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "typer>=0.24.1",
     "web3>=7.14.1",
+    "fastapi>=0.115.0",
+    "uvicorn>=0.34.0",
+    "httpx>=0.28.0",
 ]
 
 [dependency-groups]

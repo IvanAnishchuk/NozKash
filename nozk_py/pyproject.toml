@@ -1,0 +1,39 @@
+[project]
+name = "nozkash"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "eth-hash[pycryptodome]>=0.7.1",
+    "eth-keys>=0.7.0",
+    "eth-utils>=5.3.1",
+    "py-ecc>=8.0.0",
+    "pycryptodome>=3.23.0",
+    "pytest>=9.0.2",
+    "python-dotenv>=1.2.2",
+    "typer>=0.24.1",
+    "web3>=7.14.1",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.0",
+    "ty>=0.0.7",
+]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.ty.environment]
+python-version = "3.13"
+extra-paths = ["typings"]
+
+[tool.pytest.ini_options]

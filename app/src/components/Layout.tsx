@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Outlet } from 'react-router-dom'
-import { BottomGhostDecor } from './BottomGhostDecor'
-import { DepositConfirmModal } from './eghost/DepositConfirmModal'
-import { EgcNavbarLogo } from './eghost/EgcNavbarLogo'
-import { SplashScreen } from './eghost/SplashScreen'
+import { BottomNozkDecor } from './BottomNozkDecor'
+import { DepositConfirmModal } from './enozk/DepositConfirmModal'
+import { EgcNavbarLogo } from './enozk/EgcNavbarLogo'
+import { SplashScreen } from './enozk/SplashScreen'
 import { usePrivacy } from '../context/usePrivacy'
-import { loadRedemptionDraft } from '../crypto/ghostRedeem'
+import { loadRedemptionDraft } from '../crypto/nozkRedeem'
 import { useWallet, WALLET_BALANCE_POLL_MS } from '../hooks/useWallet'
 import {
   getEthereum,
@@ -17,7 +17,7 @@ import {
 import {
   invalidateVaultActivityCache,
   requestVaultActivityRefresh,
-} from '../lib/ghostVault'
+} from '../lib/nozkVault'
 import type { LayoutOutletContext } from '../layoutOutletContext'
 
 const AVATAR_PALETTE = ['#3D0F18', '#1A1A3D', '#003D2A', '#4B0082'] as const
@@ -411,7 +411,7 @@ export function Layout() {
           onToast={showToast}
         />
 
-        <BottomGhostDecor />
+        <BottomNozkDecor />
       </div>
     </div>
   )

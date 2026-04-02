@@ -1,4 +1,4 @@
-/** GhostVault activity / history row (on-chain or derived data only). */
+/** NozkVault activity / history row (on-chain or derived data only). */
 
 export type ActivityKind = 'Deposit' | 'Redeem' | 'Pending' | 'Refunded'
 

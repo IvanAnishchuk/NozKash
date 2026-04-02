@@ -1,10 +1,10 @@
-import { setMasterSeed, deriveTokenSecrets, hexToBytes } from './ghostClient';
+import { setMasterSeed, deriveTokenSecrets, hexToBytes } from './nozkClient'
 
 // Valores del .env de Ivan — estos son la fuente de verdad
 const MASTER_SEED_HEX =
   '2b8c5855536fdf6354d78377fc1810b8c850cea4fdecd12478f31dd0f04e6671';
 
-/** Matches `deriveTokenSecretsFromSeed` (4-byte BE index + GhostVault key schedule). */
+/** Matches `deriveTokenSecretsFromSeed` (4-byte BE index + NozkVault key schedule). */
 const EXPECTED = {
   tokenIndex: 0,
   spendAddress: '0x2d2963a84058ca165d1226fe2142c25c4076866c',

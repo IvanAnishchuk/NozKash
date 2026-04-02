@@ -1,6 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
-import { GhostMasterSeedProvider } from './context/GhostMasterSeedProvider'
+import { NozkMasterSeedProvider } from './context/NozkMasterSeedProvider'
 import { PrivacyProvider } from './context/PrivacyProvider'
 import { Dashboard } from './pages/Dashboard'
 import { Deposit } from './pages/Deposit'
@@ -9,9 +9,9 @@ import { Redeem } from './pages/Redeem'
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <PrivacyProvider>
-        <GhostMasterSeedProvider>
+        <NozkMasterSeedProvider>
           <Routes>
             <Route path="/" element={<Layout />}>
               <Route index element={<Dashboard />} />
@@ -21,7 +21,7 @@ export default function App() {
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Routes>
-        </GhostMasterSeedProvider>
+        </NozkMasterSeedProvider>
       </PrivacyProvider>
     </BrowserRouter>
   )

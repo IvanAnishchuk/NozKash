@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Regenerate flat vectors into test/test-vectors (default), then run Foundry tests.
+# Regenerate vectors into repo-root test_vectors/, then run Foundry tests.
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$ROOT/scripts"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+cd "$ROOT/nozk_py"
 uv run generate_vectors.py "$@"
-cd "$ROOT"
+cd "$ROOT/sol"
 forge test

@@ -1,4 +1,4 @@
-## Ghost-Tip: deterministic token secrets (normative for clients)
+## Nozk: deterministic token secrets (normative for clients)
 
 All values below use **Keccak-256** outputs as **32-byte big-endian** integers where a scalar is needed. **`master_seed`** is the raw 32-byte seed (hex in `vectors.json` is only an example encoding).
 
@@ -22,21 +22,19 @@ All values below use **Keccak-256** outputs as **32-byte big-endian** integers w
 
    This matches the common pattern **`"blind"` prefixed to the same `base`** as spend (not `seed ‖ "blind" ‖ index` unless you redefine `base` that way). **Python/TS and `vectors.json` must use the same rule** or `BLINDING_R` / `SPEND_ADDRESS` will not match.
 
-Then off-chain: `Y = H_G1(spend_addr)`, `B = r · Y`, mint signs `B`, user unblinds to `S` for `GhostVault.redeem`.
+Then off-chain: `Y = H_G1(spend_addr)`, `B = r · Y`, mint signs `B`, user unblinds to `S` for `NozkVault.redeem`.
 
-On-chain (PoC), `H_G1` hashes **`abi.encodePacked(spend_addr)`** — **20-byte address only**. This GhostVault build has **no refund** path (trusted mint). **`forge test`** reads **`test/test-vectors/token_*.json`** by default (override with env **`GHOST_VECTOR_SUITE`**).
+On-chain (PoC), `H_G1` hashes **`abi.encodePacked(spend_addr)`** — **20-byte address only**. If the mint never fulfils a deposit, the original depositor can reclaim the locked ETH via **`refund(depositId)`** (only before `announce`; once the blind signature is posted, refund is no longer possible). **`forge test`** reads vectors from repo-root **`test_vectors/`** via `manifest.json` (override with env **`NOZK_VECTOR_SUITE`**).
 
-Regenerate those fixtures with the backend stack (**`uv`** + **`scripts/pyproject.toml`** / **`scripts/requirements.txt`** — keep dependency versions in sync):
+Regenerate those fixtures from the repo root:
 
 ```bash
-cd scripts && uv sync && uv run generate_vectors.py
+cd nozk_py && uv run generate_vectors.py
 ```
-
-(`--out` defaults to repo **`test/test-vectors`**; use **`--keypairs 1`** if you want a single mint key across the whole suite instead of the last of several overwrites.)
 
 One shot: **`bash scripts/forge_test_generated_vectors.sh`** (optional args are passed to **`generate_vectors.py`** only).
 
-**`ghost_library`** must use the same preimages: **`hash_to_curve(spend_address_bytes)`** (20 bytes) and **`keccak256(b"Pay to: " + recipient₂₀)`** for redemption signing.
+**`nozk_library`** must use the same preimages: **`hash_to_curve(spend_address_bytes)`** (20 bytes) for BLS, and **EIP-712 typed structured data** (`NozkRedeem(address recipient, uint256 deadline)` with domain `NozkVault`) for the anti-MEV ECDSA signature verified by `NozkVault.redemptionMessageHash(recipient, deadline)`.
 
 ---
 
@@ -69,18 +67,12 @@ $ forge build
 $ forge test
 ```
 
-`GhostVault.t.sol` **forks Avalanche Fuji** C-Chain in `setUp` (alias `avalanche-fuji` in `foundry.toml`). Outbound RPC access is required.
+`NozkVault.t.sol` **forks Ethereum Sepolia** in `setUp` (alias `sepolia-public` in `foundry.toml`). Outbound RPC access is required. The vault is deployed at the vector's `contract_address` via `deployCodeTo`, so the EIP-712 DOMAIN_SEPARATOR matches vectors byte-for-byte.
 
 | Env | Purpose |
 |-----|---------|
-| `FUJI_RPC_URL` | Optional. If set, used as the fork URL instead of the public Fuji endpoint from `foundry.toml`. |
-| `GHOST_VECTOR_SUITE` | Optional. Directory of flat `token_*.json` files (default `test/test-vectors`). |
-
-CLI (same RPC as tests when using the alias):
-
-```shell
-forge test --fork-url avalanche-fuji
-```
+| `FORK_RPC_URL` | Optional. If set, used as the fork URL instead of the public Sepolia endpoint from `foundry.toml`. |
+| `NOZK_VECTOR_SUITE` | Optional. Root directory containing `manifest.json` and keypair subdirs (default `../test_vectors`). |
 
 ### Format
 
@@ -103,7 +95,7 @@ $ anvil
 ### Deploy
 
 ```shell
-$ forge script script/GhostVault.s.sol:GhostVaultScript --rpc-url <your_rpc_url> --private-key <your_private_key>
+$ forge script script/NozkVault.s.sol:NozkVaultScript --rpc-url <your_rpc_url> --private-key <your_private_key>
 ```
 
 ### Cast

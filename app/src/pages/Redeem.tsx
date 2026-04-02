@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
-import { useGhostMasterSeed } from '../context/GhostMasterSeedProvider'
+import { useNozkMasterSeed } from '../context/NozkMasterSeedProvider'
 import {
   requestWalletBalanceRefresh,
   useWallet,
@@ -10,7 +10,7 @@ import {
   loadRedemptionDraft,
   redemptionDraftMatchesSecrets,
   saveRedemptionDraft,
-} from '../crypto/ghostRedeem'
+} from '../crypto/nozkRedeem'
 import {
   ensureTargetChain,
   getEthereum,
@@ -18,9 +18,9 @@ import {
   TARGET_NETWORK_LABEL,
   walletNetworkBadgeLabel,
 } from '../lib/ethereum'
-import { GHOST_VAULT_DEPOSIT_AMOUNT_LABEL } from '../lib/ghostVault'
+import { NOZK_VAULT_DEPOSIT_AMOUNT_LABEL } from '../lib/nozkVault'
 import { sendVaultRedeemTransaction } from '../lib/sendVaultRedeem'
-import { useGhostVaultActivityLive } from '../hooks/useGhostVaultActivityLive'
+import { useNozkVaultActivityLive } from '../hooks/useNozkVaultActivityLive'
 import type { LayoutOutletContext } from '../layoutOutletContext'
 
 function isEthAddress(s: string): boolean {
@@ -40,7 +40,7 @@ type RedeemableRow = {
 export function Redeem() {
   const { network, accounts, account, openWalletAccountPicker } =
     useWallet()
-  const { effectiveMasterSeed, seedRevision } = useGhostMasterSeed()
+  const { effectiveMasterSeed, seedRevision } = useNozkMasterSeed()
   const { showToast } = useOutletContext<LayoutOutletContext>()
   const [tokens, setTokens] = useState<RedeemableRow[]>([])
   const [selectedId, setSelectedId] = useState('')
@@ -61,7 +61,7 @@ export function Redeem() {
     loading: vaultLoading,
     error: vaultError,
     scanBatch,
-  } = useGhostVaultActivityLive({
+  } = useNozkVaultActivityLive({
     masterSeed: effectiveMasterSeed,
     seedRevision,
     network,
@@ -79,7 +79,7 @@ export function Redeem() {
     if (!effectiveMasterSeed) {
       setTokens([])
       setLoadError(
-        'Connect your wallet and accept the vault signature (valid while connected), or set VITE_GHOST_MASTER_SEED_HEX (dev).'
+        'Connect your wallet and accept the vault signature (valid while connected), or set VITE_NOZK_MASTER_SEED_HEX (dev).'
       )
       setLoading(false)
       return
@@ -297,7 +297,7 @@ export function Redeem() {
               </div>
               <div className="mm-wallet-info">
                 <div className="mm-wallet-name">{t.label}</div>
-                <div className="mm-wallet-addr">{GHOST_VAULT_DEPOSIT_AMOUNT_LABEL}</div>
+                <div className="mm-wallet-addr">{NOZK_VAULT_DEPOSIT_AMOUNT_LABEL}</div>
               </div>
               <div className="mm-wallet-bal">{netLabel}</div>
             </label>
@@ -315,7 +315,7 @@ export function Redeem() {
         >
           Pick a connected wallet account or enter another address. That address is the
           contract <strong>recipient</strong>: it receives the{' '}
-          {GHOST_VAULT_DEPOSIT_AMOUNT_LABEL}. The app
+          {NOZK_VAULT_DEPOSIT_AMOUNT_LABEL}. The app
           builds the redeem ECDSA signature with the <strong>spend</strong> key
           (nullifier), not the blind key.
         </p>

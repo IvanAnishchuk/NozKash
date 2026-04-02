@@ -6,7 +6,7 @@
  *
  * **429 / public RPC:** Calls are serialized and spaced (`VITE_PUBLIC_RPC_MIN_GAP_MS`,
  * default 150ms). Retries with backoff (`VITE_PUBLIC_RPC_MAX_RETRIES`, default 4).
- * Legacy `VITE_FUJI_*` env names are still read as fallbacks for migration.
+ * Set the URL to match the chain in `VITE_CHAIN_ID` (default: Ethereum Sepolia).
  */
 
 /** Fallback HTTPS JSON-RPC when no env URL is set (change per deployment). */
@@ -18,8 +18,7 @@ function readRpcUrlEnv(): string | undefined {
   if (a) return a
   const b = (import.meta.env.VITE_ETHEREUM_RPC_URL as string | undefined)?.trim()
   if (b) return b
-  const legacy = (import.meta.env.VITE_FUJI_RPC_URL as string | undefined)?.trim()
-  return legacy || undefined
+  return undefined
 }
 
 export function getChainPublicRpcUrl(): string {
@@ -34,8 +33,7 @@ function sleep(ms: number): Promise<void> {
 
 function parseMaxRetries(): number {
   const raw =
-    (import.meta.env.VITE_PUBLIC_RPC_MAX_RETRIES as string | undefined) ??
-    (import.meta.env.VITE_FUJI_RPC_MAX_RETRIES as string | undefined)
+    import.meta.env.VITE_PUBLIC_RPC_MAX_RETRIES as string | undefined
   if (raw == null || String(raw).trim() === '') return 4
   const n = Number.parseInt(String(raw).replace(/_/g, ''), 10)
   return Number.isFinite(n) && n >= 1 ? Math.min(n, 12) : 4
@@ -43,8 +41,7 @@ function parseMaxRetries(): number {
 
 function parseMinGapMs(): number {
   const raw =
-    (import.meta.env.VITE_PUBLIC_RPC_MIN_GAP_MS as string | undefined) ??
-    (import.meta.env.VITE_FUJI_RPC_MIN_GAP_MS as string | undefined)
+    import.meta.env.VITE_PUBLIC_RPC_MIN_GAP_MS as string | undefined
   if (raw == null || String(raw).trim() === '') return 150
   const n = Number.parseInt(String(raw).replace(/_/g, ''), 10)
   if (!Number.isFinite(n) || n < 0) return 150

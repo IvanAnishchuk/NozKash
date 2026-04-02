@@ -1,0 +1,116 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, init_gen_tool]
+  push:
+    branches: [main, init_gen_tool]
+
+jobs:
+  python-lint:
+    name: "Python: ruff lint + format"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: nozk_py
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --group dev
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+
+  python-typecheck:
+    name: "Python: ty"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: nozk_py
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --group dev
+      - run: uv run ty check
+
+  python-test:
+    name: "Python: pytest"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: nozk_py
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --group dev
+      - run: uv run pytest -v
+
+  typescript-lint:
+    name: "TypeScript: biome lint + format"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: nozk_ts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+      - run: npx biome check .
+
+  typescript-typecheck:
+    name: "TypeScript: tsc"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: nozk_ts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+      - run: npx tsc --noEmit
+
+  typescript-test:
+    name: "TypeScript: vitest"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: nozk_ts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+      - run: npx vitest run
+
+  solidity-test:
+    name: "Solidity: forge test"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sol
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+      - run: forge build
+      - run: forge test
+
+  app-build:
+    name: "App: build"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+        working-directory: nozk_ts
+      - run: npm ci
+        working-directory: app
+      - run: npm run build
+        working-directory: app

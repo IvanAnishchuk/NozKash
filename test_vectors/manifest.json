@@ -1,0 +1,21 @@
+{
+  "eip712_domain_name": "NozkVault",
+  "eip712_domain_version": "1",
+  "chain_id": 11155111,
+  "contract_address": "0x00000000000000000000000000000000DeaDBeef",
+  "recipient": "0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7",
+  "deadline": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "keypairs": [
+    "358e0ef8_15789504",
+    "ed2e5be4_a3acfcde",
+    "77d80269_a2001325"
+  ],
+  "indices": [
+    0,
+    1,
+    42,
+    255,
+    256,
+    1000
+  ]
+}

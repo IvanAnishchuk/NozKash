@@ -2,9 +2,7 @@
 
 **aleph-hackathon-m2026**
 
-Deployed on Avalanche Fuji testnet!
-
-**Contract GhostVault (Fuji):** [Snowtrace testnet — `0x0cd5b34e58c579105A3c080Bb3170d032a544352`](https://testnet.snowtrace.io/address/0x0cd5b34e58c579105A3c080Bb3170d032a544352)
+Default testnet: **Ethereum Sepolia** (chain ID 11155111).
 
 [Simoneth Arianna Gomez](https://github.com/Simonethg), [Fabio Laura](https://github.com/raptor0929), [Ivan Anishchuk](https://github.com/IvanAnishchuk)
 
@@ -51,7 +49,7 @@ In all cases, **verification remains fully on-chain** via the EVM `ecPairing` pr
 ## How It Works
 
 ```
-Client                     GhostVault (on-chain)          Mint Server
+Client                     NozkVault (on-chain)          Mint Server
   │                               │                            │
   │  derive spend + blind keys    │                            │
   │  Y = H(spendAddress)          │                            │
@@ -114,22 +112,22 @@ For comparison, a zk-SNARK privacy pool typically costs 500k–1.5M gas per oper
 
 ```bash
 # Install dependencies
-cd py && uv venv && uv sync       # Python
-cd ts && npm install               # TypeScript (viem, mcl-wasm, @noble/curves, etc.)
+cd nozk_py && uv venv && uv sync       # Python
+cd nozk_ts && npm install               # TypeScript (viem, mcl-wasm, @noble/curves, etc.)
 
 # Generate keys and .env
-cd py && uv run generate_keys.py
+cd nozk_py && uv run generate_keys.py
 
 # Derive and add BLS public key to .env
-cd py && uv run derive_bls.py 0x<your_bls_privkey>
+cd nozk_py && uv run derive_bls.py 0x<your_bls_privkey>
 
 # Run tests
-cd py && uv run pytest -v          # Python unit + vector tests
-cd ts && npx vitest run            # TypeScript vector parity tests
-cd sol && forge test               # Solidity contract tests (forks Fuji)
+cd nozk_py && uv run pytest -v          # Python unit + vector tests
+cd nozk_ts && npx vitest run            # TypeScript vector parity tests
+cd sol && forge test               # Solidity contract tests (forks Sepolia)
 
 # Generate cross-language test vectors
-cd py && uv run generate_vectors.py
+cd nozk_py && uv run generate_vectors.py
 ```
 
 ---
@@ -140,27 +138,27 @@ cd py && uv run generate_vectors.py
 ├── README.md                         # This file
 ├── LICENSE.md                        # CC0 1.0 — public domain dedication
 ├── example.env                       # Template for .env configuration
-├── ghost_flow.sh                     # Full lifecycle runner script
+├── nozk_flow.sh                     # Full lifecycle runner script
 │
-├── py/                               # Python: crypto library, mint, CLI wallet
-│   ├── ghost_library.py              # Cryptographic library (source of truth)
+├── nozk_py/                               # Python: crypto library, mint, CLI wallet
+│   ├── nozk_library.py              # Cryptographic library (source of truth)
 │   ├── client.py                     # CLI wallet (deposit/scan/redeem/status/balance)
 │   ├── mint_server.py                # Production mint daemon (WebSocket)
 │   ├── mint_mock.py                  # Offline mock mint for testing
 │   ├── redeem_mock.py                # Offline mock redeemer for testing
-│   ├── contract_errors.py            # Decodes GhostVault revert selectors
+│   ├── contract_errors.py            # Decodes NozkVault revert selectors
 │   ├── generate_keys.py              # Keypair + .env generator
 │   ├── generate_vectors.py           # Cross-language test vector generator
 │   ├── derive_bls.py                 # BLS pubkey derivation tool
-│   ├── ghost_library_test.py         # Python unit tests
+│   ├── nozk_library_test.py         # Python unit tests
 │   ├── test_vectors.py               # Python parametrized vector tests
-│   ├── ghost_tip_test.py             # Python end-to-end smoke test
+│   ├── nozk_tip_test.py             # Python end-to-end smoke test
 │   ├── test_vectors/                 # Generated vector files (JSON)
 │   ├── pyproject.toml                # Python dependencies
 │   └── README.md                     # Python-specific documentation
 │
-├── ts/                               # TypeScript: crypto library, CLI client, tests
-│   ├── ghost-library.ts              # TypeScript crypto port (byte-for-byte parity)
+├── nozk_ts/                               # TypeScript: crypto library, CLI client, tests
+│   ├── nozk-library.ts              # TypeScript crypto port (byte-for-byte parity)
 │   ├── bn254-crypto.ts               # Low-level BN254 primitives (mcl-wasm)
 │   ├── client.ts                     # TypeScript CLI wallet (deposit/scan/redeem/balance)
 │   ├── test-vectors.test.ts          # TypeScript parametrized vector tests
@@ -170,30 +168,28 @@ cd py && uv run generate_vectors.py
 │
 ├── sol/                              # Solidity: smart contract + Foundry project
 │   ├── src/
-│   │   └── GhostVault.sol            # Solidity smart contract
+│   │   └── NozkVault.sol            # Solidity smart contract
 │   ├── test/
-│   │   ├── GhostVault.t.sol          # Foundry test suite (forks Fuji)
-│   │   └── test-vectors/             # JSON vectors for Solidity tests
+│   │   └── NozkVault.t.sol          # Foundry test suite (forks Sepolia)
 │   ├── script/
-│   │   └── GhostVault.s.sol          # Deployment script
+│   │   └── NozkVault.s.sol          # Deployment script
 │   ├── scripts/
 │   │   ├── generate_vectors.py       # Vector generator for Solidity tests
-│   │   ├── ghost_library.py          # Standalone copy for sol/scripts
+│   │   ├── nozk_library.py          # Standalone copy for sol/scripts
 │   │   └── forge_test_generated_vectors.sh
-│   ├── ghost_vault_abi.json          # Contract ABI (shared source of truth)
 │   ├── foundry.toml                  # Foundry configuration
 │   ├── lib/forge-std/                # Forge standard library (git submodule)
 │   └── README.md                     # Solidity-specific documentation
 │
 └── app/                              # Frontend: React wallet UI
     ├── src/
-    │   ├── crypto/                   # Browser-bundled BN254 + ghost-library
+    │   ├── crypto/                   # Browser-bundled BN254 + nozk-library
     │   ├── components/               # React components (Layout, DepositConfirmModal, Splash)
-    │   ├── context/                  # GhostMasterSeedProvider, PrivacyProvider
+    │   ├── context/                  # NozkMasterSeedProvider, PrivacyProvider
     │   ├── hooks/                    # useWallet, useRedeemSign
-    │   ├── lib/                      # ghostVault scanner, Fuji RPC, ethereum helpers
+    │   ├── lib/                      # nozkVault scanner, RPC helpers, ethereum utils
     │   ├── pages/                    # Dashboard, Deposit, Redeem, Recovery
-    │   └── styles/                   # eghostcash.css (full custom theme)
+    │   └── styles/                   # enozkash.css (full custom theme)
     └── ...
 ```
 
@@ -201,7 +197,7 @@ cd py && uv run generate_vectors.py
 
 ## Smart Contract
 
-The GhostVault contract (`sol/src/GhostVault.sol`) handles the complete token lifecycle using only standard EVM precompiles:
+The NozkVault contract (`sol/src/NozkVault.sol`) handles the complete token lifecycle using only standard EVM precompiles:
 
 | Function | Description |
 |----------|-------------|
@@ -221,12 +217,12 @@ Custom errors: `InvalidValue`, `InvalidECDSA`, `AlreadySpent`, `InvalidBLS`, `In
 
 ## CLI Wallets
 
-Both Python and TypeScript clients implement identical functionality, share the same wallet state file (`.ghost_wallet.json`), and use the same contract ABI.
+Both Python and TypeScript clients implement identical functionality, share the same wallet state file (`.nozk_wallet.json`), and use the same contract ABI.
 
 ### Python
 
 ```bash
-cd py
+cd nozk_py
 uv run client.py deposit --index 0              # Lock 0.001 ETH
 uv run client.py scan                            # Recover signed tokens (incremental)
 uv run client.py redeem --index 0 --to 0xAddr    # Redeem to any address
@@ -239,7 +235,7 @@ Additional flags: `--mock` (fully offline), `--dry-run` (simulate with RPC), `--
 ### TypeScript
 
 ```bash
-cd ts
+cd nozk_ts
 npx tsx client.ts deposit --index 0
 npx tsx client.ts scan
 npx tsx client.ts redeem --index 0 --to 0xAddr
@@ -263,7 +259,7 @@ Scanning is incremental (resumes from last block) and skips tokens with cached s
 Stateless async daemon. Connects over WebSocket, listens for `DepositLocked` events, blind-signs, and calls `announce()`.
 
 ```bash
-cd py
+cd nozk_py
 uv run mint_server.py
 uv run mint_server.py --verbosity verbose    # Intermediate values
 uv run mint_server.py --verbosity debug      # Raw event data
@@ -280,7 +276,7 @@ The mint validates G1 points before signing — off-curve inputs are rejected wi
 | `MASTER_SEED` | client | Hex seed — all wallet secrets derive from this |
 | `MINT_BLS_PRIVKEY` | mint, client | Hex BLS scalar |
 | `MINT_BLS_PUBKEY` | client | G2 pubkey for local verification (4 hex uint256, EIP-197 order) |
-| `CONTRACT_ADDRESS` | all | Deployed GhostVault address |
+| `CONTRACT_ADDRESS` | all | Deployed NozkVault address |
 | `WALLET_ADDRESS` / `WALLET_KEY` | client | Gas-paying wallet |
 | `MINT_WALLET_ADDRESS` / `MINT_WALLET_KEY` | mint | Mint's gas-paying wallet |
 | `RPC_HTTP_URL` | client | HTTP RPC endpoint |
@@ -291,7 +287,7 @@ The mint validates G1 points before signing — off-curve inputs are rejected wi
 
 ## Cross-Language Parity
 
-The Python library (`py/ghost_library.py`) is the cryptographic source of truth. The TypeScript port (`ts/ghost-library.ts` + `ts/bn254-crypto.ts`) produces byte-identical output for every operation.
+The Python library (`nozk_py/nozk_library.py`) is the cryptographic source of truth. The TypeScript port (`nozk_ts/nozk-library.ts` + `nozk_ts/bn254-crypto.ts`) produces byte-identical output for every operation.
 
 Both languages use:
 - Identical hash-to-curve (try-and-increment with `keccak256(msg || counter_be32)`)
@@ -302,9 +298,9 @@ Both languages use:
 Parity is enforced by shared test vectors:
 
 ```bash
-cd py && uv run generate_vectors.py        # Generate (Python)
-cd py && uv run pytest test_vectors.py -v  # Verify (Python)
-cd ts && npx vitest run                    # Verify (TypeScript)
+cd nozk_py && uv run generate_vectors.py        # Generate (Python)
+cd nozk_py && uv run pytest test_vectors.py -v  # Verify (Python)
+cd nozk_ts && npx vitest run                    # Verify (TypeScript)
 ```
 
 Each vector tests: G2 key derivation, secret derivation, hash-to-curve, blinding, blind signature, unblinding, ECDSA proof, and full BLS pairing.
@@ -331,30 +327,30 @@ Each vector tests: G2 key derivation, secret derivation, hash-to-curve, blinding
 
 ```bash
 # Python unit tests
-cd py && uv run pytest ghost_library_test.py -v
+cd nozk_py && uv run pytest nozk_library_test.py -v
 
 # Cross-language vector tests
-cd py && uv run pytest test_vectors.py -v     # Python
-cd ts && npx vitest run                       # TypeScript
+cd nozk_py && uv run pytest test_vectors.py -v     # Python
+cd nozk_ts && npx vitest run                       # TypeScript
 
-# Solidity contract tests (forks Avalanche Fuji)
+# Solidity contract tests (forks Ethereum Sepolia)
 cd sol && forge test
 
 # End-to-end smoke tests
-cd py && uv run ghost_tip_test.py             # Python (or --mock for full offline flow)
-cd ts && npx tsx test.ts                      # TypeScript
+cd nozk_py && uv run nozk_tip_test.py             # Python (or --mock for full offline flow)
+cd nozk_ts && npx tsx test.ts                      # TypeScript
 
 # Full lifecycle (on-chain or mock)
-./ghost_flow.sh --to 0xRecipient              # On-chain
-./ghost_flow.sh --to 0xRecipient --mock       # Offline
-./ghost_flow.sh --to 0xRecipient --dry-run    # Simulate
+./nozk_flow.sh --to 0xRecipient              # On-chain
+./nozk_flow.sh --to 0xRecipient --mock       # Offline
+./nozk_flow.sh --to 0xRecipient --dry-run    # Simulate
 ```
 
 ---
 
 ## Frontend App
 
-NozKash ships with a mobile-first React wallet UI in the `app/` directory. It connects to MetaMask, derives vault secrets client-side, and talks directly to the deployed GhostVault contract on Avalanche Fuji — no backend server required for the wallet itself.
+NozKash ships with a mobile-first React wallet UI in the `app/` directory. It connects to MetaMask, derives vault secrets client-side, and talks directly to the deployed NozkVault contract — no backend server required for the wallet itself.
 
 <!-- TODO: add screenshots
 ![Dashboard](docs/screenshots/dashboard.png)
@@ -367,7 +363,7 @@ NozKash ships with a mobile-first React wallet UI in the `app/` directory. It co
 ```bash
 cd app
 npm install
-npm run dev          # Vite dev server with Fuji RPC proxy
+npm run dev          # Vite dev server
 npm run build        # Production build → dist/
 ```
 
@@ -375,7 +371,7 @@ Copy `.env.example` to `.env` if you need to override the RPC endpoint or inject
 
 ### Stack
 
-Vite 8 + React 19 + Tailwind 4 + TypeScript 5.9. The crypto libraries (`mcl-wasm`, `@noble/curves`, `ethereum-cryptography`) are the same ones used by the CLI clients — the app bundles its own copies under `app/src/crypto/` (`bn254-crypto.ts`, `ghost-library.ts`, `ghostDeposit.ts`) so it runs entirely in the browser with no server-side crypto.
+Vite 8 + React 19 + Tailwind 4 + TypeScript 5.9. The crypto libraries (`mcl-wasm`, `@noble/curves`, `ethereum-cryptography`) are the same ones used by the CLI clients — the app bundles its own copies under `app/src/crypto/` (`bn254-crypto.ts`, `nozk-library.ts`, `nozkDeposit.ts`) so it runs entirely in the browser with no server-side crypto.
 
 ### Architecture
 
@@ -390,17 +386,17 @@ The app is a single-page wallet with four routes:
 
 ### Key components
 
-**`GhostMasterSeedProvider`** — React context that manages the vault master seed. On wallet connect, it prompts a one-time `personal_sign` in MetaMask to derive the seed deterministically (`keccak256(signature)`) — the seed lives only in RAM and is cleared on disconnect. For development, `VITE_GHOST_MASTER_SEED_HEX` bypasses the signature.
+**`NozkMasterSeedProvider`** — React context that manages the vault master seed. On wallet connect, it prompts a one-time `personal_sign` in MetaMask to derive the seed deterministically (`keccak256(signature)`) — the seed lives only in RAM and is cleared on disconnect. For development, `VITE_NOZK_MASTER_SEED_HEX` bypasses the signature.
 
-**`DepositConfirmModal`** — The deposit flow: amount selection (fixed 0.001 ETH denomination), real-time gas estimation via the configured RPC, calldata construction using `buildGhostVaultDepositCalldata()` (derives secrets → blinds → ABI-encodes `deposit(address,uint256[2])`), and `eth_sendTransaction` through MetaMask. Includes pre-flight checks: `DENOMINATION()` view call, `depositPending()` collision check, and `eth_call` simulation before broadcasting.
+**`DepositConfirmModal`** — The deposit flow: amount selection (fixed 0.001 ETH denomination), real-time gas estimation via the configured RPC, calldata construction using `buildNozkVaultDepositCalldata()` (derives secrets → blinds → ABI-encodes `deposit(address,uint256[2])`), and `eth_sendTransaction` through MetaMask. Includes pre-flight checks: `DENOMINATION()` view call, `depositPending()` collision check, and `eth_call` simulation before broadcasting.
 
 **`useWallet`** — Hook managing MetaMask connection, account switching (`wallet_requestPermissions`), chain enforcement (auto-switches to the target chain from `VITE_CHAIN_ID`), and balance polling.
 
-**`ghostVault.ts`** — On-chain scanner that fetches `DepositLocked` and `MintFulfilled` events via `eth_getLogs`, matches them against derived `depositId`s, checks `spentNullifiers`, and assembles the activity feed. Handles RPC rate limiting (burst queue with pause), block range chunking (Avalanche public RPC caps at ~2048 blocks per query), and `last accepted block` edge cases.
+**`nozkVault.ts`** — On-chain scanner that fetches `DepositLocked` and `MintFulfilled` events via `eth_getLogs`, matches them against derived `depositId`s, checks `spentNullifiers`, and assembles the activity feed. Handles RPC rate limiting (burst queue with pause), block range chunking (Avalanche public RPC caps at ~2048 blocks per query), and `last accepted block` edge cases.
 
 ### Seed derivation (wallet-based)
 
-When no `VITE_GHOST_MASTER_SEED_HEX` is set, the app derives the master seed from a MetaMask signature:
+When no `VITE_NOZK_MASTER_SEED_HEX` is set, the app derives the master seed from a MetaMask signature:
 
 1. User connects wallet → app prompts `personal_sign` with a deterministic message containing the account address and chain ID
 2. The 65-byte ECDSA signature is hashed: `masterSeed = keccak256(signature)`
@@ -411,26 +407,23 @@ This means a user can recover their vault tokens on any device by connecting the
 
 ### On-chain interaction
 
-All RPC calls go through `fujiJsonRpc.ts`, which uses `VITE_FUJI_RPC_URL` when set, otherwise the bundled Infura Fuji HTTPS URL (same in dev and production). If the browser hits CORS errors locally, configure the provider to allow your origin or point `VITE_FUJI_RPC_URL` at an endpoint that does.
+All RPC calls go through `chainPublicRpc.ts`, which uses `VITE_PUBLIC_RPC_URL` when set, otherwise a bundled Sepolia public endpoint. If the browser hits CORS errors locally, configure the provider to allow your origin or point `VITE_PUBLIC_RPC_URL` at an endpoint that does.
 
 The deposit transaction is the only write operation — it uses MetaMask's `eth_sendTransaction` with pre-built calldata (same ABI encoding as the Python/TypeScript CLI clients). The app polls `eth_getTransactionReceipt` via HTTP RPC (not MetaMask) with a 30-second interval to avoid rate limits.
 
 ### Contract address
 
-The deployed GhostVault on Fuji: [`0x0cd5b34e58c579105A3c080Bb3170d032a544352`](https://testnet.snowtrace.io/address/0x0cd5b34e58c579105A3c080Bb3170d032a544352)
-
-Override with `VITE_GHOST_VAULT_ADDRESS` in `.env`.
+Set `VITE_NOZK_VAULT_ADDRESS` in `.env` to the deployed contract address.
 
 ### App environment variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `VITE_GHOST_MASTER_SEED_HEX` | — | Dev shortcut: 64-char hex seed, bypasses `personal_sign` |
+| `VITE_NOZK_MASTER_SEED_HEX` | — | Dev shortcut: 64-char hex seed, bypasses `personal_sign` |
 | `VITE_CHAIN_ID` | Sepolia `0xaa36a7` | Target `eth_chainId` (hex) |
-| `VITE_PUBLIC_RPC_URL` / `VITE_ETHEREUM_RPC_URL` | — | HTTPS JSON-RPC for reads (`chainRpcCall`) |
+| `VITE_PUBLIC_RPC_URL` / `VITE_ETHEREUM_RPC_URL` | Sepolia public node | HTTPS JSON-RPC for reads (`chainRpcCall`) |
 | `VITE_PUBLIC_WS_RPC_URL` / `VITE_ETHEREUM_WS_RPC_URL` | — | Optional WebSocket for live vault logs |
-| `VITE_FUJI_RPC_URL` / `VITE_FUJI_WS_RPC_URL` | — | Legacy aliases still read by `chainPublicRpc.ts` |
-| `VITE_GHOST_VAULT_ADDRESS` | `0x0cd5…4352` | Deployed GhostVault contract |
+| `VITE_NOZK_VAULT_ADDRESS` | — | Deployed NozkVault contract |
 
 ---
 
@@ -440,29 +433,29 @@ Override with `VITE_GHOST_VAULT_ADDRESS` in `.env`.
 
 ```bash
 # 1. Generate all keys
-cd py && uv run generate_keys.py
+cd nozk_py && uv run generate_keys.py
 
 # 2. Derive BLS public key
-cd py && uv run derive_bls.py 0x<privkey_from_env>
+cd nozk_py && uv run derive_bls.py 0x<privkey_from_env>
 
-# 3. Deploy GhostVault with pkMint (4 uint256) and mintAuthority address
+# 3. Deploy NozkVault with pkMint (4 uint256) and mintAuthority address
 #    (via Foundry)
-cd sol && forge script script/GhostVault.s.sol:GhostVaultScript --rpc-url <your_rpc_url> --private-key <your_private_key>
+cd sol && forge script script/NozkVault.s.sol:NozkVaultScript --rpc-url <your_rpc_url> --private-key <your_private_key>
 #    Set CONTRACT_ADDRESS in .env
 
 # 4. Fund wallet addresses with testnet ETH
 
 # 5. Start the mint server (separate terminal)
-cd py && uv run mint_server.py
+cd nozk_py && uv run mint_server.py
 
 # 6. Deposit, scan, redeem (Python or TypeScript)
-cd py
+cd nozk_py
 uv run client.py deposit --index 0
 uv run client.py scan
 uv run client.py redeem --index 0 --to 0xRecipient
 
 # Or in TypeScript:
-cd ts
+cd nozk_ts
 npx tsx client.ts deposit --index 0
 npx tsx client.ts scan
 npx tsx client.ts redeem --index 0 --to 0xRecipient

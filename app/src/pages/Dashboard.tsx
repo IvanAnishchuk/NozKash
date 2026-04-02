@@ -124,7 +124,7 @@ function FilterFunnelIcon() {
 export function Dashboard() {
   const { privacyOn } = usePrivacy()
   const { effectiveMasterSeed, seedRevision } = useNozkMasterSeed()
-  const { network, account, homeBalanceMain } = useWallet()
+  const { network, account } = useWallet()
   const { openDepositModal, showToast } =
     useOutletContext<LayoutOutletContext>()
 
@@ -535,7 +535,6 @@ export function Dashboard() {
                             disabled={
                               refundingId === item.id ||
                               redeemingId === item.id ||
-                              startingRedeemId === item.id ||
                               network !== TARGET_NETWORK_LABEL
                             }
                             onClick={() => void handleRefund(item)}

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Rebuild NozkVault and export the full ABI to abi/nozk_vault_abi.json.
+"""Export the NozkVault ABI from Foundry build artifacts to abi/nozk_vault_abi.json.
 
 Usage:
     cd sol && forge build && python3 sync_abi.py

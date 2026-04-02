@@ -31,19 +31,18 @@ def load_all_vectors() -> list[tuple[str, dict]]:
     test_vectors/. test_id is "<keypair_dir>/<filename>" for readable pytest output.
     """
     if not VECTORS_DIR.exists():
-        return []
+        pytest.skip("test_vectors/ not found — run `uv run generate_vectors.py` first")
+        return []  # unreachable, keeps type checker happy
     # Only collect token_*.json inside keypair subdirectories (skip manifest.json etc.)
     files = sorted(f for f in VECTORS_DIR.rglob("token_*.json") if f.parent != VECTORS_DIR)
+    if not files:
+        pytest.skip("test_vectors/ is empty — run `uv run generate_vectors.py` first")
     return [(f"{f.parent.name}/{f.stem}", json.loads(f.read_text())) for f in files]
 
 
 ALL_VECTORS = load_all_vectors()
 IDS = [v[0] for v in ALL_VECTORS]
 PARAMS = [v[1] for v in ALL_VECTORS]
-
-# If no test_vectors/ directory exists yet, the suite collects zero tests
-# (pytest will report "no tests ran" rather than failing).
-# Run generate_vectors.py first to populate test_vectors/.
 
 
 # ==============================================================================

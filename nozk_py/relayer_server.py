@@ -309,11 +309,13 @@ class Relayer:
         gas_price = self.w3.eth.gas_price
 
         try:
-            tx = tx_builder.build_transaction({
-                "from": self.wallet,
-                "nonce": nonce,
-                "gasPrice": gas_price,
-            })
+            tx = tx_builder.build_transaction(
+                {
+                    "from": self.wallet,
+                    "nonce": nonce,
+                    "gasPrice": gas_price,
+                }
+            )
         except (ContractCustomError, ContractLogicError) as exc:
             raise HTTPException(status_code=400, detail=f"Contract simulation reverted: {decode_contract_error(exc)}")
 

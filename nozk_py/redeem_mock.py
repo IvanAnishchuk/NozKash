@@ -116,6 +116,7 @@ class NullifierState(Enum):
 @dataclass
 class RevealResult:
     """Result of a mock reveal attempt."""
+
     success: bool
     nullifier: Optional[str] = None
     bls_pairing_ok: Optional[bool] = None
@@ -464,7 +465,10 @@ def verify(
         console.print(
             Text.assemble(
                 ("  [BLS pairing]  ", "label"),
-                ("✅ PASS" if reveal_result.bls_pairing_ok else "❌ FAIL", "success" if reveal_result.bls_pairing_ok else "error"),
+                (
+                    "✅ PASS" if reveal_result.bls_pairing_ok else "❌ FAIL",
+                    "success" if reveal_result.bls_pairing_ok else "error",
+                ),
             )
         )
         console.print(
@@ -509,7 +513,10 @@ def verify(
         console.print(
             Text.assemble(
                 ("  [State check]  ", "label"),
-                ("✅ REVEALED" if not result.nullifier_spent else "❌ ALREADY SPENT", "success" if not result.nullifier_spent else "error"),
+                (
+                    "✅ REVEALED" if not result.nullifier_spent else "❌ ALREADY SPENT",
+                    "success" if not result.nullifier_spent else "error",
+                ),
             )
         )
         console.print()

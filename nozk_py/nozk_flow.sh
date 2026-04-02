@@ -148,8 +148,9 @@ fi
 require_cmd uv
 require_cmd python3
 
-if [[ ! -f ".env" ]]; then
-    log_err ".env file not found."
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+if [[ ! -f "$REPO_ROOT/.env" ]]; then
+    log_err ".env file not found at $REPO_ROOT/.env"
     echo
     echo -e "  ${BOLD}Run:${RESET}  uv run generate_keys.py"
     echo -e "  ${DIM}This generates all keys and configuration needed.${RESET}"

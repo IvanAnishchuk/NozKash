@@ -37,6 +37,7 @@ import os
 import time
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import Annotated, Optional
 
 import typer
@@ -62,7 +63,7 @@ from nozk_library import (
 from nozk_theme import make_console
 from wallet_state import load_wallet_state, save_wallet_state, short_hex
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 
 # ==============================================================================

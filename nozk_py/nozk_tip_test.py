@@ -20,6 +20,7 @@ Usage:
 
 import os
 import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 from py_ecc.bn128 import G2
@@ -27,7 +28,7 @@ from py_ecc.bn128 import G2
 import nozk_library as gl
 from nozk_library import G2Point, Scalar, _mul_g2, serialize_g1
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 # ==============================================================================
 # FORMATTING HELPERS

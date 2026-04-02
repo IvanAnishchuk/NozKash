@@ -19,7 +19,8 @@
  *   npx tsx client.ts balance
  */
 
-import 'dotenv/config';
+import { config as dotenvConfig } from 'dotenv';
+dotenvConfig({ path: resolve('..', '.env') });
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import mcl from 'mcl-wasm';
@@ -43,8 +44,8 @@ import * as gl from './nozk-library.js';
 // ==============================================================================
 
 const DENOMINATION = parseEther('0.001');
-const WALLET_STATE_FILE = resolve('.nozk_wallet.json');
-const ABI_PATH = resolve('abi/nozk_vault_abi.json');
+const WALLET_STATE_FILE = resolve('..', '.nozk_wallet.json');
+const ABI_PATH = resolve('..', 'abi', 'nozk_vault_abi.json');
 
 interface Config {
     masterSeed: Uint8Array;

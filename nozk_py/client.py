@@ -76,7 +76,7 @@ from nozk_library import (
 from nozk_theme import make_console
 from wallet_state import short_hex
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 # ── Rich setup ─────────────────────────────────────────────────────────────────
 

@@ -146,9 +146,25 @@ def main() -> None:
 
     if mock_mode:
         # Full contract-equivalent verification via MockRedeemer
-        print("    (MockRedeemer — simulating NozkVault.redeem() off-chain)\n")
+        print("    (MockRedeemer — simulating reveal() + redeem() off-chain)\n")
 
         s_x, s_y = serialize_g1(S)
+        nullifier = secrets.spend.address
+
+        # ── Phase 1: Reveal (BLS pairing) ─────────────────────────────────
+        print("    --- Phase 1: reveal() ---")
+        reveal_result = mock_redeemer.reveal(
+            nullifier=nullifier,
+            unblinded_s_x=s_x,
+            unblinded_s_y=s_y,
+        )
+
+        print(f"    [BLS pairing]  {'✅ PASS' if reveal_result.bls_pairing_ok else '❌ FAIL'}")
+        print(f"    [Nullifier]    → {'REVEALED' if reveal_result.success else 'FAILED'}")
+        assert reveal_result.success, f"Mock reveal failed: {reveal_result.reason}"
+
+        # ── Phase 2: Redeem (ECDSA) ───────────────────────────────────────
+        print("\n    --- Phase 2: redeem() ---")
 
         # Encode the 65-byte spend signature (r || s || v)
         r_bytes = bytes.fromhex(proof.compact_hex[:64])
@@ -159,18 +175,14 @@ def main() -> None:
         result = mock_redeemer.redeem(
             recipient=destination,
             spend_signature_bytes=sig_65,
-            unblinded_s_x=s_x,
-            unblinded_s_y=s_y,
             chain_id=_TEST_CHAIN_ID,
             contract_address=_TEST_CONTRACT,
             deadline=_TEST_DEADLINE,
         )
 
-        print(f"    [Step 1] ecrecover → {result.ecrecover_address}")
-        print(f"    [Step 2] ECDSA MEV protection: {'✅ PASS' if result.ecdsa_ok else '❌ FAIL'}")
-        print(f"    [Step 3] Nullifier spent:      {'❌ ALREADY SPENT' if result.nullifier_spent else '✅ NOT SPENT'}")
-        print(f"    [Step 4] BLS pairing:          {'✅ PASS' if result.bls_pairing_ok else '❌ FAIL'}")
-        print(f"    [Step 5] Mark spent + transfer: {'✅ DONE' if result.success else '❌ FAILED'}")
+        print(f"    [ecrecover]    → {result.ecrecover_address}")
+        print(f"    [ECDSA check]  {'✅ PASS' if result.ecdsa_ok else '❌ FAIL'}")
+        print(f"    [State check]  {'✅ REVEALED → SPENT' if result.success else '❌ FAILED'}")
 
         assert result.success, f"Mock redemption failed: {result.reason}"
 
@@ -179,8 +191,6 @@ def main() -> None:
         result2 = mock_redeemer.redeem(
             recipient=destination,
             spend_signature_bytes=sig_65,
-            unblinded_s_x=s_x,
-            unblinded_s_y=s_y,
             chain_id=_TEST_CHAIN_ID,
             contract_address=_TEST_CONTRACT,
             deadline=_TEST_DEADLINE,
@@ -188,6 +198,12 @@ def main() -> None:
         assert not result2.success, "Double-spend should have been rejected!"
         assert result2.nullifier_spent is True
         print(f"    ✅ Double-spend correctly rejected: {result2.reason}")
+
+        # Verify double-reveal protection
+        print("\n    [Double-reveal test]")
+        reveal2 = mock_redeemer.reveal(nullifier=nullifier, unblinded_s_x=s_x, unblinded_s_y=s_y)
+        assert not reveal2.success, "Double-reveal should have been rejected!"
+        print(f"    ✅ Double-reveal correctly rejected: {reveal2.reason}")
 
         print("\n🎉 FULL MOCK DRY-RUN SUCCESS: All contract checks passed off-chain! 🎉")
 

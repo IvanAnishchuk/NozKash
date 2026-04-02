@@ -1,6 +1,11 @@
 /** Shared ABI encoding helpers for NozkVault deposit/redeem calldata. */
 
+const MAX_UINT256 = (1n << 256n) - 1n
+
 export function u256be(n: bigint): Uint8Array {
+  if (n < 0n || n > MAX_UINT256) {
+    throw new Error(`u256be: value out of uint256 range: ${n}`)
+  }
   const out = new Uint8Array(32)
   let x = n
   for (let i = 31; i >= 0; i--) {

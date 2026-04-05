@@ -65,7 +65,10 @@ _HINTS: dict[str, str] = {
     "DepositNotFound": "no pending deposit exists for this depositId",
     "DepositIdAlreadyUsed": "a deposit with this depositId has already been registered",
     "AlreadyFulfilled": "the mint has already announced a signature for this depositId",
+    "AlreadyRevealed": "this nullifier has already been revealed (or spent)",
+    "NotRevealed": "this nullifier has not been revealed yet — call reveal() first",
     "InvalidDepositId": "depositId must not be address(0)",
+    "BatchLengthMismatch": "nullifiers and signatures arrays must have the same length",
 }
 
 

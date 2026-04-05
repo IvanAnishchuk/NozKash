@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-WALLET_STATE_FILE = Path(".nozk_wallet.json")
+WALLET_STATE_FILE = Path(__file__).resolve().parent.parent / ".nozk_wallet.json"
 
 
 def short_hex(val: str, head: int = 10, tail: int = 8) -> str:

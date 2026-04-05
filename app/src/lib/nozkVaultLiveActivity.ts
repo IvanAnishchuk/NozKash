@@ -5,6 +5,10 @@ import {
   NOZK_VAULT_DEPOSIT_AMOUNT_LABEL,
   MINT_FULFILLED_TOPIC,
   REFUNDED_TOPIC,
+  NULLIFIER_REVEALED_TOPIC,
+  NULLIFIER_UNREVEALED,
+  NULLIFIER_REVEALED,
+  NULLIFIER_SPENT,
   nozkVaultMaxScannedTokenIndex,
   vaultDerivedAddressesForIndices,
   nozkVaultActivityDebug,
@@ -12,7 +16,7 @@ import {
 } from './nozkVault'
 import type { VaultTx } from '../types/activity'
 
-type VaultEventKind = 'DepositLocked' | 'MintFulfilled' | 'Refunded'
+type VaultEventKind = 'DepositLocked' | 'MintFulfilled' | 'Refunded' | 'NullifierRevealed'
 
 type DerivedToken = {
   tokenIndex: number
@@ -27,6 +31,7 @@ type LogLike = {
   topics?: string[]
 }
 
+const NULLIFIER_STATE_SELECTOR = '0x2d35035c'
 const SPENT_NULLIFIERS_SELECTOR = '0x2b2ba6e8'
 const DEFAULT_BACKFILL_CHUNK_SPAN_BLOCKS = 2048
 
@@ -104,18 +109,35 @@ async function blockNumberHexToDateIso(blockHex: string): Promise<string> {
   }
 }
 
-async function spentNullifierIsSet(vault: string, spendAddress: string) {
+/**
+ * Query `nullifierState(address)` -> 0=UNREVEALED, 1=REVEALED, 2=SPENT.
+ * Falls back to `spentNullifiers` for older deployments.
+ */
+async function fetchNullifierStateLive(vault: string, spendAddress: string): Promise<number> {
   const addr = normalizeAddress(spendAddress).slice(2)
-  const data = (SPENT_NULLIFIERS_SELECTOR + addr.padStart(64, '0')).toLowerCase()
-  const result = await chainRpcCall<string>('eth_call', [
-    { to: vault, data },
+  const data = (NULLIFIER_STATE_SELECTOR + addr.padStart(64, '0')).toLowerCase()
+  try {
+    const result = await chainRpcCall<string>('eth_call', [
+      { to: vault, data },
+      'latest',
+    ])
+    if (result && result !== '0x') {
+      return Number(BigInt(result))
+    }
+  } catch {
+    // fallback
+  }
+  // Legacy fallback
+  const legacyData = (SPENT_NULLIFIERS_SELECTOR + addr.padStart(64, '0')).toLowerCase()
+  const legacyResult = await chainRpcCall<string>('eth_call', [
+    { to: vault, data: legacyData },
     'latest',
   ])
-  if (!result || result === '0x') return false
+  if (!legacyResult || legacyResult === '0x') return NULLIFIER_UNREVEALED
   try {
-    return BigInt(result) !== 0n
+    return BigInt(legacyResult) !== 0n ? NULLIFIER_SPENT : NULLIFIER_UNREVEALED
   } catch {
-    return false
+    return NULLIFIER_UNREVEALED
   }
 }
 
@@ -123,11 +145,15 @@ type DepositState = {
   depositLocked?: { blockHex: string; txHash?: string }
   mintFulfilled?: { blockHex: string; txHash?: string }
   refunded?: { blockHex: string; txHash?: string }
+  nullifierRevealed?: { blockHex: string; txHash?: string }
+  /** 0=UNREVEALED, 1=REVEALED, 2=SPENT */
+  nullifierState?: number
+  /** @deprecated kept for backward compat seeding from initial rows */
   spent?: boolean
 }
 
 function buildRow(params: {
-  vaultTxType: 'Pending' | 'Deposit' | 'Redeem' | 'Refunded'
+  vaultTxType: 'Pending' | 'Deposit' | 'Revealed' | 'Redeem' | 'Refunded'
   tokenIndex: number
   depositId: string
   spendAddress: string
@@ -214,6 +240,26 @@ function buildRow(params: {
     }
   }
 
+  if (vaultTxType === 'Revealed') {
+    const spendShort = addrShort(spendAddress)
+    const txh = txHash ?? '—'
+    return {
+      id: `vault-revealed-${idBase}`,
+      type: 'Revealed',
+      amount,
+      counterparty: spendShort,
+      txHash: txh,
+      dateIso,
+      time: dateIso,
+      historyLabel: `Revealed · ready to redeem · token #${tokenIndex}`,
+      historySub: `NullifierRevealed · block ${
+        bn || '?'
+      } · ${netLabel}`,
+      blockNumber: bn,
+      tokenIndex,
+    }
+  }
+
   // Redeem
   const spendShort = addrShort(spendAddress)
   const txh = txHash ?? '—'
@@ -226,7 +272,7 @@ function buildRow(params: {
     dateIso,
     time: dateIso,
     historyLabel: `Redeem · spent · token #${tokenIndex}`,
-    historySub: `spentNullifiers[${spendShort}] · block ${bn || '?'} · ${netLabel}`,
+    historySub: `nullifier spent · block ${bn || '?'} · ${netLabel}`,
     blockNumber: bn,
     tokenIndex,
   }
@@ -291,6 +337,7 @@ export function startNozkVaultActivityLive(params: {
   const tokenIndexToDepositId = new Map<number, string>()
   const tokenIndexToSpendAddress = new Map<number, string>()
   const depositIdToTokenIndex = new Map<string, number>()
+  const spendAddressToTokenIndex = new Map<string, number>()
 
   // Pre-derive depositId/spendAddress mappings so we can map WS events -> tokenIndex.
   // Chunked to keep peak allocations reasonable.
@@ -307,6 +354,7 @@ export function startNozkVaultActivityLive(params: {
       tokenIndexToDepositId.set(d.tokenIndex, d.depositId)
       tokenIndexToSpendAddress.set(d.tokenIndex, d.spendAddress)
       depositIdToTokenIndex.set(d.depositId, d.tokenIndex)
+      spendAddressToTokenIndex.set(d.spendAddress, d.tokenIndex)
     }
   }
 
@@ -364,7 +412,7 @@ export function startNozkVaultActivityLive(params: {
     const amount = NOZK_VAULT_DEPOSIT_AMOUNT_LABEL
     const depot = st ?? {}
 
-    let rowType: 'Pending' | 'Deposit' | 'Redeem' | 'Refunded'
+    let rowType: 'Pending' | 'Deposit' | 'Revealed' | 'Redeem' | 'Refunded'
     let selectedBlockHex: string | undefined
     let txHash: string | undefined
     let blockNumber: number | undefined
@@ -376,11 +424,16 @@ export function startNozkVaultActivityLive(params: {
       ? parseHexBlock(depot.depositLocked.blockHex)
       : -1
 
+    // Resolve effective nullifier state from depot.nullifierState or legacy depot.spent
+    const nState = depot.nullifierState ?? (depot.spent ? NULLIFIER_SPENT : NULLIFIER_UNREVEALED)
+
     if (depot.mintFulfilled) {
-      selectedBlockHex = depot.mintFulfilled.blockHex
-      txHash = depot.mintFulfilled.txHash
+      rowType = nState === NULLIFIER_SPENT ? 'Redeem' : nState === NULLIFIER_REVEALED ? 'Revealed' : 'Deposit'
+      // For Revealed rows, prefer the NullifierRevealed log metadata when available
+      const revealMeta = rowType === 'Revealed' && depot.nullifierRevealed ? depot.nullifierRevealed : null
+      selectedBlockHex = revealMeta?.blockHex ?? depot.mintFulfilled.blockHex
+      txHash = revealMeta?.txHash ?? depot.mintFulfilled.txHash
       blockNumber = parseHexBlock(selectedBlockHex)
-      rowType = depot.spent ? 'Redeem' : 'Deposit'
     } else if (depot.refunded && refundedBn > lockedBn) {
       selectedBlockHex = depot.refunded.blockHex
       txHash = depot.refunded.txHash
@@ -471,16 +524,17 @@ export function startNozkVaultActivityLive(params: {
       txHash: log.transactionHash,
     }
 
-    // Ensure spent status is known (Redeem vs Deposit).
-    if (st.spent === undefined && !spentInFlight.has(depositId)) {
+    // Ensure nullifier state is known (Deposit vs Revealed vs Redeem).
+    if (st.nullifierState === undefined && !spentInFlight.has(depositId)) {
       spentInFlight.add(depositId)
       void (async () => {
         try {
           const spendAddress = tokenIndexToSpendAddress.get(tokenIndex)
           if (!spendAddress) return
-          const spent = await spentNullifierIsSet(vault, spendAddress)
-          spentCache.set(depositId, spent)
-          st.spent = spent
+          const nState = await fetchNullifierStateLive(vault, spendAddress)
+          spentCache.set(depositId, nState === NULLIFIER_SPENT)
+          st.nullifierState = nState
+          st.spent = nState === NULLIFIER_SPENT
         } finally {
           spentInFlight.delete(depositId)
         }
@@ -488,7 +542,7 @@ export function startNozkVaultActivityLive(params: {
       })()
     }
 
-    // Optimistic: if spent unknown, show Deposit until eth_call resolves.
+    // Optimistic: if state unknown, show Deposit until eth_call resolves.
     await recomputeTokenRow(tokenIndex)
   }
 
@@ -519,6 +573,38 @@ export function startNozkVaultActivityLive(params: {
     await recomputeTokenRow(tokenIndex)
   }
 
+  async function handleNullifierRevealedLog(log: LogLike): Promise<void> {
+    const topics = log.topics ?? []
+    const topic1 = topics[1]
+    const bnHex = log.blockNumber
+    if (!topic1 || !bnHex) return
+
+    // topic1 is the nullifier (= spendAddress), not depositId
+    const nullifier = parseTopic1ToDepositId(topic1) // same address parsing
+    const tokenIndex = spendAddressToTokenIndex.get(nullifier)
+    if (tokenIndex == null) return
+
+    const logId = parseLogId(log)
+    if (processedLogIds.has(logId)) return
+    processedLogIds.add(logId)
+
+    const bn = parseHexBlock(bnHex)
+    if (bn < lastAppliedBlock) return
+    lastAppliedBlock = Math.max(lastAppliedBlock, bn)
+
+    const depositId = tokenIndexToDepositId.get(tokenIndex)
+    if (!depositId) return
+    const st = upsertDepositState(depositId)
+    st.nullifierState = NULLIFIER_REVEALED
+    st.spent = false
+    st.nullifierRevealed = {
+      blockHex: bnHex,
+      txHash: log.transactionHash,
+    }
+
+    await recomputeTokenRow(tokenIndex)
+  }
+
   // (v1) We backfill per topic0 using `eth_getLogs` chunking.
 
   async function backfillFrom(fromBn: number): Promise<void> {
@@ -532,6 +618,7 @@ export function startNozkVaultActivityLive(params: {
       [DEPOSIT_LOCKED_TOPIC, handleDepositLockedLog],
       [MINT_FULFILLED_TOPIC, handleMintFulfilledLog],
       [REFUNDED_TOPIC, handleRefundedLog],
+      [NULLIFIER_REVEALED_TOPIC, handleNullifierRevealedLog],
     ] as const) {
       for (
         let cur = fromBn;
@@ -573,9 +660,15 @@ export function startNozkVaultActivityLive(params: {
       st.depositLocked = { blockHex, txHash: r.txHash }
     } else if (r.type === 'Deposit' && blockHex) {
       st.mintFulfilled = { blockHex, txHash: r.txHash }
+      st.nullifierState = NULLIFIER_UNREVEALED
+      st.spent = false
+    } else if (r.type === 'Revealed' && blockHex) {
+      st.mintFulfilled = { blockHex, txHash: r.txHash }
+      st.nullifierState = NULLIFIER_REVEALED
       st.spent = false
     } else if (r.type === 'Redeem' && blockHex) {
       st.mintFulfilled = { blockHex, txHash: r.txHash }
+      st.nullifierState = NULLIFIER_SPENT
       st.spent = true
     } else if (r.type === 'Refunded' && blockHex) {
       st.refunded = { blockHex, txHash: r.txHash }
@@ -622,6 +715,7 @@ export function startNozkVaultActivityLive(params: {
     const depositSubId = jsonId++
     const mintSubId = jsonId++
     const refundSubId = jsonId++
+    const revealSubId = jsonId++
 
     const depositSubFilter = {
       address: vault,
@@ -634,6 +728,10 @@ export function startNozkVaultActivityLive(params: {
     const refundSubFilter = {
       address: vault,
       topics: [REFUNDED_TOPIC],
+    }
+    const revealSubFilter = {
+      address: vault,
+      topics: [NULLIFIER_REVEALED_TOPIC],
     }
 
     socket.onopen = () => {
@@ -668,6 +766,14 @@ export function startNozkVaultActivityLive(params: {
           params: ['logs', refundSubFilter],
         })
       )
+      void socket.send(
+        JSON.stringify({
+          jsonrpc: '2.0',
+          id: revealSubId,
+          method: 'eth_subscribe',
+          params: ['logs', revealSubFilter],
+        })
+      )
     }
 
     socket.onmessage = (ev) => {
@@ -681,11 +787,13 @@ export function startNozkVaultActivityLive(params: {
           if (kind === 'DepositLocked') void handleDepositLockedLog(res)
           if (kind === 'MintFulfilled') void handleMintFulfilledLog(res)
           if (kind === 'Refunded') void handleRefundedLog(res)
+          if (kind === 'NullifierRevealed') void handleNullifierRevealedLog(res)
         } else if (msg?.result && typeof msg?.id === 'number') {
           const id = msg.id as number
           if (id === depositSubId) subs.set(msg.result, 'DepositLocked')
           if (id === mintSubId) subs.set(msg.result, 'MintFulfilled')
           if (id === refundSubId) subs.set(msg.result, 'Refunded')
+          if (id === revealSubId) subs.set(msg.result, 'NullifierRevealed')
         }
       } catch {
         // Ignore malformed frames.

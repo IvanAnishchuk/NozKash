@@ -226,6 +226,25 @@
   },
   {
     "type": "function",
+    "name": "nullifierState",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint8",
+        "internalType": "enum NozkVault.NullifierState"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "pkMint",
     "inputs": [
       {
@@ -266,11 +285,6 @@
         "name": "deadline",
         "type": "uint256",
         "internalType": "uint256"
-      },
-      {
-        "name": "unblindedSignatureS",
-        "type": "uint256[2]",
-        "internalType": "uint256[2]"
       }
     ],
     "outputs": [],
@@ -315,10 +329,65 @@
   },
   {
     "type": "function",
-    "name": "spentNullifiers",
+    "name": "reveal",
+    "inputs": [
+      {
+        "name": "nullifier",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "unblindedSignatureS",
+        "type": "uint256[2]",
+        "internalType": "uint256[2]"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "revealBatch",
+    "inputs": [
+      {
+        "name": "nullifiers",
+        "type": "address[]",
+        "internalType": "address[]"
+      },
+      {
+        "name": "unblindedSignatures",
+        "type": "uint256[2][]",
+        "internalType": "uint256[2][]"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "revealedAmount",
     "inputs": [
       {
         "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "spentNullifiers",
+    "inputs": [
+      {
+        "name": "nullifier",
         "type": "address",
         "internalType": "address"
       }
@@ -372,6 +441,25 @@
   },
   {
     "type": "event",
+    "name": "NullifierRevealed",
+    "inputs": [
+      {
+        "name": "nullifier",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "Redeemed",
     "inputs": [
       {
@@ -385,6 +473,12 @@
         "type": "address",
         "indexed": true,
         "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
       }
     ],
     "anonymous": false
@@ -415,7 +509,17 @@
   },
   {
     "type": "error",
+    "name": "AlreadyRevealed",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "AlreadySpent",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "BatchLengthMismatch",
     "inputs": []
   },
   {
@@ -476,6 +580,11 @@
   {
     "type": "error",
     "name": "NotMintAuthority",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotRevealed",
     "inputs": []
   },
   {

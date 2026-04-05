@@ -6,7 +6,7 @@
 mint.*.env
 
 # also exposes stuff, used by mock wallet client
-.ghost_wallet.json
+.nozk_wallet.json
 
 # Python-generated files
 __pycache__/

@@ -148,8 +148,9 @@ fi
 require_cmd uv
 require_cmd python3
 
-if [[ ! -f ".env" ]]; then
-    log_err ".env file not found."
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+if [[ ! -f "$REPO_ROOT/.env" ]]; then
+    log_err ".env file not found at $REPO_ROOT/.env"
     echo
     echo -e "  ${BOLD}Run:${RESET}  uv run generate_keys.py"
     echo -e "  ${DIM}This generates all keys and configuration needed.${RESET}"
@@ -206,8 +207,16 @@ if $MOCK_MODE; then
         --verbosity "$VERBOSITY"
     log_ok "Mock mint complete. Token signed and saved to wallet state."
 
-    # ── Step 3: Redeem (mock — generates ECDSA proof, no calldata/chain needed)
-    log_step "STEP 3 · Redeem Payload (index=$INDEX → $RECIPIENT)"
+    # ── Step 3: Reveal (mock — registers nullifier with BLS signature)
+    log_step "STEP 3 · Reveal Token (index=$INDEX) [mock]"
+    uv run client.py reveal \
+        --index "$INDEX" \
+        --mock \
+        "${CLIENT_ARGS[@]}"
+    log_ok "Mock reveal complete. Nullifier registered."
+
+    # ── Step 4: Redeem (mock — generates ECDSA proof, no calldata/chain needed)
+    log_step "STEP 4 · Redeem Payload (index=$INDEX → $RECIPIENT)"
     uv run client.py redeem \
         --index "$INDEX" \
         --to    "$RECIPIENT" \
@@ -215,8 +224,8 @@ if $MOCK_MODE; then
         "${CLIENT_ARGS[@]}"
     log_ok "Mock redeem payload generated."
 
-    # ── Step 4: Mock Redeem Verify (full contract verification)
-    log_step "STEP 4 · Mock Redeem Verify (NozkVault.redeem() simulation)"
+    # ── Step 5: Mock Redeem Verify (full contract verification)
+    log_step "STEP 5 · Mock Redeem Verify (NozkVault.redeem() simulation)"
     log_mock "Running ecrecover → nullifier check → BLS pairing off-chain."
     uv run redeem_mock.py \
         --index "$INDEX" \
@@ -224,8 +233,8 @@ if $MOCK_MODE; then
         --verbosity "$VERBOSITY"
     log_ok "All contract checks passed. Token verified and marked spent."
 
-    # ── Step 5: Final status
-    log_step "STEP 5 · Final Wallet Status"
+    # ── Step 6: Final status
+    log_step "STEP 6 · Final Wallet Status"
     uv run client.py status --mock "${CLIENT_ARGS[@]}"
 
     # ── Summary ────────────────────────────────────────────────────────────
@@ -233,11 +242,12 @@ if $MOCK_MODE; then
     log_sep
     echo
     echo -e "  ${GREEN}${BOLD}🎉  MOCK FLOW COMPLETE${RESET}"
-    echo -e "  ${DIM}Token #${INDEX}: deposit → mint → unblind → redeem — all verified offline.${RESET}"
+    echo -e "  ${DIM}Token #${INDEX}: deposit → mint → reveal → redeem — all verified offline.${RESET}"
     echo
     echo -e "  ${DIM}What was tested:${RESET}"
     echo -e "  ${DIM}  ✔  client.py deposit --mock   (derive secrets, blind B, save state)${RESET}"
     echo -e "  ${DIM}  ✔  mint_mock.py                (S' = sk·B, unblind, BLS verify, save S)${RESET}"
+    echo -e "  ${DIM}  ✔  client.py reveal --mock    (register nullifier, BLS signature)${RESET}"
     echo -e "  ${DIM}  ✔  client.py redeem --mock    (load S, derive spend key, ECDSA proof)${RESET}"
     echo -e "  ${DIM}  ✔  redeem_mock.py              (ecrecover, nullifier, BLS pairing)${RESET}"
     echo
@@ -318,9 +328,30 @@ print(w3.eth.block_number)
     fi
 fi
 
-# ── Step 4: Redeem ─────────────────────────────────────────────────────────────
+# ── Step 4: Reveal ─────────────────────────────────────────────────────────────
 if ! $SKIP_REDEEM; then
-    log_step "STEP 4 · Redeem Token (index=$INDEX → $RECIPIENT)"
+    log_step "STEP 4 · Reveal Token (index=$INDEX)"
+
+    if $DRY_RUN && $SKIP_SCAN; then
+        log_dry "Skipping reveal dry-run: token not yet in wallet state (scan was skipped)."
+    else
+        uv run client.py reveal \
+            --index "$INDEX" \
+            "${DRY_FLAG[@]}" \
+            "${RELAYER_FLAG[@]}" \
+            "${CLIENT_ARGS[@]}"
+
+        if $DRY_RUN; then
+            log_dry "Reveal payload generated. Run without --dry-run to submit."
+        else
+            log_ok "Reveal complete. Nullifier registered on-chain."
+        fi
+    fi
+fi
+
+# ── Step 5: Redeem ─────────────────────────────────────────────────────────────
+if ! $SKIP_REDEEM; then
+    log_step "STEP 5 · Redeem Token (index=$INDEX → $RECIPIENT)"
 
     if $DRY_RUN && $SKIP_SCAN; then
         log_dry "Skipping redeem dry-run: token not yet in wallet state (scan was skipped)."
@@ -340,8 +371,8 @@ if ! $SKIP_REDEEM; then
     fi
 fi
 
-# ── Step 5: Final status ───────────────────────────────────────────────────────
-log_step "STEP 5 · Final Wallet Status"
+# ── Step 6: Final status ───────────────────────────────────────────────────────
+log_step "STEP 6 · Final Wallet Status"
 uv run client.py status "${CLIENT_ARGS[@]}"
 
 # ── Summary ────────────────────────────────────────────────────────────────────

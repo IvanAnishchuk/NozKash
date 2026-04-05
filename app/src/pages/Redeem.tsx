@@ -86,7 +86,7 @@ export function Redeem() {
     }
 
     const redeemable = vaultRows
-      .filter((r) => r.type === 'Deposit' && r.tokenIndex !== undefined)
+      .filter((r) => r.type === 'Revealed' && r.tokenIndex !== undefined)
       .map((r) => ({
         id: r.id,
         tokenIndex: r.tokenIndex!,
@@ -248,7 +248,7 @@ export function Redeem() {
           REDEEM
         </div>
         <div className="modal-sub-label" style={{ marginBottom: 0 }}>
-          Tokens with MintFulfilled · {netLabel}
+          Tokens with MintFulfilled or NullifierRevealed · {netLabel}
         </div>
       </div>
 
@@ -408,9 +408,11 @@ export function Redeem() {
           className="modal-sub-label"
           style={{ fontSize: 11, lineHeight: 1.45, marginTop: 8 }}
         >
-          Send <code>redeem(recipient, spendSignature, nullifier,
-          unblindedSignatureS)</code>: your wallet only signs the EVM transaction;
-          calldata is built in the app from the draft.
+          First call <code>reveal(nullifier, unblindedSignatureS)</code> to register the
+          nullifier on-chain (permissionless BLS verification). Then send{' '}
+          <code>redeem(recipient, spendSignature, nullifier, deadline)</code>: your
+          wallet only signs the EVM transaction; calldata is built in the app from
+          the draft.
         </div>
         {storedDraftSummary ? (
           <div

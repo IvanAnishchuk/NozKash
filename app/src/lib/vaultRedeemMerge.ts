@@ -20,7 +20,7 @@ export function mergeVaultRowsWithRedeemDraft(
   }
 
   const hasDepositForToken = rows.some(
-    (r) => r.type === 'Deposit' && r.tokenIndex === draft.tokenIndex
+    (r) => (r.type === 'Deposit' || r.type === 'Revealed') && r.tokenIndex === draft.tokenIndex
   )
   if (hasDepositForToken) return rows
 

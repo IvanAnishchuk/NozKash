@@ -22,7 +22,7 @@ export function isStartRedeemVisible(
   draft: RedemptionDraftV1 | null,
   item: { type: string; tokenIndex?: number }
 ): boolean {
-  if (item.type !== 'Deposit' || item.tokenIndex === undefined) return false
+  if ((item.type !== 'Deposit' && item.type !== 'Revealed') || item.tokenIndex === undefined) return false
   const acc = normalizeAddr(account)
   if (!acc) return false
   if (draft?.prepareAccount && acc !== draft.prepareAccount.toLowerCase()) {

@@ -53,7 +53,7 @@ from nozk_theme import make_console
 
 console = make_console()
 
-ENV_FILE = Path(".env")
+ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
 
 
 # ==============================================================================

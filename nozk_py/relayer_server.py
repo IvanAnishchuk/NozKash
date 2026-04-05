@@ -30,6 +30,7 @@ Usage:
 import json
 import logging
 import os
+import threading
 import time
 from dataclasses import dataclass
 from enum import Enum
@@ -54,6 +55,7 @@ from nozk_library import (
     G1Point,
     G2Point,
     Scalar,
+    VerificationError,
     _mul_g2,
     hash_to_curve,
     parse_g1,
@@ -285,6 +287,7 @@ class Relayer:
             abi=NOZK_VAULT_ABI,
         )
         self.wallet = Web3.to_checksum_address(config.wallet_address)
+        self._tx_lock = threading.Lock()
 
     def _log_tx(self, action: str, nullifier: str, tx_hash: str, block: int, gas: int) -> None:
         if is_quiet():
@@ -305,22 +308,24 @@ class Relayer:
 
     def _send_tx(self, tx_builder) -> tuple[str, int, int]:
         """Build, sign, send, and wait for a transaction. Returns (tx_hash, block, gas)."""
-        nonce = self.w3.eth.get_transaction_count(self.wallet)
-        gas_price = self.w3.eth.gas_price
+        with self._tx_lock:
+            nonce = self.w3.eth.get_transaction_count(self.wallet, "pending")
+            gas_price = self.w3.eth.gas_price
 
-        try:
-            tx = tx_builder.build_transaction(
-                {
-                    "from": self.wallet,
-                    "nonce": nonce,
-                    "gasPrice": gas_price,
-                }
-            )
-        except (ContractCustomError, ContractLogicError) as exc:
-            raise HTTPException(status_code=400, detail=f"Contract simulation reverted: {decode_contract_error(exc)}")
+            try:
+                tx = tx_builder.build_transaction(
+                    {
+                        "from": self.wallet,
+                        "nonce": nonce,
+                        "gasPrice": gas_price,
+                    }
+                )
+            except (ContractCustomError, ContractLogicError) as exc:
+                msg = f"Contract simulation reverted: {decode_contract_error(exc)}"
+                raise HTTPException(status_code=400, detail=msg)
 
-        signed = self.w3.eth.account.sign_transaction(tx, private_key=self.config.wallet_key)
-        tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
+            signed = self.w3.eth.account.sign_transaction(tx, private_key=self.config.wallet_key)
+            tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
 
         receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
         if receipt["status"] != 1:
@@ -371,16 +376,21 @@ class Relayer:
         r_hex = sig_hex[:64]
         s_hex = sig_hex[64:128]
         v_byte = int(sig_hex[128:130], 16)
+        if v_byte not in (27, 28):
+            raise HTTPException(status_code=400, detail=f"Invalid signature v byte: {v_byte}, expected 27 or 28")
         recovery_bit = v_byte - 27
 
         compact_hex = r_hex + s_hex
-        if not verify_ecdsa_mev_protection(
-            self.contract.functions.redemptionMessageHash(recipient, req.deadline).call(),
-            compact_hex,
-            recovery_bit,
-            nullifier,
-        ):
-            raise HTTPException(status_code=400, detail="ECDSA recovery does not match nullifier")
+        try:
+            if not verify_ecdsa_mev_protection(
+                self.contract.functions.redemptionMessageHash(recipient, req.deadline).call(),
+                compact_hex,
+                recovery_bit,
+                nullifier,
+            ):
+                raise HTTPException(status_code=400, detail="ECDSA recovery does not match nullifier")
+        except VerificationError as exc:
+            raise HTTPException(status_code=400, detail=f"Malformed ECDSA signature: {exc}")
 
         # On-chain state check
         state_val = self.contract.functions.nullifierState(nullifier).call()

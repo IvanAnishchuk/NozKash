@@ -435,12 +435,14 @@ async function cmdScan(config: Config, indexFrom: number, indexTo: number) {
 
         // On-chain nullifier state check (UNREVEALED=0, REVEALED=1, SPENT=2)
         const nullifier = getAddress(gl.getSpendAddress(secrets));
-        const nullState = (await publicClient.readContract({
-            address: config.contractAddress,
-            abi: NOZK_VAULT_ABI,
-            functionName: 'nullifierState',
-            args: [nullifier],
-        })) as number;
+        const nullState = Number(
+            await publicClient.readContract({
+                address: config.contractAddress,
+                abi: NOZK_VAULT_ABI,
+                functionName: 'nullifierState',
+                args: [nullifier],
+            }),
+        );
 
         rec.s_unblinded_x = `0x${sx.toString(16)}`;
         rec.s_unblinded_y = `0x${sy.toString(16)}`;

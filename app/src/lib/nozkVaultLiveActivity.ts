@@ -145,6 +145,7 @@ type DepositState = {
   depositLocked?: { blockHex: string; txHash?: string }
   mintFulfilled?: { blockHex: string; txHash?: string }
   refunded?: { blockHex: string; txHash?: string }
+  nullifierRevealed?: { blockHex: string; txHash?: string }
   /** 0=UNREVEALED, 1=REVEALED, 2=SPENT */
   nullifierState?: number
   /** @deprecated kept for backward compat seeding from initial rows */
@@ -271,7 +272,7 @@ function buildRow(params: {
     dateIso,
     time: dateIso,
     historyLabel: `Redeem · spent · token #${tokenIndex}`,
-    historySub: `spentNullifiers[${spendShort}] · block ${bn || '?'} · ${netLabel}`,
+    historySub: `nullifier spent · block ${bn || '?'} · ${netLabel}`,
     blockNumber: bn,
     tokenIndex,
   }
@@ -427,10 +428,12 @@ export function startNozkVaultActivityLive(params: {
     const nState = depot.nullifierState ?? (depot.spent ? NULLIFIER_SPENT : NULLIFIER_UNREVEALED)
 
     if (depot.mintFulfilled) {
-      selectedBlockHex = depot.mintFulfilled.blockHex
-      txHash = depot.mintFulfilled.txHash
-      blockNumber = parseHexBlock(selectedBlockHex)
       rowType = nState === NULLIFIER_SPENT ? 'Redeem' : nState === NULLIFIER_REVEALED ? 'Revealed' : 'Deposit'
+      // For Revealed rows, prefer the NullifierRevealed log metadata when available
+      const revealMeta = rowType === 'Revealed' && depot.nullifierRevealed ? depot.nullifierRevealed : null
+      selectedBlockHex = revealMeta?.blockHex ?? depot.mintFulfilled.blockHex
+      txHash = revealMeta?.txHash ?? depot.mintFulfilled.txHash
+      blockNumber = parseHexBlock(selectedBlockHex)
     } else if (depot.refunded && refundedBn > lockedBn) {
       selectedBlockHex = depot.refunded.blockHex
       txHash = depot.refunded.txHash
@@ -594,6 +597,10 @@ export function startNozkVaultActivityLive(params: {
     const st = upsertDepositState(depositId)
     st.nullifierState = NULLIFIER_REVEALED
     st.spent = false
+    st.nullifierRevealed = {
+      blockHex: bnHex,
+      txHash: log.transactionHash,
+    }
 
     await recomputeTokenRow(tokenIndex)
   }

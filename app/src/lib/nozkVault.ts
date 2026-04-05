@@ -705,17 +705,27 @@ export async function fetchVaultRowForTokenIndex(
       }
     }
     if (nState === NULLIFIER_REVEALED) {
+      // Fetch the actual NullifierRevealed log for accurate tx metadata
+      const revealLogs = await fetchLogsForDepositIds(
+        vault, NULLIFIER_REVEALED_TOPIC, [spendAddress], fromBlock, chainRpcCall
+      )
+      const revealLog = latestLogByDepositId(revealLogs).get(normalizeAddress(spendAddress))
+      const rBn = revealLog ? parseHexBlock(revealLog.blockNumber) : bn
+      const rTxh = revealLog?.transactionHash ?? txh
+      const rDateIso = revealLog ? await blockHexToDateIso(revealLog.blockNumber, chainRpcCall) : dateIso
       return {
         id: `vault-revealed-${tokenIndex}`,
         type: 'Revealed',
         amount: NOZK_VAULT_DEPOSIT_AMOUNT_LABEL,
         counterparty: spendShort,
-        txHash: txh,
-        dateIso,
-        time: dateIso,
+        txHash: rTxh,
+        dateIso: rDateIso,
+        time: rDateIso,
         historyLabel: `Revealed · ready to redeem · token #${tokenIndex}`,
-        historySub: `NullifierRevealed · block ${bn || '?'} · ${netLabel}`,
-        blockNumber: bn,
+        historySub: revealLog
+          ? `NullifierRevealed · block ${rBn || '?'} · ${netLabel}`
+          : `Revealed (via state) · block ${bn || '?'} · ${netLabel}`,
+        blockNumber: rBn,
         tokenIndex,
       }
     }
@@ -1105,6 +1115,18 @@ async function fetchVaultActivityForFirstTokensImpl(
       nullifierState: nullifierStates,
     })
 
+    // Batch-fetch NullifierRevealed logs for all revealed spend addresses
+    const revealedSpendAddresses = indices
+      .map((_, j) => nullifierStates[j] === NULLIFIER_REVEALED ? getSpendAddress(secretsList[j]!) : null)
+      .filter((a): a is string => a !== null)
+    let revealedLogById = new Map<string, RpcLog>()
+    if (revealedSpendAddresses.length > 0) {
+      const revealLogs = await fetchLogsForDepositIds(
+        vault, NULLIFIER_REVEALED_TOPIC, revealedSpendAddresses, fromBlock, rpc
+      )
+      revealedLogById = latestLogByDepositId(revealLogs)
+    }
+
     const batchDrafts: VaultRowDraft[] = []
 
     for (let j = 0; j < indices.length; j++) {
@@ -1140,12 +1162,14 @@ async function fetchVaultActivityForFirstTokensImpl(
       }
 
       if (nullifierStates[j] === NULLIFIER_REVEALED) {
+        const revealLog = revealedLogById.get(normalizeAddress(spendAddress))
         const mintLog = fulfilledById.get(depositId)
         const lockLog = lockedById.get(depositId)
         const refLog = mintLog ?? lockLog
-        const blockHex = refLog?.blockNumber
+        // Prefer NullifierRevealed log metadata when available
+        const blockHex = revealLog?.blockNumber ?? refLog?.blockNumber
         const bn = parseHexBlock(blockHex)
-        const txh = refLog?.transactionHash ?? '—'
+        const txh = revealLog?.transactionHash ?? refLog?.transactionHash ?? '—'
         batchDrafts.push({
           blockHex,
           row: {
@@ -1155,7 +1179,9 @@ async function fetchVaultActivityForFirstTokensImpl(
             counterparty: spendShort,
             txHash: txh,
             historyLabel: `Revealed · ready to redeem · token #${tokenIndex}`,
-            historySub: `NullifierRevealed · block ${bn || '?'} · ${netLabel}`,
+            historySub: revealLog
+              ? `NullifierRevealed · block ${bn || '?'} · ${netLabel}`
+              : `Revealed (via state) · block ${bn || '?'} · ${netLabel}`,
             blockNumber: bn,
             tokenIndex,
           },

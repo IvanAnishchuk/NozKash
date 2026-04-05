@@ -86,7 +86,7 @@ export function Redeem() {
     }
 
     const redeemable = vaultRows
-      .filter((r) => (r.type === 'Deposit' || r.type === 'Revealed') && r.tokenIndex !== undefined)
+      .filter((r) => r.type === 'Revealed' && r.tokenIndex !== undefined)
       .map((r) => ({
         id: r.id,
         tokenIndex: r.tokenIndex!,

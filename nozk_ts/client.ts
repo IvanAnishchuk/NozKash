@@ -20,7 +20,9 @@
  */
 
 import { config as dotenvConfig } from 'dotenv';
+
 dotenvConfig({ path: resolve('..', '.env') });
+
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import mcl from 'mcl-wasm';

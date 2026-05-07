@@ -7,17 +7,22 @@
  * Commands:
  *   deposit   Blind a token and submit a deposit transaction
  *   scan      Scan chain events to find and recover pending/spendable tokens
- *   redeem    Unblind a recovered token and redeem it on-chain
+ *   reveal    Submit reveal() to register nullifier + BLS on-chain
+ *   redeem    Submit redeem() to transfer funds to recipient
  *   balance   Query on-chain ETH balance
  *
  * Usage:
  *   npx tsx client.ts deposit --index 0
  *   npx tsx client.ts scan
+ *   npx tsx client.ts reveal --index 0
  *   npx tsx client.ts redeem --index 0 --to 0xRecipient
  *   npx tsx client.ts balance
  */
 
-import 'dotenv/config';
+import { config as dotenvConfig } from 'dotenv';
+
+dotenvConfig({ path: resolve('..', '.env') });
+
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import mcl from 'mcl-wasm';
@@ -41,8 +46,8 @@ import * as gl from './nozk-library.js';
 // ==============================================================================
 
 const DENOMINATION = parseEther('0.001');
-const WALLET_STATE_FILE = resolve('.nozk_wallet.json');
-const ABI_PATH = resolve('abi/nozk_vault_abi.json');
+const WALLET_STATE_FILE = resolve('..', '.nozk_wallet.json');
+const ABI_PATH = resolve('..', 'abi', 'nozk_vault_abi.json');
 
 interface Config {
     masterSeed: Uint8Array;
@@ -117,6 +122,7 @@ interface TokenRecord {
     deposit_block: number | null;
     s_unblinded_x: string | null;
     s_unblinded_y: string | null;
+    reveal_tx: string | null;
     redeem_tx: string | null;
     spent: boolean;
 }
@@ -139,7 +145,8 @@ function saveWalletState(state: WalletState): void {
 
 function tokenStatus(rec: TokenRecord): string {
     if (rec.spent) return 'SPENT';
-    if (rec.s_unblinded_x) return 'READY_TO_REDEEM';
+    if (rec.reveal_tx) return 'REVEALED';
+    if (rec.s_unblinded_x) return 'READY_TO_REVEAL';
     if (rec.deposit_tx) return 'AWAITING_MINT';
     return 'FRESH';
 }
@@ -301,6 +308,7 @@ async function cmdDeposit(config: Config, tokenIndex: number) {
             deposit_block: Number(receipt.blockNumber),
             s_unblinded_x: null,
             s_unblinded_y: null,
+            reveal_tx: null,
             redeem_tx: null,
             spent: false,
         };
@@ -371,6 +379,7 @@ async function cmdScan(config: Config, indexFrom: number, indexTo: number) {
                 deposit_block: null,
                 s_unblinded_x: null,
                 s_unblinded_y: null,
+                reveal_tx: null,
                 redeem_tx: null,
                 spent: false,
             };
@@ -382,13 +391,17 @@ async function cmdScan(config: Config, indexFrom: number, indexTo: number) {
         // Skip FRESH tokens
         if (status === 'FRESH') continue;
 
-        // Show cached / spent
+        // Show cached / spent / revealed
         if (status === 'SPENT') {
             log(`\n  Token ${idx}  ·  SPENT`);
             continue;
         }
-        if (status === 'READY_TO_REDEEM') {
-            log(`\n  Token ${idx}  ·  READY_TO_REDEEM  (cached)`);
+        if (status === 'REVEALED') {
+            log(`\n  Token ${idx}  ·  REVEALED  (cached)`);
+            continue;
+        }
+        if (status === 'READY_TO_REVEAL') {
+            log(`\n  Token ${idx}  ·  READY_TO_REVEAL  (cached)`);
             continue;
         }
 
@@ -422,21 +435,27 @@ async function cmdScan(config: Config, indexFrom: number, indexTo: number) {
             }
         }
 
-        // Check nullifier on-chain
+        // On-chain nullifier state check (UNREVEALED=0, REVEALED=1, SPENT=2)
         const nullifier = getAddress(gl.getSpendAddress(secrets));
-        const isSpent = (await publicClient.readContract({
-            address: config.contractAddress,
-            abi: NOZK_VAULT_ABI,
-            functionName: 'spentNullifiers',
-            args: [nullifier],
-        })) as boolean;
+        const nullState = Number(
+            await publicClient.readContract({
+                address: config.contractAddress,
+                abi: NOZK_VAULT_ABI,
+                functionName: 'nullifierState',
+                args: [nullifier],
+            }),
+        );
 
         rec.s_unblinded_x = `0x${sx.toString(16)}`;
         rec.s_unblinded_y = `0x${sy.toString(16)}`;
-        rec.spent = isSpent;
+        if (nullState === 2) {
+            rec.spent = true;
+        } else if (nullState === 1) {
+            rec.reveal_tx = rec.reveal_tx || 'scanned-on-chain';
+        }
         recovered++;
 
-        log(`  → ${isSpent ? 'SPENT' : 'READY_TO_REDEEM'}`);
+        log(`  → ${tokenStatus(rec)}`);
     }
 
     state.last_scanned_block = Number(latestBlock);
@@ -446,23 +465,27 @@ async function cmdScan(config: Config, indexFrom: number, indexTo: number) {
 }
 
 // ==============================================================================
-// COMMAND: redeem
+// COMMAND: reveal
 // ==============================================================================
 
-async function cmdRedeem(config: Config, tokenIndex: number, recipient: string) {
+async function cmdReveal(config: Config, tokenIndex: number, relayerUrl?: string) {
     console.log(`\n👻  GHOST-TIP TS CLIENT  👻\n`);
-    section(`💸  REDEEM · Token #${tokenIndex} → ${recipient}`);
+    section(`🔓  REVEAL · Token #${tokenIndex}`);
 
     const state = loadWalletState();
     const rec = state.tokens[String(tokenIndex)];
 
     if (!rec) {
-        err(`Token ${tokenIndex} not found. Run deposit first.`);
+        err(`Token ${tokenIndex} not found. Run deposit then scan first.`);
         process.exit(1);
     }
     if (rec.spent) {
         err(`Token ${tokenIndex} already spent.`);
         process.exit(1);
+    }
+    if (rec.reveal_tx) {
+        log(`Token ${tokenIndex} is already revealed (tx: ${rec.reveal_tx}).`);
+        return;
     }
     if (!rec.s_unblinded_x) {
         err(`Token ${tokenIndex} has no unblinded sig. Run scan first.`);
@@ -486,7 +509,7 @@ async function cmdRedeem(config: Config, tokenIndex: number, recipient: string) 
         const Y = gl.blindToken(gl.getSpendAddressBytes(secrets), r).Y;
         const blsOk = gl.verifyBlsPairing(S, Y, config.mintBlsPubkey);
         if (blsOk) {
-            ok('BLS pairing verified locally ✓');
+            ok('BLS pairing verified locally');
         } else {
             err('BLS pairing FAILED — this token will be rejected on-chain.');
             process.exit(1);
@@ -495,14 +518,118 @@ async function cmdRedeem(config: Config, tokenIndex: number, recipient: string) 
         log('MINT_BLS_PUBKEY not configured — skipping local BLS check.');
     }
 
-    // Step 2: derive spend key
-    section('🔑  Step 2 · Derive Spend Key');
+    const nullifier = getAddress(gl.getSpendAddress(secrets));
+
+    // Step 2: submit reveal()
+    section('📡  Step 2 · Submit reveal()');
+
+    if (relayerUrl) {
+        kv('Relayer URL', relayerUrl);
+        log('Sending reveal request to relayer — no local ETH required.');
+
+        const resp = await fetch(`${relayerUrl.replace(/\/$/, '')}/reveal`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                nullifier,
+                s_x: `0x${sx.toString(16)}`,
+                s_y: `0x${sy.toString(16)}`,
+            }),
+        });
+
+        if (!resp.ok) {
+            err(`Relayer returned ${resp.status}: ${await resp.text()}`);
+            process.exit(1);
+        }
+
+        const result = (await resp.json()) as any;
+        const txHex = result.tx_hash;
+        kv('Transaction hash', txHex);
+        kv('Confirmed at block', String(result.block_number));
+        kv('Gas used', String(result.gas_used));
+
+        ok('On-chain BLS pairing verified');
+        ok(`Nullifier registered. Token ${tokenIndex} → REVEALED.`);
+
+        rec.reveal_tx = txHex;
+        saveWalletState(state);
+    } else {
+        const { publicClient, walletClient } = await buildClients(config);
+
+        kv('Nullifier', nullifier);
+        kv('S.x', shortHex(`0x${sx.toString(16)}`));
+        kv('S.y', shortHex(`0x${sy.toString(16)}`));
+
+        try {
+            const hash = await walletClient.writeContract({
+                address: config.contractAddress,
+                abi: NOZK_VAULT_ABI,
+                functionName: 'reveal',
+                args: [nullifier, [sx, sy]],
+            });
+
+            kv('Transaction sent', hash);
+            log('Waiting for confirmation…');
+
+            const receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: 120_000 });
+            if (receipt.status !== 'success') {
+                err(`Transaction REVERTED tx=${hash}`);
+                process.exit(1);
+            }
+
+            kv('Confirmed block', String(receipt.blockNumber));
+            kv('Gas used', String(receipt.gasUsed));
+
+            ok('On-chain BLS pairing verified');
+            ok(`Nullifier registered. Token ${tokenIndex} → REVEALED.`);
+
+            rec.reveal_tx = hash;
+            saveWalletState(state);
+        } catch (e: any) {
+            err(`Contract error: ${e.shortMessage || e.message}`);
+            process.exit(1);
+        }
+    }
+}
+
+// ==============================================================================
+// COMMAND: redeem
+// ==============================================================================
+
+async function cmdRedeem(config: Config, tokenIndex: number, recipient: string, relayerUrl?: string) {
+    console.log(`\n👻  GHOST-TIP TS CLIENT  👻\n`);
+    section(`💸  REDEEM · Token #${tokenIndex} → ${recipient}`);
+
+    const state = loadWalletState();
+    const rec = state.tokens[String(tokenIndex)];
+
+    if (!rec) {
+        err(`Token ${tokenIndex} not found. Run deposit first.`);
+        process.exit(1);
+    }
+    if (rec.spent) {
+        err(`Token ${tokenIndex} already spent.`);
+        process.exit(1);
+    }
+    if (!rec.s_unblinded_x) {
+        err(`Token ${tokenIndex} has no unblinded sig. Run scan first.`);
+        process.exit(1);
+    }
+    if (!rec.reveal_tx) {
+        err(`Token ${tokenIndex} is not revealed. Run 'reveal --index ${tokenIndex}' first.`);
+        process.exit(1);
+    }
+
+    const secrets = gl.deriveTokenSecrets(config.masterSeed, tokenIndex);
+
+    // Step 1: derive spend key
+    section('🔑  Step 1 · Derive Spend Key');
     const spendAddr = gl.getSpendAddress(secrets);
     kv('Spend address (nullifier)', spendAddr);
     kv('Deposit ID', gl.getDepositId(secrets));
 
-    // Step 3: generate ECDSA proof (EIP-712)
-    section('🛡️  Step 3 · Generate Anti-MEV ECDSA Proof (EIP-712)');
+    // Step 2: generate ECDSA proof (EIP-712)
+    section('🛡️  Step 2 · Generate Anti-MEV ECDSA Proof (EIP-712)');
     const recipientAddr = getAddress(recipient);
     const { publicClient: tempPub } = await buildClients(config);
     const chainId = await tempPub.getChainId();
@@ -532,50 +659,87 @@ async function cmdRedeem(config: Config, tokenIndex: number, recipient: string) 
     const spendSig = encodeSpendSignature(proof.compactHex, proof.recoveryBit);
     const nullifier = getAddress(spendAddr);
 
-    // Step 4: build and send redeem tx
-    section('📋  Step 4 · Build redeem() Transaction');
-    const { publicClient, walletClient } = await buildClients(config);
+    // Step 3: build and send redeem tx
+    section('📋  Step 3 · Build redeem() Transaction');
 
     kv('Recipient', recipientAddr);
     kv('Nullifier', nullifier);
-    kv('S.x', shortHex(`0x${sx.toString(16)}`));
-    kv('S.y', shortHex(`0x${sy.toString(16)}`));
 
-    section('📡  Step 5 · Broadcast');
-    try {
-        const hash = await walletClient.writeContract({
-            address: config.contractAddress,
-            abi: NOZK_VAULT_ABI,
-            functionName: 'redeem',
-            args: [recipientAddr, spendSig, nullifier, deadline, [sx, sy]],
+    if (relayerUrl) {
+        section('📡  Step 4 · Broadcast via Relayer');
+        kv('Relayer URL', relayerUrl);
+        log('Sending redeem request to relayer — no local ETH required.');
+
+        const resp = await fetch(`${relayerUrl.replace(/\/$/, '')}/redeem`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                recipient: recipientAddr,
+                spend_signature: spendSig,
+                nullifier,
+                deadline: Number(deadline),
+            }),
         });
 
-        kv('Transaction sent', hash);
-        log('Waiting for confirmation…');
-
-        const receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: 120_000 });
-        if (receipt.status !== 'success') {
-            err(`Transaction REVERTED tx=${hash}`);
+        if (!resp.ok) {
+            err(`Relayer returned ${resp.status}: ${await resp.text()}`);
             process.exit(1);
         }
 
-        kv('Confirmed block', String(receipt.blockNumber));
-        kv('Gas used', String(receipt.gasUsed));
+        const result = (await resp.json()) as any;
+        const txHex = result.tx_hash;
+        kv('Transaction hash', txHex);
+        kv('Confirmed at block', String(result.block_number));
+        kv('Gas used', String(result.gas_used));
 
         ok('On-chain checks passed:');
         log('  ✔  ecrecover → nullifier matches spend address');
-        log('  ✔  spentNullifiers[nullifier] was false');
-        log('  ✔  ecPairing: e(S, G2) == e(H(nullifier), PK_mint)');
+        log('  ✔  nullifier was in REVEALED state');
         log(`  ✔  0.001 ETH transferred to ${recipientAddr}`);
 
-        rec.redeem_tx = hash;
+        rec.redeem_tx = txHex;
         rec.spent = true;
         saveWalletState(state);
 
         ok(`Redemption complete. Token ${tokenIndex} is now spent.`);
-    } catch (e: any) {
-        err(`Contract error: ${e.shortMessage || e.message}`);
-        process.exit(1);
+    } else {
+        section('📡  Step 4 · Broadcast');
+        const { publicClient, walletClient } = await buildClients(config);
+
+        try {
+            const hash = await walletClient.writeContract({
+                address: config.contractAddress,
+                abi: NOZK_VAULT_ABI,
+                functionName: 'redeem',
+                args: [recipientAddr, spendSig, nullifier, deadline],
+            });
+
+            kv('Transaction sent', hash);
+            log('Waiting for confirmation…');
+
+            const receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: 120_000 });
+            if (receipt.status !== 'success') {
+                err(`Transaction REVERTED tx=${hash}`);
+                process.exit(1);
+            }
+
+            kv('Confirmed block', String(receipt.blockNumber));
+            kv('Gas used', String(receipt.gasUsed));
+
+            ok('On-chain checks passed:');
+            log('  ✔  ecrecover → nullifier matches spend address');
+            log('  ✔  nullifier was in REVEALED state');
+            log(`  ✔  0.001 ETH transferred to ${recipientAddr}`);
+
+            rec.redeem_tx = hash;
+            rec.spent = true;
+            saveWalletState(state);
+
+            ok(`Redemption complete. Token ${tokenIndex} is now spent.`);
+        } catch (e: any) {
+            err(`Contract error: ${e.shortMessage || e.message}`);
+            process.exit(1);
+        }
     }
 }
 
@@ -613,6 +777,13 @@ async function main() {
 
     const config = loadConfig();
 
+    // Optional relayer URL for reveal/redeem
+    function getOptionalArg(name: string): string | undefined {
+        const idx = args.indexOf(name);
+        if (idx === -1 || idx + 1 >= args.length) return undefined;
+        return args[idx + 1];
+    }
+
     switch (command) {
         case 'deposit': {
             const index = parseInt(getArg('--index'), 10);
@@ -625,10 +796,17 @@ async function main() {
             await cmdScan(config, from, to);
             break;
         }
+        case 'reveal': {
+            const index = parseInt(getArg('--index'), 10);
+            const relayer = getOptionalArg('--relayer');
+            await cmdReveal(config, index, relayer);
+            break;
+        }
         case 'redeem': {
             const index = parseInt(getArg('--index'), 10);
             const to = getArg('--to');
-            await cmdRedeem(config, index, to);
+            const relayer = getOptionalArg('--relayer');
+            await cmdRedeem(config, index, to, relayer);
             break;
         }
         case 'balance': {
@@ -641,7 +819,8 @@ async function main() {
             console.log('Usage:');
             console.log('  npx tsx client.ts deposit --index <n>');
             console.log('  npx tsx client.ts scan [--index-from <n>] [--index-to <n>]');
-            console.log('  npx tsx client.ts redeem --index <n> --to <address>');
+            console.log('  npx tsx client.ts reveal --index <n> [--relayer <url>]');
+            console.log('  npx tsx client.ts redeem --index <n> --to <address> [--relayer <url>]');
             console.log('  npx tsx client.ts balance');
             break;
     }

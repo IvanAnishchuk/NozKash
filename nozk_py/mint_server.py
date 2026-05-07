@@ -54,7 +54,7 @@ from nozk_library import (
 )
 from nozk_theme import make_console
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 # ── Rich setup ────────────────────────────────────────────────────────────────
 

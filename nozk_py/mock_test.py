@@ -5,7 +5,7 @@ from py_ecc.bn128 import b, curve_order, is_on_curve
 
 import nozk_library as gl
 from mint_mock import MockMint, MockMintError
-from redeem_mock import MockRedeemer
+from redeem_mock import MockRedeemer, NullifierState
 
 # ==============================================================================
 # FIXTURES
@@ -118,46 +118,95 @@ def test_mock_mint_sign_from_coords(mint):
 
 
 # ==============================================================================
-# MockRedeemer
+# MockRedeemer — Reveal
 # ==============================================================================
 
 
-def test_redeemer_valid_lifecycle(lifecycle):
+def test_reveal_valid_bls(lifecycle):
     redeemer = MockRedeemer.from_sk(lifecycle["keypair"].sk)
+    nullifier = lifecycle["secrets"].spend.address
+    result = redeemer.reveal(nullifier, lifecycle["sx"], lifecycle["sy"])
+    assert result.success is True
+    assert result.bls_pairing_ok is True
+    assert redeemer.get_state(nullifier) == NullifierState.REVEALED
+
+
+def test_reveal_already_revealed(lifecycle):
+    redeemer = MockRedeemer.from_sk(lifecycle["keypair"].sk)
+    nullifier = lifecycle["secrets"].spend.address
+    redeemer.reveal(nullifier, lifecycle["sx"], lifecycle["sy"])
+    result = redeemer.reveal(nullifier, lifecycle["sx"], lifecycle["sy"])
+    assert result.success is False
+    assert "already" in (result.reason or "").lower()
+
+
+def test_reveal_wrong_mint_key(lifecycle):
+    wrong_kp = gl.generate_mint_keypair()
+    redeemer = MockRedeemer.from_sk(wrong_kp.sk)
+    nullifier = lifecycle["secrets"].spend.address
+    result = redeemer.reveal(nullifier, lifecycle["sx"], lifecycle["sy"])
+    assert result.success is False
+    assert result.bls_pairing_ok is False
+
+
+# ==============================================================================
+# MockRedeemer — Redeem (requires prior reveal)
+# ==============================================================================
+
+
+def test_redeem_after_reveal(lifecycle):
+    redeemer = MockRedeemer.from_sk(lifecycle["keypair"].sk)
+    nullifier = lifecycle["secrets"].spend.address
+
+    # Reveal first
+    rev = redeemer.reveal(nullifier, lifecycle["sx"], lifecycle["sy"])
+    assert rev.success is True
+
+    # Then redeem
     result = redeemer.redeem(
         lifecycle["recipient"],
         lifecycle["sig_65"],
-        lifecycle["sx"],
-        lifecycle["sy"],
         chain_id=_TEST_CHAIN_ID,
         contract_address=_TEST_CONTRACT,
         deadline=_TEST_DEADLINE,
     )
     assert result.success is True
     assert result.ecdsa_ok is True
-    assert result.bls_pairing_ok is True
+    assert redeemer.get_state(nullifier) == NullifierState.SPENT
 
 
-def test_redeemer_bad_signature_length(lifecycle):
+def test_redeem_without_reveal_fails(lifecycle):
+    redeemer = MockRedeemer.from_sk(lifecycle["keypair"].sk)
+    result = redeemer.redeem(
+        lifecycle["recipient"],
+        lifecycle["sig_65"],
+        chain_id=_TEST_CHAIN_ID,
+        contract_address=_TEST_CONTRACT,
+        deadline=_TEST_DEADLINE,
+    )
+    assert result.success is False
+    assert "not revealed" in (result.reason or "").lower()
+
+
+def test_redeem_bad_signature_length(lifecycle):
     redeemer = MockRedeemer.from_sk(lifecycle["keypair"].sk)
     result = redeemer.redeem(
         lifecycle["recipient"],
         b"\x00" * 10,  # wrong length
-        lifecycle["sx"],
-        lifecycle["sy"],
     )
     assert result.success is False
     assert "65 bytes" in (result.reason or "")
 
 
-def test_redeemer_invalid_v_byte(lifecycle):
+def test_redeem_invalid_v_byte(lifecycle):
     redeemer = MockRedeemer.from_sk(lifecycle["keypair"].sk)
+    nullifier = lifecycle["secrets"].spend.address
+    redeemer.reveal(nullifier, lifecycle["sx"], lifecycle["sy"])
+
     bad_sig = lifecycle["sig_65"][:64] + bytes([99])  # invalid v
     result = redeemer.redeem(
         lifecycle["recipient"],
         bad_sig,
-        lifecycle["sx"],
-        lifecycle["sy"],
         chain_id=_TEST_CHAIN_ID,
         contract_address=_TEST_CONTRACT,
         deadline=_TEST_DEADLINE,
@@ -166,13 +215,14 @@ def test_redeemer_invalid_v_byte(lifecycle):
     assert "v byte" in (result.reason or "").lower() or "Invalid" in (result.reason or "")
 
 
-def test_redeemer_double_spend(lifecycle):
+def test_double_spend(lifecycle):
     redeemer = MockRedeemer.from_sk(lifecycle["keypair"].sk)
+    nullifier = lifecycle["secrets"].spend.address
+    redeemer.reveal(nullifier, lifecycle["sx"], lifecycle["sy"])
+
     r1 = redeemer.redeem(
         lifecycle["recipient"],
         lifecycle["sig_65"],
-        lifecycle["sx"],
-        lifecycle["sy"],
         chain_id=_TEST_CHAIN_ID,
         contract_address=_TEST_CONTRACT,
         deadline=_TEST_DEADLINE,
@@ -182,8 +232,6 @@ def test_redeemer_double_spend(lifecycle):
     r2 = redeemer.redeem(
         lifecycle["recipient"],
         lifecycle["sig_65"],
-        lifecycle["sx"],
-        lifecycle["sy"],
         chain_id=_TEST_CHAIN_ID,
         contract_address=_TEST_CONTRACT,
         deadline=_TEST_DEADLINE,
@@ -192,29 +240,14 @@ def test_redeemer_double_spend(lifecycle):
     assert r2.nullifier_spent is True
 
 
-def test_redeemer_wrong_mint_key(lifecycle):
-    wrong_kp = gl.generate_mint_keypair()
-    redeemer = MockRedeemer.from_sk(wrong_kp.sk)
-    result = redeemer.redeem(
-        lifecycle["recipient"],
-        lifecycle["sig_65"],
-        lifecycle["sx"],
-        lifecycle["sy"],
-        chain_id=_TEST_CHAIN_ID,
-        contract_address=_TEST_CONTRACT,
-        deadline=_TEST_DEADLINE,
-    )
-    assert result.success is False
-    assert result.bls_pairing_ok is False
-
-
-def test_redeemer_is_spent_and_reset(lifecycle):
+def test_is_spent_and_reset(lifecycle):
     redeemer = MockRedeemer.from_sk(lifecycle["keypair"].sk)
+    nullifier = lifecycle["secrets"].spend.address
+
+    redeemer.reveal(nullifier, lifecycle["sx"], lifecycle["sy"])
     result = redeemer.redeem(
         lifecycle["recipient"],
         lifecycle["sig_65"],
-        lifecycle["sx"],
-        lifecycle["sy"],
         chain_id=_TEST_CHAIN_ID,
         contract_address=_TEST_CONTRACT,
         deadline=_TEST_DEADLINE,

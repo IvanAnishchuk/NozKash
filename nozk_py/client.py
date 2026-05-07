@@ -76,7 +76,7 @@ from nozk_library import (
 from nozk_theme import make_console
 from wallet_state import short_hex
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 # ── Rich setup ─────────────────────────────────────────────────────────────────
 
@@ -227,6 +227,7 @@ class TokenRecord:
     deposit_block: Optional[int] = None
     s_unblinded_x: Optional[str] = None
     s_unblinded_y: Optional[str] = None
+    reveal_tx: Optional[str] = None
     redeem_tx: Optional[str] = None
     spent: bool = False
 
@@ -235,11 +236,17 @@ class TokenRecord:
         return self.s_unblinded_x is not None
 
     @property
+    def revealed(self) -> bool:
+        return self.reveal_tx is not None
+
+    @property
     def status(self) -> str:
         if self.spent:
             return "SPENT"
+        if self.revealed:
+            return "REVEALED"
         if self.has_token:
-            return "READY_TO_REDEEM"
+            return "READY_TO_REVEAL"
         return "AWAITING_MINT" if self.deposit_tx else "FRESH"
 
     @property
@@ -247,7 +254,8 @@ class TokenRecord:
         s = self.status
         colours = {
             "SPENT": "dim white",
-            "READY_TO_REDEEM": "bold green",
+            "REVEALED": "bold bright_cyan",
+            "READY_TO_REVEAL": "bold green",
             "AWAITING_MINT": "yellow",
             "FRESH": "dim",
         }
@@ -699,13 +707,16 @@ def cmd_scan(
         else:
             info("  MINT_BLS_PUBKEY not configured — skipping local BLS check.", muted=True)
 
-        # On-chain nullifier check
+        # On-chain nullifier state check (UNREVEALED=0, REVEALED=1, SPENT=2)
         nullifier_addr = Web3.to_checksum_address(secrets.spend.address)
-        is_spent = contract.functions.spentNullifiers(nullifier_addr).call()
+        null_state = contract.functions.nullifierState(nullifier_addr).call()
 
         existing.s_unblinded_x = hex(s_x)
         existing.s_unblinded_y = hex(s_y)
-        existing.spent = is_spent
+        if null_state == 2:
+            existing.spent = True
+        elif null_state == 1:
+            existing.reveal_tx = existing.reveal_tx or "scanned-on-chain"
         recovered += 1
 
         console.print(
@@ -721,6 +732,156 @@ def cmd_scan(
     console.print()
     console.print(Rule(style="dim cyan"))
     kv("Scan complete", f"{recovered} token(s) recovered · block {latest_block} saved")
+
+
+# ── Command: reveal ────────────────────────────────────────────────────────────
+
+
+def cmd_reveal(
+    config: ClientConfig,
+    token_index: int,
+    relayer_url: Optional[str] = None,
+) -> None:
+    print_banner()
+    section(f"REVEAL  ·  Token #{token_index}", "🔓")
+
+    state = WalletState.load()
+
+    if token_index not in state.tokens:
+        err(f"Token {token_index} not found in wallet state. Run 'deposit' then 'scan' first.")
+        raise typer.Exit(code=1)
+
+    rec = state.tokens[token_index]
+
+    if rec.spent:
+        err(f"Token {token_index} is already spent.")
+        raise typer.Exit(code=1)
+
+    if rec.revealed:
+        warn(f"Token {token_index} is already revealed (tx: {rec.reveal_tx}).")
+        return
+
+    if not rec.has_token:
+        hint = "'mint_mock.py sign'" if is_mock() else "'scan'"
+        err(f"Token {token_index} has no unblinded signature. Run {hint} first.")
+        raise typer.Exit(code=1)
+
+    secrets = derive_token_secrets(config.master_seed, token_index)
+
+    # Step 1: load S
+    section("Step 1 · Load Unblinded Signature", "🔓")
+    assert rec.s_unblinded_x is not None and rec.s_unblinded_y is not None
+    s_x = int(rec.s_unblinded_x, 16)
+    s_y = int(rec.s_unblinded_y, 16)
+    S = parse_g1(s_x, s_y)
+    kv_hex("S.x", hex(s_x))
+    kv_hex("S.y", hex(s_y))
+
+    # Local BLS verification
+    if config.mint_bls_pubkey is not None:
+        Y = blind_token(secrets.spend_address_bytes, secrets.r).Y
+        bls_ok = verify_bls_pairing(S, Y, config.mint_bls_pubkey)
+        if bls_ok:
+            ok("BLS pairing verified locally ✓")
+        else:
+            err("BLS pairing FAILED locally — this token will be rejected on-chain.")
+            raise typer.Exit(code=1)
+    else:
+        info("MINT_BLS_PUBKEY not configured — skipping local BLS check.", muted=True)
+    console.print()
+
+    nullifier_checksum = Web3.to_checksum_address(secrets.spend.address)
+
+    # ── Mock mode ──────────────────────────────────────────────────────────
+    if is_mock():
+        section("Step 2 · Mock Reveal", "🧪")
+        dry("reveal(nullifier, [S.x, S.y])")
+        dry(f"nullifier  = {nullifier_checksum}")
+        dry(f"S.x        = {hex(s_x)}")
+        dry(f"S.y        = {hex(s_y)}")
+
+        rec.reveal_tx = "mock-no-broadcast"
+        state.save()
+        ok(f"Mock reveal complete. Token {token_index} → REVEALED.")
+        return
+
+    # ── Chain interaction ──────────────────────────────────────────────────
+    section("Step 2 · Submit reveal()", "📡")
+
+    if relayer_url:
+        kv("Relayer URL", relayer_url)
+        info("Sending reveal request to relayer — no local ETH required.")
+
+        try:
+            resp = requests.post(
+                relayer_url.rstrip("/") + "/reveal",
+                json={
+                    "nullifier": nullifier_checksum,
+                    "s_x": hex(s_x),
+                    "s_y": hex(s_y),
+                },
+                timeout=180,
+            )
+        except requests.exceptions.ConnectionError as exc:
+            err(f"Cannot connect to relayer at {relayer_url}: {exc}")
+            raise typer.Exit(code=1) from exc
+
+        if not resp.ok:
+            err(f"Relayer returned {resp.status_code}: {resp.text}")
+            raise typer.Exit(code=1)
+
+        result = resp.json()
+        tx_hex = result["tx_hash"]
+        kv("Transaction hash", tx_hex, style="hash")
+        kv("Confirmed at block", str(result["block_number"]))
+        kv("Gas used", str(result["gas_used"]))
+    else:
+        w3 = build_web3(config)
+        contract = w3.eth.contract(
+            address=Web3.to_checksum_address(config.contract_address),
+            abi=NOZK_VAULT_ABI,
+        )
+        wallet = Web3.to_checksum_address(config.wallet_address)
+        nonce = w3.eth.get_transaction_count(wallet)
+        gas_price = w3.eth.gas_price
+        kv("Caller (pays gas)", wallet, style="addr")
+        kv("Nonce", str(nonce))
+
+        try:
+            tx = contract.functions.reveal(
+                nullifier_checksum,
+                [s_x, s_y],
+            ).build_transaction(
+                {
+                    "from": wallet,
+                    "nonce": nonce,
+                    "gasPrice": gas_price,
+                }
+            )
+        except (ContractCustomError, ContractLogicError) as exc:
+            err(f"Contract reverted during simulation: {decode_contract_error(exc)}")
+            raise typer.Exit(code=1) from exc
+
+        signed = w3.eth.account.sign_transaction(tx, private_key=config.wallet_key)
+        tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
+        tx_hex = tx_hash.hex()
+        kv("Transaction sent", tx_hex, style="hash")
+        info("Waiting for confirmation…")
+
+        receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+        if receipt["status"] != 1:
+            err(f"Transaction REVERTED  tx={tx_hex}")
+            raise typer.Exit(code=1)
+
+        kv("Confirmed block", str(receipt["blockNumber"]))
+        kv("Gas used", str(receipt["gasUsed"]))
+
+    console.print()
+    ok("On-chain BLS pairing verified ✓")
+    ok(f"Nullifier registered. Token {token_index} → REVEALED.")
+
+    rec.reveal_tx = tx_hex
+    state.save()
 
 
 # ── Command: redeem ────────────────────────────────────────────────────────────
@@ -750,6 +911,10 @@ def cmd_redeem(
     if not rec.has_token:
         hint = "'mint_mock.py sign'" if is_mock() else "'scan'"
         err(f"Token {token_index} has no unblinded signature. Run {hint} first.")
+        raise typer.Exit(code=1)
+
+    if not rec.revealed and not is_mock():
+        err(f"Token {token_index} is not revealed. Run 'reveal --index {token_index}' first.")
         raise typer.Exit(code=1)
 
     # Derive secrets early — needed for verbose output, BLS check, and step 2
@@ -843,12 +1008,10 @@ def cmd_redeem(
     nullifier_checksum = Web3.to_checksum_address(secrets.spend.address)
     if is_mock():
         section("Step 4 · Mock Redemption Payload", "🧪")
-        dry("redeem(recipient, spendSignature, nullifier, deadline, S)")
+        dry("redeem(recipient, spendSignature, nullifier, deadline)")
         dry(f"recipient  = {recipient_checksum}")
         dry(f"nullifier  = {nullifier_checksum}")
         dry(f"deadline   = {deadline}")
-        dry(f"S.x        = {hex(s_x)}")
-        dry(f"S.y        = {hex(s_y)}")
         dry(f"v          = {proof.recovery_bit + 27}  (recovery_bit + 27)")
         dry(f"sig        = 0x{spend_sig_bytes.hex()[:40]}…")
         dry("No calldata built (mock mode — no contract needed)")
@@ -892,7 +1055,6 @@ def cmd_redeem(
             spend_sig_bytes,
             nullifier_checksum,
             deadline,
-            [s_x, s_y],
         ).build_transaction({"from": ZERO})["data"]
     except (ContractCustomError, ContractLogicError) as exc:
         err(f"Contract reverted during simulation: {decode_contract_error(exc)}")
@@ -900,8 +1062,6 @@ def cmd_redeem(
 
     kv("Recipient", recipient_checksum, style="addr")
     kv("Nullifier", nullifier_checksum, style="addr")
-    kv("S.x", str(s_x), style="num")
-    kv("S.y", str(s_y), style="num")
     calldata_hex = str(calldata)
     kv("Calldata size", f"{len(bytes.fromhex(calldata_hex[2:]))} bytes")
     if is_debug():
@@ -911,11 +1071,10 @@ def cmd_redeem(
     # Step 5: dry-run or broadcast
     if is_dry_run():
         section("Step 5 · DRY-RUN Simulation", "🔵")
-        dry("redeem(recipient, spendSignature, nullifier, S)")
+        dry("redeem(recipient, spendSignature, nullifier, deadline)")
         dry(f"recipient  = {recipient_checksum}")
         dry(f"nullifier  = {nullifier_checksum}")
-        dry(f"S.x        = {hex(s_x)}")
-        dry(f"S.y        = {hex(s_y)}")
+        dry(f"deadline   = {deadline}")
         dry(f"v          = {proof.recovery_bit + 27}  (recovery_bit + 27)")
         dry(f"calldata   = {calldata[:42]}…")
         dry("Transaction NOT sent (dry-run mode)")
@@ -925,12 +1084,17 @@ def cmd_redeem(
     if relayer_url:
         section("Step 5 · Broadcast via Relayer", "📡")
         kv("Relayer URL", relayer_url)
-        info("Sending calldata to relayer — no local ETH required.")
+        info("Sending redeem request to relayer — no local ETH required.")
 
         try:
             resp = requests.post(
-                relayer_url.rstrip("/") + "/relay",
-                json={"calldata": calldata},
+                relayer_url.rstrip("/") + "/redeem",
+                json={
+                    "recipient": recipient_checksum,
+                    "spend_signature": "0x" + spend_sig_bytes.hex(),
+                    "nullifier": nullifier_checksum,
+                    "deadline": deadline,
+                },
                 timeout=180,
             )
         except requests.exceptions.ConnectionError as exc:
@@ -961,7 +1125,6 @@ def cmd_redeem(
                 spend_sig_bytes,
                 nullifier_checksum,
                 deadline,
-                [s_x, s_y],
             ).build_transaction(
                 {
                     "from": wallet,
@@ -990,8 +1153,7 @@ def cmd_redeem(
     console.print()
     ok("On-chain checks passed:")
     info("  ✔  ecrecover → nullifier matches spend address")
-    info("  ✔  spentNullifiers[nullifier] was false")
-    info("  ✔  ecPairing: e(S, G2) == e(H(nullifier), PK_mint)")
+    info("  ✔  nullifier was in REVEALED state")
     info(f"  ✔  0.001 ETH transferred to {recipient_checksum}")
 
     rec.redeem_tx = tx_hex
@@ -1172,6 +1334,19 @@ def scan(
         err(f"--index-to ({index_to}) must be >= --index-from ({index_from})")
         raise typer.Exit(code=1)
     cmd_scan(load_config(), from_block, index_from, index_to)
+
+
+@app.command()
+def reveal(
+    index: Annotated[int, typer.Option("--index", "-i", help="Token index to reveal.", min=0)],
+    relayer: Annotated[Optional[str], typer.Option("--relayer", help="Relayer base URL (relayer pays gas).")] = None,
+    dry_run: DryRunOpt = False,
+    mock: MockOpt = False,
+    verbosity: VerbosityOpt = Verbosity.normal,
+) -> None:
+    """Reveal a token's unblinded BLS signature on-chain (register nullifier)."""
+    _set_modes(verbosity, dry_run, mock)
+    cmd_reveal(load_config(), index, relayer)
 
 
 @app.command()

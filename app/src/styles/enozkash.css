@@ -172,9 +172,11 @@
 .stat-block-row{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:3px}
 .stat-block-label{font-family:var(--mono);font-size:9px;letter-spacing:.8px;text-transform:uppercase}
 .stat-block-label.valid{color:var(--green)}
+.stat-block-label.pending-label{color:var(--yellow,#f0b90b)}
 .stat-block-label.spent{color:var(--red2)}
 .stat-block-num{font-family:var(--mono);font-size:16px;font-weight:700;line-height:1}
 .stat-block-num.valid{color:var(--green)}
+.stat-block-num.pending-label{color:var(--yellow,#f0b90b)}
 .stat-block-num.spent{color:var(--red2)}
 .stat-block-eth{font-family:var(--mono);font-size:10px;color:var(--text3)}
 
@@ -210,6 +212,7 @@
 .activity-left{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
 .activity-icon{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .activity-icon.deposit{background:var(--green-dim)}
+.activity-icon.revealed{background:var(--green-dim)}
 .activity-icon.redeem{background:var(--red-dim)}
 .activity-icon.pending{background:var(--yellow-dim)}
 .activity-icon.refunded{background:var(--surface2)}
@@ -219,6 +222,7 @@
 .activity-amount{font-family:var(--mono);font-size:12px;font-weight:700;transition:.2s;flex-shrink:0;margin-left:8px;white-space:nowrap}
 .activity-right-col .activity-amount{margin-left:0}
 .activity-amount.deposit{color:var(--green)}
+.activity-amount.revealed{color:var(--green)}
 .activity-amount.redeem{color:var(--red2)}
 .activity-amount.pending{color:var(--yellow)}
 .activity-amount.refunded{color:var(--text2)}

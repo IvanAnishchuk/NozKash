@@ -52,42 +52,66 @@ function hexToBytes32(hex: string): Uint8Array {
   return Uint8Array.from(h.match(/.{2}/g)!.map((b) => parseInt(b, 16)))
 }
 
-/** First 4 bytes of `keccak256("redeem(address,bytes,address,uint256,uint256[2])")`. */
+/** First 4 bytes of `keccak256("redeem(address,bytes,address,uint256)")`. */
 const REDEEM_SELECTOR = keccak256(
-  new TextEncoder().encode('redeem(address,bytes,address,uint256,uint256[2])')
+  new TextEncoder().encode('redeem(address,bytes,address,uint256)')
 ).subarray(0, 4)
 
 export const NOZK_VAULT_REDEEM_SELECTOR_HEX = hex0x(REDEEM_SELECTOR)
 
+/** First 4 bytes of `keccak256("reveal(address,uint256[2])")`. */
+const REVEAL_SELECTOR = keccak256(
+  new TextEncoder().encode('reveal(address,uint256[2])')
+).subarray(0, 4)
+
+export const NOZK_VAULT_REVEAL_SELECTOR_HEX = hex0x(REVEAL_SELECTOR)
+
 /**
- * ABI `redeem(address,bytes,address,uint256,uint256[2])` — same as `NozkVault.redeem` in Solidity.
+ * ABI `reveal(address,uint256[2])` — permissionless BLS verification + nullifier registration.
+ */
+export function encodeNozkVaultRevealCalldata(
+  nullifier: string,
+  sx: bigint,
+  sy: bigint
+): `0x${string}` {
+  const body = concatBytes(
+    encodeAddressWord(nullifier),
+    u256be(sx),
+    u256be(sy)
+  )
+  const full = concatBytes(REVEAL_SELECTOR, body)
+  return (
+    '0x' +
+    Array.from(full)
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('')
+  ) as `0x${string}`
+}
+
+/**
+ * ABI `redeem(address,bytes,address,uint256)` — same as `NozkVault.redeem` in Solidity.
+ * The unblinded signature S is no longer passed here (moved to `reveal`).
  */
 export function encodeNozkVaultRedeemCalldata(
   recipient: string,
   spendSignature65: Uint8Array,
   nullifier: string,
-  deadline: bigint,
-  sx: bigint,
-  sy: bigint
+  deadline: bigint
 ): `0x${string}` {
   if (spendSignature65.length !== 65) {
     throw new Error(`spendSignature must be 65 bytes, got ${spendSignature65.length}`)
   }
 
-  // ABI head: 5 static words + 1 dynamic offset for bytes
+  // ABI head: 3 static words + 1 dynamic offset for bytes
   // word 0: recipient (address)
-  // word 1: offset to spendSignature dynamic data (6 * 32 = 192)
+  // word 1: offset to spendSignature dynamic data (4 * 32 = 128)
   // word 2: nullifier (address)
   // word 3: deadline (uint256)
-  // word 4: S[0] (uint256)
-  // word 5: S[1] (uint256)
   const head = concatBytes(
     encodeAddressWord(recipient),
-    u256be(192n),
+    u256be(128n),
     encodeAddressWord(nullifier),
-    u256be(deadline),
-    u256be(sx),
-    u256be(sy)
+    u256be(deadline)
   )
 
   const lenWord = u256be(65n)
@@ -148,7 +172,7 @@ export function canStartHomeRedeem(
   item: { type: string; tokenIndex?: number },
   draft: RedemptionDraftV1 | null
 ): boolean {
-  if (item.type !== 'Deposit' || item.tokenIndex === undefined) return false
+  if ((item.type !== 'Deposit' && item.type !== 'Revealed') || item.tokenIndex === undefined) return false
   if (!draft) return true
   if (draft.tokenIndex !== item.tokenIndex) return true
   if (!draft.prepareAccount) return true
@@ -163,7 +187,7 @@ export function isHomeRedeemReady(
   draft: RedemptionDraftV1 | null,
   account: string | null
 ): boolean {
-  if (item.type !== 'Deposit' || item.tokenIndex === undefined) return false
+  if ((item.type !== 'Deposit' && item.type !== 'Revealed') || item.tokenIndex === undefined) return false
   if (!draft || !account) return false
   if (draft.tokenIndex !== item.tokenIndex) return false
   if (draft.prepareAccount) {
@@ -231,31 +255,21 @@ export function clearRedemptionDraft(): void {
   }
 }
 
-export type BuildRedeemCalldataInput = {
+export type BuildRevealCalldataInput = {
   draft: RedemptionDraftV1
-  recipient: string
   mintFulfilled: { sx: bigint; sy: bigint }
-  chainId: number
-  contractAddress: string
 }
 
 /**
- * Builds `redeem` calldata: S = unblind(S′, r), ECDSA with **spend** key (nullifier).
+ * Builds `reveal` calldata: S = unblind(S', r), then encode `reveal(nullifier, S)`.
+ * Returns both the calldata and the unblinded S coordinates for later use.
  */
-export async function buildNozkVaultRedeemCalldata(
-  input: BuildRedeemCalldataInput
-): Promise<`0x${string}`> {
+export async function buildNozkVaultRevealCalldata(
+  input: BuildRevealCalldataInput
+): Promise<{ data: `0x${string}`; sx: bigint; sy: bigint }> {
   await ensureNozkCrypto()
 
   const blindPriv = hexToBytes32(input.draft.blindPrivHex)
-  const spendPriv = hexToBytes32(input.draft.spendPrivHex)
-
-  const derivedSpend = addressFromSpendPriv(spendPriv)
-  if (derivedSpend !== input.draft.spendAddress.toLowerCase()) {
-    throw new Error(
-      'Redeem draft mismatch: spend private key does not match nullifier address'
-    )
-  }
 
   const r = blindPrivToR(blindPriv)
   if (r === 0n) {
@@ -272,6 +286,39 @@ export async function buildNozkVaultRedeemCalldata(
   const sx = BigInt(xs)
   const sy = BigInt(ys)
 
+  const data = encodeNozkVaultRevealCalldata(
+    input.draft.spendAddress,
+    sx,
+    sy
+  )
+  return { data, sx, sy }
+}
+
+export type BuildRedeemCalldataInput = {
+  draft: RedemptionDraftV1
+  recipient: string
+  chainId: number
+  contractAddress: string
+}
+
+/**
+ * Builds `redeem` calldata: ECDSA with **spend** key (nullifier).
+ * The unblinded signature S is no longer included (moved to `reveal`).
+ */
+export async function buildNozkVaultRedeemCalldata(
+  input: BuildRedeemCalldataInput
+): Promise<`0x${string}`> {
+  await ensureNozkCrypto()
+
+  const spendPriv = hexToBytes32(input.draft.spendPrivHex)
+
+  const derivedSpend = addressFromSpendPriv(spendPriv)
+  if (derivedSpend !== input.draft.spendAddress.toLowerCase()) {
+    throw new Error(
+      'Redeem draft mismatch: spend private key does not match nullifier address'
+    )
+  }
+
   const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600) // 1 hour
   const proof = await generateRedemptionProof(
     spendPriv,
@@ -286,8 +333,6 @@ export async function buildNozkVaultRedeemCalldata(
     input.recipient,
     spendSig65,
     input.draft.spendAddress,
-    deadline,
-    sx,
-    sy
+    deadline
   )
 }

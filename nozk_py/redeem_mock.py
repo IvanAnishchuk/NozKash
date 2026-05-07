@@ -1,24 +1,28 @@
 """
 Nozk Protocol: Mock Redeemer (On-Chain Verification Simulator)
 
-Simulates the NozkVault.redeem() smart contract function entirely off-chain.
-Performs the exact same verification steps the Solidity contract would:
+Simulates the NozkVault reveal() + redeem() smart contract flow off-chain.
 
-    1. ecrecover(msg_hash, spendSignature) → nullifier address
-    2. Check nullifier has not been spent (mock: in-memory set)
-    3. Y = hashToCurve(nullifier)
-    4. ecPairing(S, G2, Y, PK_mint) → BLS verification
-    5. Transfer 0.001 ETH to recipient (mock: just records success)
+Two-phase flow (matches on-chain architecture):
+    reveal(nullifier, S):
+        1. Parse S as a BN254 G1 point
+        2. Y = hashToCurve(nullifier)
+        3. ecPairing(S, G2, Y, PK_mint) → BLS verification
+        4. Register nullifier as REVEALED (with denomination)
+
+    redeem(recipient, spendSignature, nullifier, deadline):
+        1. ecrecover(msg_hash, spendSignature) → nullifier address
+        2. Check nullifier is REVEALED (not UNREVEALED or SPENT)
+        3. Mark SPENT, transfer 0.001 ETH (mock: just records success)
 
 Library usage:
     from redeem_mock import MockRedeemer
 
     redeemer = MockRedeemer(pk_mint=pk_g2_point)
+    redeemer.reveal(nullifier="0x...", unblinded_s_x=sx, unblinded_s_y=sy)
     result = redeemer.redeem(
         recipient="0xRecipient...",
         spend_signature_bytes=sig_65_bytes,
-        unblinded_s_x=s_x_int,
-        unblinded_s_y=s_y_int,
     )
 
 CLI usage (replaces on-chain redeem with full verification):
@@ -33,6 +37,7 @@ import os
 import time
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import Annotated, Optional
 
 import typer
@@ -58,7 +63,7 @@ from nozk_library import (
 from nozk_theme import make_console
 from wallet_state import load_wallet_state, save_wallet_state, short_hex
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 
 # ==============================================================================
@@ -103,17 +108,33 @@ class RedeemResult:
         )
 
 
+class NullifierState(Enum):
+    UNREVEALED = "UNREVEALED"
+    REVEALED = "REVEALED"
+    SPENT = "SPENT"
+
+
+@dataclass
+class RevealResult:
+    """Result of a mock reveal attempt."""
+
+    success: bool
+    nullifier: Optional[str] = None
+    bls_pairing_ok: Optional[bool] = None
+    reason: Optional[str] = None
+
+
 @dataclass
 class MockRedeemer:
     """
-    Off-chain simulation of NozkVault.redeem().
+    Off-chain simulation of NozkVault reveal() + redeem().
 
-    Maintains an in-memory set of spent nullifiers, exactly like the
-    contract's mapping(address => bool) public spentNullifiers.
+    Maintains an in-memory mapping of nullifier states, matching the
+    contract's NullifierState enum (UNREVEALED → REVEALED → SPENT).
     """
 
     pk_mint: G2Point
-    spent_nullifiers: set[str] = field(default_factory=set)
+    nullifier_states: dict[str, NullifierState] = field(default_factory=dict)
 
     # ── Constructors ──────────────────────────────────────────────────────
 
@@ -137,36 +158,67 @@ class MockRedeemer:
             raise MockRedeemError("Missing MINT_BLS_PRIVKEY or MINT_BLS_PRIVKEY_INT in environment.")
         return cls.from_sk(sk)
 
-    # ── Core redemption ───────────────────────────────────────────────────
+    # ── Reveal (BLS verification) ─────────────────────────────────────────
+
+    def reveal(
+        self,
+        nullifier: str,
+        unblinded_s_x: int,
+        unblinded_s_y: int,
+    ) -> RevealResult:
+        """
+        Simulate NozkVault.reveal() — BLS pairing verification.
+
+        Verifies e(S, G2) == e(H(nullifier), PK_mint) and registers
+        the nullifier as REVEALED.
+        """
+        result = RevealResult(success=False, nullifier=nullifier)
+        nullifier_lower = nullifier.lower()
+
+        state = self.nullifier_states.get(nullifier_lower, NullifierState.UNREVEALED)
+        if state != NullifierState.UNREVEALED:
+            result.reason = f"Nullifier already {state.value}"
+            return result
+
+        try:
+            S = parse_g1(unblinded_s_x, unblinded_s_y)
+        except InvalidPointError as exc:
+            result.reason = f"Unblinded signature S is not on BN254 G1: {exc}"
+            return result
+
+        nullifier_bytes = bytes.fromhex(nullifier[2:])
+        Y = hash_to_curve(nullifier_bytes)
+
+        result.bls_pairing_ok = verify_bls_pairing(S, Y, self.pk_mint)
+        if not result.bls_pairing_ok:
+            result.reason = "BLS pairing check failed: e(S, G2) != e(Y, PK_mint)"
+            return result
+
+        self.nullifier_states[nullifier_lower] = NullifierState.REVEALED
+        result.success = True
+        return result
+
+    # ── Redeem (ECDSA verification) ───────────────────────────────────────
 
     def redeem(
         self,
         recipient: str,
         spend_signature_bytes: bytes,
-        unblinded_s_x: int,
-        unblinded_s_y: int,
         chain_id: int = 11155111,
         contract_address: str = "",
         deadline: int = 2**256 - 1,
     ) -> RedeemResult:
         """
-        Simulate NozkVault.redeem() — the full on-chain verification pipeline.
+        Simulate NozkVault.redeem() — ECDSA verification only.
 
-        Args:
-            recipient:              Destination address for the 0.001 ETH.
-            spend_signature_bytes:  65-byte ECDSA signature (r‖s‖v), v is 27 or 28.
-            unblinded_s_x:          x coordinate of the unblinded BLS signature S.
-            unblinded_s_y:          y coordinate of the unblinded BLS signature S.
-            chain_id:               EIP-712 chain ID (default: 11155111 Sepolia).
-            contract_address:       EIP-712 verifying contract address.
-            deadline:               EIP-712 deadline (default: max uint256).
-
-        Returns:
-            RedeemResult with success/failure details and all intermediates.
+        BLS was already verified in reveal(). This checks:
+        1. ecrecover → nullifier address
+        2. ECDSA binding verification
+        3. Nullifier must be in REVEALED state
+        4. Mark as SPENT
         """
         result = RedeemResult(success=False, recipient=recipient)
 
-        # ── Step 1: Parse the ECDSA signature and ecrecover the nullifier ─
         if len(spend_signature_bytes) != 65:
             result.reason = f"Spend signature must be 65 bytes, got {len(spend_signature_bytes)}"
             return result
@@ -175,7 +227,6 @@ class MockRedeemer:
 
         from nozk_library import eip712_redemption_hash
 
-        # Match Solidity: EIP-712 redemptionMessageHash(recipient, deadline)
         msg_hash = eip712_redemption_hash(recipient, deadline, chain_id, contract_address)
 
         r_bytes = spend_signature_bytes[:32]
@@ -202,7 +253,6 @@ class MockRedeemer:
         result.nullifier = nullifier
         result.ecrecover_address = nullifier
 
-        # ── Step 2: ECDSA verification ────────────────────────────────────
         result.ecdsa_ok = verify_ecdsa_mev_protection(
             msg_hash,
             compact_hex,
@@ -213,59 +263,35 @@ class MockRedeemer:
             result.reason = "ECDSA verification failed (ecrecover address mismatch)"
             return result
 
-        # ── Step 3: Double-spend check ────────────────────────────────────
         nullifier_lower = nullifier.lower()
-        if nullifier_lower in self.spent_nullifiers:
+        state = self.nullifier_states.get(nullifier_lower, NullifierState.UNREVEALED)
+        if state == NullifierState.SPENT:
             result.nullifier_spent = True
-            result.reason = f"Token already spent (nullifier {nullifier} is in spent set)"
+            result.reason = f"Token already spent (nullifier {nullifier})"
+            return result
+        if state != NullifierState.REVEALED:
+            result.nullifier_spent = False
+            result.reason = f"Nullifier not revealed (state: {state.value})"
             return result
         result.nullifier_spent = False
 
-        # ── Step 4: Parse the unblinded BLS signature S ───────────────────
-        try:
-            S = parse_g1(unblinded_s_x, unblinded_s_y)
-        except InvalidPointError as exc:
-            result.reason = f"Unblinded signature S is not on BN254 G1: {exc}"
-            return result
-
-        # ── Step 5: hashToCurve(nullifier) ────────────────────────────────
-        nullifier_bytes = bytes.fromhex(nullifier[2:])
-        Y = hash_to_curve(nullifier_bytes)
-
-        # ── Step 6: BLS pairing check ────────────────────────────────────
-        result.bls_pairing_ok = verify_bls_pairing(S, Y, self.pk_mint)
-        if not result.bls_pairing_ok:
-            result.reason = "BLS pairing check failed: e(S, G2) != e(Y, PK_mint)"
-            return result
-
-        # ── Step 7: Mark as spent ─────────────────────────────────────────
-        self.spent_nullifiers.add(nullifier_lower)
+        self.nullifier_states[nullifier_lower] = NullifierState.SPENT
         result.success = True
         return result
 
-    def redeem_from_proof(
-        self,
-        recipient: str,
-        compact_hex: str,
-        recovery_bit: int,
-        unblinded_s_x: int,
-        unblinded_s_y: int,
-    ) -> RedeemResult:
-        """
-        Convenience: accepts proof components from generate_redemption_proof()
-        and encodes the 65-byte signature internally.
-        """
-        r_bytes = bytes.fromhex(compact_hex[:64])
-        s_bytes = bytes.fromhex(compact_hex[64:])
-        v_byte = bytes([recovery_bit + 27])
-        sig_65 = r_bytes + s_bytes + v_byte
-        return self.redeem(recipient, sig_65, unblinded_s_x, unblinded_s_y)
+    # ── State queries ─────────────────────────────────────────────────────
+
+    def get_state(self, nullifier: str) -> NullifierState:
+        return self.nullifier_states.get(nullifier.lower(), NullifierState.UNREVEALED)
 
     def is_spent(self, nullifier: str) -> bool:
-        return nullifier.lower() in self.spent_nullifiers
+        return self.get_state(nullifier) == NullifierState.SPENT
+
+    def is_revealed(self, nullifier: str) -> bool:
+        return self.get_state(nullifier) == NullifierState.REVEALED
 
     def reset(self) -> None:
-        self.spent_nullifiers.clear()
+        self.nullifier_states.clear()
 
 
 # ==============================================================================
@@ -425,17 +451,48 @@ def verify(
             )
         console.print()
 
-    # ── Build 65-byte signature and run mock redeem ───────────────────────
+    # ── Reveal: BLS pairing check ─────────────────────────────────────────
     if not is_quiet:
-        console.print(Rule("[step]Step 3 · Simulate NozkVault.redeem()[/step]", style="dim magenta"))
+        console.print(Rule("[step]Step 3 · Simulate NozkVault.reveal()[/step]", style="dim magenta"))
+
+    nullifier = rec["spend_address"]
+    reveal_result = redeemer.reveal(
+        nullifier=nullifier,
+        unblinded_s_x=s_x,
+        unblinded_s_y=s_y,
+    )
+
+    if not is_quiet:
+        console.print(
+            Text.assemble(
+                ("  [BLS pairing]  ", "label"),
+                (
+                    "✅ PASS" if reveal_result.bls_pairing_ok else "❌ FAIL",
+                    "success" if reveal_result.bls_pairing_ok else "error",
+                ),
+            )
+        )
+        console.print(
+            Text.assemble(
+                ("  [Nullifier]    → ", "muted"),
+                ("REVEALED" if reveal_result.success else "FAILED", "success" if reveal_result.success else "error"),
+            )
+        )
+        console.print()
+
+    if not reveal_result.success:
+        console.print(f"[error]  ❌  Reveal FAILED: {reveal_result.reason}[/error]")
+        raise typer.Exit(code=1)
+
+    # ── Redeem: ECDSA verification ─────────────────────────────────────────
+    if not is_quiet:
+        console.print(Rule("[step]Step 4 · Simulate NozkVault.redeem()[/step]", style="dim magenta"))
 
     sig_65 = _encode_spend_signature(proof.compact_hex, proof.recovery_bit)
 
     result = redeemer.redeem(
         recipient=to,
         spend_signature_bytes=sig_65,
-        unblinded_s_x=s_x,
-        unblinded_s_y=s_y,
         chain_id=chain_id,
         contract_address=contract_addr,
         deadline=deadline,
@@ -456,17 +513,11 @@ def verify(
         )
         console.print(
             Text.assemble(
-                ("  [Nullifier]    ", "label"),
+                ("  [State check]  ", "label"),
                 (
-                    "✅ NOT SPENT" if not result.nullifier_spent else "❌ ALREADY SPENT",
+                    "✅ REVEALED" if not result.nullifier_spent else "❌ ALREADY SPENT",
                     "success" if not result.nullifier_spent else "error",
                 ),
-            )
-        )
-        console.print(
-            Text.assemble(
-                ("  [BLS pairing]  ", "label"),
-                ("✅ PASS" if result.bls_pairing_ok else "❌ FAIL", "success" if result.bls_pairing_ok else "error"),
             )
         )
         console.print()
@@ -482,8 +533,8 @@ def verify(
             console.print(
                 Text.assemble(
                     ("  🎉  ", ""),
-                    ("Mock redeem PASSED", "success"),
-                    (" — all 4 contract checks verified off-chain.", "success"),
+                    ("Mock reveal + redeem PASSED", "success"),
+                    (" — all contract checks verified off-chain.", "success"),
                 )
             )
             console.print(

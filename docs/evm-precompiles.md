@@ -21,7 +21,7 @@ Adds two precompiled contracts for BN254 (alt_bn128) point arithmetic:
 The curve is defined as `Y^2 = X^3 + 3` over `F_p` where
 `p = 21888242871839275222246405745257275088696311157297823662689037894645226208583`.
 
-**Used in NozKash:** `ecMul` for hash-to-curve square root computation (via modexp at `0x05`), and implicitly through the pairing precompile.
+**Used in NozKash:** The contract does not call `ecAdd` or `ecMul` directly. It uses `modexp` at `0x05` for hash-to-curve square root computation and `ecPairing` at `0x08` for BLS verification. These precompiles define the curve NozKash operates on.
 
 **References:** EIP-197 (pairing companion).
 
@@ -38,7 +38,7 @@ Adds a pairing check precompile for BN254:
 
 | Precompile | Address | Gas cost                        |
 |------------|---------|----------------------------------|
-| ecPairing  | `0x08`  | 45,000 * k + 34,000 (k = pairs) |
+| ecPairing  | `0x08`  | 34,000 * k + 45,000 (k = pairs) |
 
 Input: k pairs of (G1, G2) points (192 bytes each). Returns 1 if the product of pairings equals the identity in F_q^12, else 0.
 
@@ -57,7 +57,7 @@ G2 points use **EIP-197 limb order**: `[X_imag, X_real, Y_imag, Y_real]`.
 - **Created:** 2020-02-21
 - **Link:** <https://eips.ethereum.org/EIPS/eip-2537>
 
-Adds nine precompiles for BLS12-381 operations, providing ~120-bit security (vs ~100-bit for BN254):
+Adds nine precompiles for BLS12-381 operations, providing ~117-120 bit security (vs ~100-bit for BN254; the EIP text conservatively states 80-bit, but post-TNFS academic estimates converge on ~100):
 
 | Operation            | Address | Purpose                        |
 |----------------------|---------|--------------------------------|

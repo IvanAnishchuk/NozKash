@@ -115,12 +115,12 @@ Included as a git submodule at `sol/lib/forge-std/`.
 
 ## EVM Precompiles Used On-Chain
 
-| Address | Name       | Purpose in NozKash              |
-|---------|------------|---------------------------------|
-| `0x05`  | modexp     | Modular exponentiation (sqrt)   |
-| `0x06`  | ecAdd      | BN254 G1 point addition         |
-| `0x07`  | ecMul      | BN254 G1 scalar multiplication  |
-| `0x08`  | ecPairing  | BN254 pairing check (BLS verify)|
+| Address | Name       | Purpose in NozKash                          |
+|---------|------------|---------------------------------------------|
+| `0x05`  | modexp     | Modular exponentiation (hash-to-curve sqrt) |
+| `0x08`  | ecPairing  | BN254 pairing check (BLS verify)            |
+
+EIP-196 precompiles (`0x06` ecAdd, `0x07` ecMul) define the BN254 curve but are not called directly by `NozkVault.sol`.
 
 Post-Pectra (BLS12-381 migration):
 

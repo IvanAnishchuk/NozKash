@@ -129,7 +129,7 @@ NozKash achieves transaction unlinkability through **algebraic blinding** (BLS b
 |----------|-------------------|------------------|
 | Unlinkability | Proof that some commitment exists in a Merkle tree | Blind signature: mint signs without seeing the message |
 | Nullifier | Hash of secret, revealed at withdrawal | Spend address (secp256k1), revealed at redeem |
-| Verification cost | ~200k-500k gas (pairing + circuit) | ~45k gas (single BN254 pairing) |
+| Verification cost | ~200k-500k gas (pairing + circuit) | ~113k gas total (`redeem()` including hash-to-curve + pairing + ecrecover + storage) |
 | Trusted setup | Required (MPC ceremony) | Not required |
 | Client complexity | Circuit compilation, witness generation | Scalar multiplication |
 | Trust model | Trustless | Mint trusted for liveness |

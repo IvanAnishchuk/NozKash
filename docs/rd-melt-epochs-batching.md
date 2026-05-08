@@ -177,21 +177,21 @@ function meltMulti(
 
 ### What Already Exists
 
-The protocol already has aggregation primitives:
+The BLS12-381 branch already has aggregation primitives implemented (not yet on `main`):
 
-**Off-chain (nozk_library.py):**
+**Off-chain (`nozk_py/nozk_library.py` on the BLS12-381 branch):**
 - `aggregate_reveal_sigma(sigs)` — sum G1 points for batch reveal
 - `verify_aggregated_reveal(sigma, spend_pubs, pk_mint)` — single pairing check
 - `aggregate_redeem_sigma(sigs)` — sum G1 points for batch redeem
 - `verify_aggregated_redeem(sigma, msg_hash, spend_pubs)` — single pairing check
 
-**On-chain (NozkVaultV2.sol):**
+**On-chain (`sol/src/NozkVaultV2.sol` on the BLS12-381 branch):**
 - `revealAggregated(spendPubs[], sigma)` — single pairing check for n reveals
 - `redeemAggregated(recipient, sigma, nIds[], deadline)` — single pairing check for n redeems
 
 ### Gas Savings
 
-The key insight: BLS pairing checks are expensive (~45k gas on BN254, higher on BLS12-381), but only need to be done **once** regardless of batch size. The per-token cost is dominated by storage writes and hash-to-curve, not by pairing.
+The key insight: BLS pairing checks are expensive (~113k gas on BN254 for k=2 pairs, higher on BLS12-381), but only need to be done **once** regardless of batch size. The per-token cost is dominated by storage writes and hash-to-curve, not by pairing.
 
 **Estimated gas per token (BLS12-381, EIP-2537):**
 
@@ -201,7 +201,7 @@ The key insight: BLS pairing checks are expensive (~45k gas on BN254, higher on 
 | redeem | ~160k | ~80k/token (~800k total) | ~50% |
 | melt | ~200k | ~100k/token (~1M total) | ~50% |
 
-The BLS12-381 pairing precompile is more expensive than BN254 (~113k vs ~45k base), but:
+The BLS12-381 pairing precompile is more expensive than BN254 (~103k vs ~113k for k=2 pairs per EIP-2537: `32,600*k + 37,700`), but:
 - `MAP_FP_TO_G1` replaces try-and-increment (~14k vs ~30k average on-chain)
 - `G1ADD` for aggregation is cheap (~500 gas per addition)
 - One pairing check amortized across n tokens makes batch operations significantly cheaper per-token

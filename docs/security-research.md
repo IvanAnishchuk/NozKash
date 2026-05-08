@@ -269,9 +269,9 @@ Current security measures implemented in the protocol:
 ### Cryptographic
 - [x] BLS pairing verification on-chain (unforgeable mint signatures)
 - [x] Multiplicative blinding with per-token unique `r` (unlinkability)
-- [x] Identity point checks on all scalar multiplications
-- [x] Blinding factor `r = 0` rejection
-- [x] Spend private key `= 0` rejection
+- [x] Identity point checks on scalar multiplications (Python library post-checks results; Solidity relies on precompile behavior)
+- [x] Blinding factor `r = 0` rejection (implicit: `py_ecc.multiply()` returns identity for scalar 0, caught by post-check; no explicit `r == 0` guard)
+- [x] Spend private key `= 0` rejection (implicit: `eth_keys.PrivateKey` constructor validates secp256k1 scalar range; no explicit NozKash guard)
 - [x] Domain-separated key derivation (`"spend"` / `"blind"` prefixes)
 - [x] Cross-language parity enforced via shared test vectors
 
@@ -298,6 +298,7 @@ Current security measures implemented in the protocol:
 - [ ] Relayer service for gas-anonymous redemption
 - [ ] Private mempool submission for deposit front-running protection
 - [ ] Compliance screening at mint (blocklist / zkKYC)
-- [ ] BN254 -> BLS12-381 migration (100-bit -> 120-bit security)
+- [ ] BN254 -> BLS12-381 migration (100-bit -> ~117-120 bit security)
+- [ ] Explicit `r == 0` and `spend_priv == 0` guards (currently implicit via library validation)
 - [ ] Low-s enforcement in ecrecover (currently relies on EVM behavior)
 - [ ] Fuzz testing for edge cases in cryptographic operations

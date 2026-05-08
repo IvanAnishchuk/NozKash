@@ -149,11 +149,15 @@ require_cmd uv
 require_cmd python3
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-if [[ ! -f "$REPO_ROOT/.env" ]]; then
-    log_err ".env file not found at $REPO_ROOT/.env"
+if [[ -f "$REPO_ROOT/.env" ]]; then
+    # shellcheck disable=SC1091
+    set -a; source "$REPO_ROOT/.env"; set +a
+elif ! $MOCK_MODE; then
+    log_err ".env file not found at $REPO_ROOT/.env (required for on-chain mode)"
     echo
     echo -e "  ${BOLD}Run:${RESET}  uv run generate_keys.py"
     echo -e "  ${DIM}This generates all keys and configuration needed.${RESET}"
+    echo -e "  ${DIM}In --mock mode, only MASTER_SEED and MINT_BLS_PRIVKEY env vars are needed.${RESET}"
     echo
     exit 1
 fi

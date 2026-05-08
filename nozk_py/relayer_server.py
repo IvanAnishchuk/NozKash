@@ -231,15 +231,15 @@ NOZK_VAULT_ABI = json.loads(_ABI_PATH.read_text())
 
 
 class RevealRequest(BaseModel):
-    nullifier: str  # 0x-prefixed address
-    s_x: str  # hex uint256
-    s_y: str  # hex uint256
+    spend_pub_g1: list[str]  # 4 hex uint256 (G1 spend pubkey)
+    s_g2: list[str]  # 8 hex uint256 (G2 unblinded mint signature)
 
 
 class RedeemRequest(BaseModel):
     recipient: str  # 0x-prefixed address
-    spend_signature: str  # 0x-prefixed 65-byte hex (r||s||v)
-    nullifier: str  # 0x-prefixed address
+    spend_sigma_compressed: str  # 96-byte compressed G2 hex (BLS spend sig)
+    spend_pk_compressed: str  # 48-byte compressed G1 hex (BLS spend pubkey)
+    nullifier_id: str  # 32-byte hex (keccak of G1 spend pubkey)
     deadline: int  # unix timestamp
 
 
@@ -393,33 +393,33 @@ class Relayer:
             raise HTTPException(status_code=409, detail=f"Nullifier is {state_name}, expected REVEALED")
 
     def submit_reveal(self, req: RevealRequest) -> TxResponse:
-        nullifier = Web3.to_checksum_address(req.nullifier)
-        s_x = int(req.s_x, 16)
-        s_y = int(req.s_y, 16)
-
         self.validate_reveal(req)
 
-        tx_builder = self.contract.functions.reveal(nullifier, [s_x, s_y])
+        spend_pub_coords = [int(c, 16) for c in req.spend_pub_g1]
+        s_coords = [int(c, 16) for c in req.s_g2]
+
+        tx_builder = self.contract.functions.reveal(spend_pub_coords, s_coords)
         tx_hash, block, gas = self._send_tx(tx_builder)
 
-        self._log_tx("reveal", nullifier, tx_hash, block, gas)
-        return TxResponse(tx_hash=tx_hash, block_number=block, gas_used=gas, nullifier=nullifier)
+        nid = req.spend_pub_g1[0][:10]  # short display
+        self._log_tx("reveal", nid, tx_hash, block, gas)
+        return TxResponse(tx_hash=tx_hash, block_number=block, gas_used=gas, nullifier=nid)
 
     def submit_reveal_batch(self, items: list[RevealRequest]) -> BatchTxResponse:
-        nullifiers = []
+        spend_pubs = []
         sigs = []
         for item in items:
             self.validate_reveal(item)
-            nullifiers.append(Web3.to_checksum_address(item.nullifier))
-            sigs.append([int(item.s_x, 16), int(item.s_y, 16)])
+            spend_pubs.append([int(c, 16) for c in item.spend_pub_g1])
+            sigs.append([int(c, 16) for c in item.s_g2])
 
-        tx_builder = self.contract.functions.revealBatch(nullifiers, sigs)
+        tx_builder = self.contract.functions.revealBatch(spend_pubs, sigs)
         tx_hash, block, gas = self._send_tx(tx_builder)
 
         if not is_quiet():
             console.print(
                 Text.assemble(
-                    ("  ✅  revealBatch  ", "success"),
+                    ("  revealBatch  ", "success"),
                     ("count=", "muted"),
                     (str(len(items)), "num"),
                     ("  tx=", "muted"),
@@ -433,17 +433,12 @@ class Relayer:
         return BatchTxResponse(tx_hash=tx_hash, block_number=block, gas_used=gas, count=len(items))
 
     def submit_redeem(self, req: RedeemRequest) -> TxResponse:
-        nullifier = Web3.to_checksum_address(req.nullifier)
-        recipient = Web3.to_checksum_address(req.recipient)
-        sig_bytes = bytes.fromhex(req.spend_signature.replace("0x", ""))
-
         self.validate_redeem(req)
 
-        tx_builder = self.contract.functions.redeem(recipient, sig_bytes, nullifier, req.deadline)
-        tx_hash, block, gas = self._send_tx(tx_builder)
-
-        self._log_tx("redeem", nullifier, tx_hash, block, gas)
-        return TxResponse(tx_hash=tx_hash, block_number=block, gas_used=gas, nullifier=nullifier)
+        # TODO: relayer needs to accept uncompressed G2 spend sig coords for on-chain submission
+        # For now, the relayer validates the BLS sig but cannot yet build the on-chain tx
+        # because decompressing G2 to EIP-2537 format requires additional infrastructure.
+        raise NotImplementedError("Relayer redeem submission needs BLS12-381 G2 decompression — WIP")
 
     def get_status(self, nullifier_addr: str) -> StatusResponse:
         nullifier = Web3.to_checksum_address(nullifier_addr)

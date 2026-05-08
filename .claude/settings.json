@@ -12,15 +12,15 @@
       "Bash(npx tsc --noEmit)",
       "Bash(npx vitest run*)",
       "Bash(npx tsx test.ts)",
-      "Bash(forge build*)",
+      "Bash(forge build)",
       "Bash(forge test*)",
       "Bash(forge fmt*)",
       "Bash(forge snapshot*)",
-      "Bash(npm run lint*)",
-      "Bash(npm run build*)",
-      "Bash(npm run dev*)",
-      "Bash(npm install*)",
-      "Bash(npm ci*)"
+      "Bash(npm run lint)",
+      "Bash(npm run build)",
+      "Bash(npm run dev)",
+      "Bash(npm install)",
+      "Bash(npm ci)"
     ]
   }
 }

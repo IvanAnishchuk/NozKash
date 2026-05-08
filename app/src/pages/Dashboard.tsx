@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import {
-  buildRedemptionDraftFromSeed,
   loadRedemptionDraft,
-  type RedemptionDraftV1,
+  type RedemptionDraftV2,
 } from '../crypto/nozkRedeem'
 import { useNozkMasterSeed } from '../context/NozkMasterSeedProvider'
 import { usePrivacy } from '../context/usePrivacy'
@@ -23,7 +22,7 @@ import {
   filterVaultActivity,
   formatTxAmountDisplay,
 } from '../lib/historyQuery'
-import { sendVaultRedeemTransaction, sendVaultRevealTransaction } from '../lib/sendVaultRedeem'
+import { sendRelayerRedeemTransaction, sendRelayerRevealTransaction } from '../lib/sendVaultRedeem'
 import { sendVaultRefundTransaction } from '../lib/sendVaultRefund'
 import { mergeVaultRowsWithRedeemDraft } from '../lib/vaultRedeemMerge'
 import { useNozkVaultActivityLive } from '../hooks/useNozkVaultActivityLive'
@@ -128,7 +127,7 @@ export function Dashboard() {
   const { openDepositModal, showToast } =
     useOutletContext<LayoutOutletContext>()
 
-  const [redemptionDraft, setRedemptionDraft] = useState<RedemptionDraftV1 | null>(
+  const [redemptionDraft, setRedemptionDraft] = useState<RedemptionDraftV2 | null>(
     () => loadRedemptionDraft()
   )
   const [redeemingId, setRedeemingId] = useState<string | null>(null)
@@ -230,15 +229,9 @@ export function Dashboard() {
     }
     setRevealingId(item.id)
     try {
-      const draft = buildRedemptionDraftFromSeed(
-        effectiveMasterSeed,
-        item.tokenIndex,
-        account
-      )
-      await sendVaultRevealTransaction({
-        ethereum,
-        draft,
+      await sendRelayerRevealTransaction({
         masterSeed: effectiveMasterSeed,
+        tokenIndex: item.tokenIndex,
       })
       requestWalletBalanceRefresh()
       showToast('Reveal confirmed · nullifier registered on-chain', 'success')
@@ -332,16 +325,10 @@ export function Dashboard() {
 
     setRedeemingId(item.id)
     try {
-      const draft = buildRedemptionDraftFromSeed(
-        effectiveMasterSeed,
-        item.tokenIndex,
-        account
-      )
-      await sendVaultRedeemTransaction({
-        ethereum,
-        recipient,
-        draft,
+      await sendRelayerRedeemTransaction({
         masterSeed: effectiveMasterSeed,
+        tokenIndex: item.tokenIndex,
+        recipient,
       })
       requestWalletBalanceRefresh()
       showToast(`Redeem confirmed · 0.001 ETH sent to ${recipient.slice(0, 8)}…`, 'success')

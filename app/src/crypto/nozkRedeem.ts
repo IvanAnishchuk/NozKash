@@ -1,163 +1,101 @@
-import { secp256k1 } from '@noble/curves/secp256k1.js'
-import { keccak256 } from 'ethereum-cryptography/keccak.js'
 import {
   bytesToHex,
-  CURVE_ORDER,
-  formatG1ForSolidity,
-  g1FromHexCoords,
-} from '@nozk/bn254-crypto'
-import { ensureNozkCrypto } from './nozkDeposit'
+  hexToBytes,
+  serializeG1Sol,
+  serializeG2Sol,
+  parseG2Sol,
+} from '@nozk/bls12-381-crypto'
 import {
   deriveTokenSecrets,
   generateRedemptionProof,
   getDepositId,
-  getSpendAddress,
+  getNullifierIdHex,
   unblindSignature,
-  type RedemptionProof,
 } from '@nozk/nozk-library'
-import { concatBytes, encodeAddressWord, hex0x, u256be } from './abiHelpers'
+import { concatBytes, hex0x, u256be } from './abiHelpers'
 
-const LS_KEY = 'nozk:redemption-draft-v1' as const
+const LS_KEY = 'nozk:redemption-draft-v2' as const
 
 /**
- * Local draft for redeem step 2 (e.g. another wallet account).
- * - `spendPrivHex` + `spendAddress`: ECDSA + nullifier (do not use the blind key for that).
- * - `blindPrivHex`: scalar `r` for `unblindSignature` on S′ from `MintFulfilled`.
+ * V2 redemption draft — BLS12-381. No private keys stored; re-derive from seed.
  */
-export type RedemptionDraftV1 = {
-  v: 1
+export type RedemptionDraftV2 = {
+  v: 2
   tokenIndex: number
   depositId: string
-  /** Nullifier = spend pair address (must match `ecrecover` on redeem). */
-  spendAddress: string
-  blindPrivHex: `0x${string}`
-  spendPrivHex: `0x${string}`
+  nullifierIdHex: string
   savedAt: number
-  /** Wallet account that saved the draft (step 1). On-chain redeem is often sent from another account. */
   prepareAccount?: string
 }
 
-/** Must match `nozk-library` / contract (nullifier = address(spend·G)). */
-function addressFromSpendPriv(priv: Uint8Array): string {
-  const pub = secp256k1.getPublicKey(priv, false)
-  const hash = keccak256(pub.subarray(1))
-  return ('0x' + bytesToHex(hash.subarray(-20))).toLowerCase()
-}
+/** V2 reveal: `reveal(uint256[4],uint256[8])` */
+const REVEAL_SELECTOR = new Uint8Array([0x4f, 0x55, 0x70, 0x25]) // 0x4f557025
 
-function hexToBytes32(hex: string): Uint8Array {
-  const h = hex.replace(/^0x/i, '')
-  if (!/^[0-9a-fA-F]{64}$/.test(h)) {
-    throw new Error('Expected 32-byte hex private key')
-  }
-  return Uint8Array.from(h.match(/.{2}/g)!.map((b) => parseInt(b, 16)))
-}
+/** V2 redeem: `redeem(address,uint256[8],bytes32,uint256)` */
+const REDEEM_SELECTOR = new Uint8Array([0x64, 0x56, 0x7c, 0x59]) // 0x64567c59
 
-/** First 4 bytes of `keccak256("redeem(address,bytes,address,uint256)")`. */
-const REDEEM_SELECTOR = keccak256(
-  new TextEncoder().encode('redeem(address,bytes,address,uint256)')
-).subarray(0, 4)
-
-export const NOZK_VAULT_REDEEM_SELECTOR_HEX = hex0x(REDEEM_SELECTOR)
-
-/** First 4 bytes of `keccak256("reveal(address,uint256[2])")`. */
-const REVEAL_SELECTOR = keccak256(
-  new TextEncoder().encode('reveal(address,uint256[2])')
-).subarray(0, 4)
-
-export const NOZK_VAULT_REVEAL_SELECTOR_HEX = hex0x(REVEAL_SELECTOR)
+export const NOZK_VAULT_REVEAL_SELECTOR_HEX = hex0x(REVEAL_SELECTOR) as `0x${string}`
+export const NOZK_VAULT_REDEEM_SELECTOR_HEX = hex0x(REDEEM_SELECTOR) as `0x${string}`
 
 /**
- * ABI `reveal(address,uint256[2])` — permissionless BLS verification + nullifier registration.
+ * ABI `reveal(uint256[4], uint256[8])`:
+ * - 4 uint256 = G1 spend pub (spendBlsPub)
+ * - 8 uint256 = G2 unblinded mint signature (S)
  */
 export function encodeNozkVaultRevealCalldata(
-  nullifier: string,
-  sx: bigint,
-  sy: bigint
+  spendPubG1: readonly [bigint, bigint, bigint, bigint],
+  sG2: readonly [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint]
 ): `0x${string}` {
-  const body = concatBytes(
-    encodeAddressWord(nullifier),
-    u256be(sx),
-    u256be(sy)
-  )
+  const body = new Uint8Array(4 * 32 + 8 * 32) // 384 bytes
+  for (let i = 0; i < 4; i++) body.set(u256be(spendPubG1[i]), i * 32)
+  for (let i = 0; i < 8; i++) body.set(u256be(sG2[i]), 4 * 32 + i * 32)
+
   const full = concatBytes(REVEAL_SELECTOR, body)
-  return (
-    '0x' +
-    Array.from(full)
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('')
-  ) as `0x${string}`
+  return ('0x' + Array.from(full).map((b) => b.toString(16).padStart(2, '0')).join('')) as `0x${string}`
 }
 
 /**
- * ABI `redeem(address,bytes,address,uint256)` — same as `NozkVault.redeem` in Solidity.
- * The unblinded signature S is no longer passed here (moved to `reveal`).
+ * ABI `redeem(address, uint256[8], bytes32, uint256)`:
+ * - word 0: recipient address
+ * - words 1-8: G2 BLS spend signature (8 uint256)
+ * - word 9: nullifier ID (bytes32)
+ * - word 10: deadline (uint256)
  */
 export function encodeNozkVaultRedeemCalldata(
   recipient: string,
-  spendSignature65: Uint8Array,
-  nullifier: string,
+  spendSigG2: readonly [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint],
+  nullifierIdHex: string,
   deadline: bigint
 ): `0x${string}` {
-  if (spendSignature65.length !== 65) {
-    throw new Error(`spendSignature must be 65 bytes, got ${spendSignature65.length}`)
-  }
+  const addrWord = new Uint8Array(32)
+  const h = recipient.replace(/^0x/i, '').toLowerCase()
+  for (let i = 0; i < 20; i++) addrWord[12 + i] = Number.parseInt(h.slice(i * 2, i * 2 + 2), 16)
 
-  // ABI head: 3 static words + 1 dynamic offset for bytes
-  // word 0: recipient (address)
-  // word 1: offset to spendSignature dynamic data (4 * 32 = 128)
-  // word 2: nullifier (address)
-  // word 3: deadline (uint256)
-  const head = concatBytes(
-    encodeAddressWord(recipient),
-    u256be(128n),
-    encodeAddressWord(nullifier),
-    u256be(deadline)
-  )
+  const nidBytes = hexToBytes(nullifierIdHex.replace(/^0x/i, ''))
+  const nidWord = new Uint8Array(32)
+  nidWord.set(nidBytes, 0) // left-aligned (bytes32)
 
-  const lenWord = u256be(65n)
-  const sigPadded = new Uint8Array(96)
-  sigPadded.set(spendSignature65, 0)
+  const body = new Uint8Array(32 + 8 * 32 + 32 + 32) // 352 bytes
+  body.set(addrWord, 0)
+  for (let i = 0; i < 8; i++) body.set(u256be(spendSigG2[i]), 32 + i * 32)
+  body.set(nidWord, 32 + 8 * 32)
+  body.set(u256be(deadline), 32 + 8 * 32 + 32)
 
-  const body = concatBytes(head, lenWord, sigPadded)
   const full = concatBytes(REDEEM_SELECTOR, body)
-  return (
-    '0x' +
-    Array.from(full)
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('')
-  ) as `0x${string}`
-}
-
-/** 65 bytes: r (32) ‖ s (32) ‖ v (1), with v = 27 or 28 (EVM `ecrecover`). */
-export function packSpendSignature65(proof: RedemptionProof): Uint8Array {
-  const v = proof.recoveryBit + 27
-  const out = new Uint8Array(65)
-  out.set(proof.signatureObj, 0)
-  out[64] = v
-  return out
-}
-
-function blindPrivToR(blindPriv: Uint8Array): bigint {
-  let x = 0n
-  for (const b of blindPriv) {
-    x = (x << 8n) | BigInt(b)
-  }
-  return x % CURVE_ORDER
+  return ('0x' + Array.from(full).map((b) => b.toString(16).padStart(2, '0')).join('')) as `0x${string}`
 }
 
 export function buildRedemptionDraftFromSeed(
   masterSeed: Uint8Array,
   tokenIndex: number,
   prepareAccount?: string | null
-): RedemptionDraftV1 {
+): RedemptionDraftV2 {
   const secrets = deriveTokenSecrets(masterSeed, tokenIndex)
   return {
-    v: 1,
+    v: 2,
     tokenIndex,
     depositId: getDepositId(secrets),
-    spendAddress: getSpendAddress(secrets),
-    blindPrivHex: hex0x(secrets.blind.priv),
-    spendPrivHex: hex0x(secrets.spend.priv),
+    nullifierIdHex: getNullifierIdHex(secrets),
     savedAt: Date.now(),
     ...(prepareAccount
       ? { prepareAccount: prepareAccount.toLowerCase() }
@@ -166,53 +104,46 @@ export function buildRedemptionDraftFromSeed(
 }
 
 /**
- * Home · step 1: save keys in `localStorage` for this token (account that holds the seed).
+ * Can start a reveal+redeem flow for this row?
  */
 export function canStartHomeRedeem(
   item: { type: string; tokenIndex?: number },
-  draft: RedemptionDraftV1 | null
+  draft: RedemptionDraftV2 | null
 ): boolean {
   if ((item.type !== 'Deposit' && item.type !== 'Revealed') || item.tokenIndex === undefined) return false
   if (!draft) return true
   if (draft.tokenIndex !== item.tokenIndex) return true
-  if (!draft.prepareAccount) return true
   return false
 }
 
 /**
- * Home · step 2: send `redeem` tx (wallet signs the transaction; often a different account than step 1).
+ * Is this row ready for the relayer reveal+redeem step?
  */
 export function isHomeRedeemReady(
   item: { type: string; tokenIndex?: number },
-  draft: RedemptionDraftV1 | null,
-  account: string | null
+  draft: RedemptionDraftV2 | null
 ): boolean {
   if ((item.type !== 'Deposit' && item.type !== 'Revealed') || item.tokenIndex === undefined) return false
-  if (!draft || !account) return false
-  if (draft.tokenIndex !== item.tokenIndex) return false
-  if (draft.prepareAccount) {
-    return account.toLowerCase() !== draft.prepareAccount.toLowerCase()
-  }
-  return true
+  if (!draft) return false
+  return draft.tokenIndex === item.tokenIndex
 }
 
-/** Returns whether the draft matches derivation from the current seed. */
 export function redemptionDraftMatchesSecrets(
-  draft: RedemptionDraftV1,
+  draft: RedemptionDraftV2,
   masterSeed: Uint8Array
 ): boolean {
   try {
     const secrets = deriveTokenSecrets(masterSeed, draft.tokenIndex)
     return (
       getDepositId(secrets).toLowerCase() === draft.depositId.toLowerCase() &&
-      getSpendAddress(secrets).toLowerCase() === draft.spendAddress.toLowerCase()
+      getNullifierIdHex(secrets) === draft.nullifierIdHex.replace(/^0x/i, '')
     )
   } catch {
     return false
   }
 }
 
-export function saveRedemptionDraft(draft: RedemptionDraftV1): void {
+export function saveRedemptionDraft(draft: RedemptionDraftV2): void {
   try {
     localStorage.setItem(LS_KEY, JSON.stringify(draft))
   } catch {
@@ -220,28 +151,20 @@ export function saveRedemptionDraft(draft: RedemptionDraftV1): void {
   }
 }
 
-export function loadRedemptionDraft(): RedemptionDraftV1 | null {
+export function loadRedemptionDraft(): RedemptionDraftV2 | null {
   try {
     const raw = localStorage.getItem(LS_KEY)
     if (!raw) return null
-    const o = JSON.parse(raw) as Partial<RedemptionDraftV1>
+    const o = JSON.parse(raw) as Partial<RedemptionDraftV2>
     if (
-      o.v !== 1 ||
+      o.v !== 2 ||
       typeof o.tokenIndex !== 'number' ||
       typeof o.depositId !== 'string' ||
-      typeof o.spendAddress !== 'string' ||
-      typeof o.blindPrivHex !== 'string' ||
-      typeof o.spendPrivHex !== 'string'
+      typeof o.nullifierIdHex !== 'string'
     ) {
       return null
     }
-    if (
-      o.prepareAccount != null &&
-      typeof o.prepareAccount !== 'string'
-    ) {
-      return null
-    }
-    return o as RedemptionDraftV1
+    return o as RedemptionDraftV2
   } catch {
     return null
   }
@@ -256,83 +179,73 @@ export function clearRedemptionDraft(): void {
 }
 
 export type BuildRevealCalldataInput = {
-  draft: RedemptionDraftV1
-  mintFulfilled: { sx: bigint; sy: bigint }
+  masterSeed: Uint8Array
+  tokenIndex: number
+  /** MintFulfilled S' as 8 uint256 (G2 coords from event data). */
+  mintFulfilledCoords: readonly [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint]
 }
 
 /**
- * Builds `reveal` calldata: S = unblind(S', r), then encode `reveal(nullifier, S)`.
- * Returns both the calldata and the unblinded S coordinates for later use.
+ * Builds `reveal(uint256[4], uint256[8])` calldata.
+ * Unblinds S' to S, serializes spendPub (G1) + S (G2).
  */
-export async function buildNozkVaultRevealCalldata(
+export function buildNozkVaultRevealCalldata(
   input: BuildRevealCalldataInput
-): Promise<{ data: `0x${string}`; sx: bigint; sy: bigint }> {
-  await ensureNozkCrypto()
+): { data: `0x${string}`; spendPubCoords: readonly [bigint, bigint, bigint, bigint]; sCoords: readonly [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint] } {
+  const secrets = deriveTokenSecrets(input.masterSeed, input.tokenIndex)
 
-  const blindPriv = hexToBytes32(input.draft.blindPrivHex)
-
-  const r = blindPrivToR(blindPriv)
-  if (r === 0n) {
-    throw new Error('Invalid blinding factor r = 0')
-  }
-
-  const S_prime = g1FromHexCoords(
-    input.mintFulfilled.sx.toString(16),
-    input.mintFulfilled.sy.toString(16),
+  const sPrime = parseG2Sol(
+    input.mintFulfilledCoords[0], input.mintFulfilledCoords[1],
+    input.mintFulfilledCoords[2], input.mintFulfilledCoords[3],
+    input.mintFulfilledCoords[4], input.mintFulfilledCoords[5],
+    input.mintFulfilledCoords[6], input.mintFulfilledCoords[7],
   )
+  const S = unblindSignature(sPrime, secrets.r)
 
-  const S = unblindSignature(S_prime, r)
-  const [xs, ys] = formatG1ForSolidity(S)
-  const sx = BigInt(xs)
-  const sy = BigInt(ys)
+  const spendPubCoords = serializeG1Sol(secrets.spendBlsPub)
+  const sCoords = serializeG2Sol(S)
 
-  const data = encodeNozkVaultRevealCalldata(
-    input.draft.spendAddress,
-    sx,
-    sy
-  )
-  return { data, sx, sy }
+  const data = encodeNozkVaultRevealCalldata(spendPubCoords, sCoords)
+  return { data, spendPubCoords, sCoords }
 }
 
-export type BuildRedeemCalldataInput = {
-  draft: RedemptionDraftV1
+export type BuildRedeemPayload = {
+  masterSeed: Uint8Array
+  tokenIndex: number
   recipient: string
   chainId: number
   contractAddress: string
 }
 
 /**
- * Builds `redeem` calldata: ECDSA with **spend** key (nullifier).
- * The unblinded signature S is no longer included (moved to `reveal`).
+ * Builds the relayer redeem payload (BLS spend signature via AugSchemeMPL).
  */
-export async function buildNozkVaultRedeemCalldata(
-  input: BuildRedeemCalldataInput
-): Promise<`0x${string}`> {
-  await ensureNozkCrypto()
-
-  const spendPriv = hexToBytes32(input.draft.spendPrivHex)
-
-  const derivedSpend = addressFromSpendPriv(spendPriv)
-  if (derivedSpend !== input.draft.spendAddress.toLowerCase()) {
-    throw new Error(
-      'Redeem draft mismatch: spend private key does not match nullifier address'
-    )
-  }
-
+export function buildRelayerRedeemPayload(
+  input: BuildRedeemPayload
+): {
+  recipient: string
+  spendSigmaCompressedHex: string
+  spendPkCompressedHex: string
+  nullifierIdHex: string
+  deadline: number
+} {
+  const secrets = deriveTokenSecrets(input.masterSeed, input.tokenIndex)
   const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600) // 1 hour
-  const proof = await generateRedemptionProof(
-    spendPriv,
+
+  const proof = generateRedemptionProof(
+    secrets.spendBlsPriv,
+    secrets.spendPubCompressed,
     input.recipient,
     input.chainId,
     input.contractAddress,
     deadline,
   )
-  const spendSig65 = packSpendSignature65(proof)
 
-  return encodeNozkVaultRedeemCalldata(
-    input.recipient,
-    spendSig65,
-    input.draft.spendAddress,
-    deadline
-  )
+  return {
+    recipient: input.recipient,
+    spendSigmaCompressedHex: bytesToHex(proof.sigma),
+    spendPkCompressedHex: bytesToHex(proof.spendPubCompressed),
+    nullifierIdHex: getNullifierIdHex(secrets),
+    deadline: Number(deadline),
+  }
 }

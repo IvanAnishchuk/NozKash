@@ -1,4 +1,4 @@
-import type { RedemptionDraftV1 } from '../crypto/nozkRedeem'
+import type { RedemptionDraftV2 } from '../crypto/nozkRedeem'
 import type { VaultTx } from '../types/activity'
 import { NOZK_VAULT_DEPOSIT_AMOUNT_LABEL } from './nozkVault'
 
@@ -11,7 +11,7 @@ import { NOZK_VAULT_DEPOSIT_AMOUNT_LABEL } from './nozkVault'
  */
 export function mergeVaultRowsWithRedeemDraft(
   rows: VaultTx[],
-  draft: RedemptionDraftV1 | null,
+  draft: RedemptionDraftV2 | null,
   account: string | null
 ): VaultTx[] {
   if (!draft || !account || !draft.prepareAccount) return rows

@@ -2,8 +2,9 @@ import { keccak256 } from 'ethereum-cryptography/keccak.js'
 import {
   deriveTokenSecrets,
   getDepositId,
-  getSpendAddress,
+  getNullifierIdHex,
 } from '@nozk/nozk-library'
+import { bytesToHex } from '@nozk/bls12-381-crypto'
 import { TARGET_NETWORK_LABEL } from './ethereum'
 import { chainRpcCall } from './chainPublicRpc'
 import { isNozkVaultDebugEnabled } from './nozkDebug'
@@ -111,12 +112,6 @@ function scanCacheTtlMs(): number {
   const n = Number.parseInt(s, 10)
   if (!Number.isFinite(n)) return 60_000
   return Math.max(0, n)
-}
-
-function bytesToHex(b: Uint8Array): string {
-  return Array.from(b)
-    .map((x) => x.toString(16).padStart(2, '0'))
-    .join('')
 }
 
 function masterSeedCacheKey(seed: Uint8Array): string {
@@ -382,7 +377,7 @@ export function vaultDerivedAddressesForIndices(
     return {
       tokenIndex,
       depositId: normalizeAddress(getDepositId(secrets)),
-      spendAddress: normalizeAddress(getSpendAddress(secrets)),
+      spendAddress: normalizeAddress(getNullifierIdHex(secrets)),
     }
   })
 }
@@ -628,10 +623,13 @@ function latestLogByDepositId(logs: RpcLog[]): Map<string, RpcLog> {
 /**
  * Reads `MintFulfilled` for a `depositId` and returns S′ (G1) as integers from the event.
  */
+/**
+ * V2: MintFulfilled event data contains 8 uint256 words (G2 point S').
+ */
 export async function fetchMintFulfilledSPrime(
   depositId: string,
   options?: Pick<NozkVaultFetchOptions, 'contractAddress' | 'fromBlock'>
-): Promise<{ sx: bigint; sy: bigint } | null> {
+): Promise<{ coords: readonly [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint] } | null> {
   const vault = normalizeAddress(
     options?.contractAddress ?? NOZK_VAULT_ADDRESS
   )
@@ -646,10 +644,12 @@ export async function fetchMintFulfilledSPrime(
   )
   const log = latestLogByDepositId(logs).get(id)
   const data = log?.data?.replace(/^0x/i, '') ?? ''
-  if (data.length < 128) return null
-  const sx = BigInt('0x' + data.slice(0, 64))
-  const sy = BigInt('0x' + data.slice(64, 128))
-  return { sx, sy }
+  // V2: 8 words = 512 hex chars
+  if (data.length < 512) return null
+  const coords = Array.from({ length: 8 }, (_, i) =>
+    BigInt('0x' + data.slice(i * 64, (i + 1) * 64))
+  ) as unknown as readonly [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint]
+  return { coords }
 }
 
 /**
@@ -668,7 +668,7 @@ export async function fetchVaultRowForTokenIndex(
   const netLabel = options?.networkLabel ?? TARGET_NETWORK_LABEL
   const secrets = deriveTokenSecrets(masterSeed, tokenIndex)
   const depositId = normalizeAddress(getDepositId(secrets))
-  const spendAddress = getSpendAddress(secrets)
+  const spendAddress = getNullifierIdHex(secrets)
   const blindShort = addrShort(depositId)
   const spendShort = addrShort(spendAddress)
 
@@ -1091,7 +1091,7 @@ async function fetchVaultActivityForFirstTokensImpl(
       } else {
         const nState = await fetchNullifierState(
           vault,
-          getSpendAddress(secrets),
+          getNullifierIdHex(secrets),
           rpc
         )
         nullifierStates.push(nState)
@@ -1117,7 +1117,7 @@ async function fetchVaultActivityForFirstTokensImpl(
 
     // Batch-fetch NullifierRevealed logs for all revealed spend addresses
     const revealedSpendAddresses = indices
-      .map((_, j) => nullifierStates[j] === NULLIFIER_REVEALED ? getSpendAddress(secretsList[j]!) : null)
+      .map((_, j) => nullifierStates[j] === NULLIFIER_REVEALED ? getNullifierIdHex(secretsList[j]!) : null)
       .filter((a): a is string => a !== null)
     let revealedLogById = new Map<string, RpcLog>()
     if (revealedSpendAddresses.length > 0) {
@@ -1133,7 +1133,7 @@ async function fetchVaultActivityForFirstTokensImpl(
       const tokenIndex = indices[j]!
       const secrets = secretsList[j]!
       const depositId = normalizeAddress(getDepositId(secrets))
-      const spendAddress = getSpendAddress(secrets)
+      const spendAddress = getNullifierIdHex(secrets)
       const blindShort = addrShort(depositId)
       const spendShort = addrShort(spendAddress)
 

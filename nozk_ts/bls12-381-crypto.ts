@@ -42,8 +42,7 @@ export const G1_GEN = bls12_381.G1.Point.BASE;
 export const G2_GEN = bls12_381.G2.Point.BASE;
 /** AugSchemeMPL DST for hash-to-G2. */
 export const H2C_DST = 'BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_AUG_';
-/** EIP-2537 Fp padded byte length. */
-const _FP_BYTES = 64n;
+
 
 // ==============================================================================
 // Hash-to-curve (RFC 9380)

@@ -111,9 +111,11 @@ npm run deploy           # build and push to gh-pages (GitHub Pages)
 
 ### Full Lifecycle
 ```bash
-nozk_py/nozk_flow.sh --to 0xRecipient             # on-chain
-nozk_py/nozk_flow.sh --to 0xRecipient --mock      # fully offline
-nozk_py/nozk_flow.sh --to 0xRecipient --dry-run   # simulate with RPC
+# Must run from nozk_py/ directory
+cd nozk_py
+bash nozk_flow.sh --to 0xRecipient             # on-chain
+bash nozk_flow.sh --to 0xRecipient --mock      # fully offline
+bash nozk_flow.sh --to 0xRecipient --dry-run   # simulate with RPC
 ```
 
 ## Conventions
@@ -307,6 +309,51 @@ VITE_NOZK_MASTER_SEED_HEX   # dev only
 - **Stateless recovery:** Every wallet secret is re-derivable from `(masterSeed, index)` via scan
 - **MEV protection:** ECDSA in `redeem()` binds the nullifier to a specific recipient
 - **Token lifecycle:** `FRESH -> AWAITING_MINT -> READY_TO_REDEEM -> SPENT` (tracked in `.nozk_wallet.json`)
+
+## Verification
+
+Run this checklist to verify the full project baseline. All steps must pass.
+
+### 1. Pre-commit hooks (all 19 hooks)
+```bash
+cd nozk_py && uv run pre-commit run --all-files
+```
+
+### 2. Python (193 tests)
+```bash
+cd nozk_py && uv run pytest -v
+```
+
+### 3. TypeScript (213 tests)
+```bash
+cd nozk_ts && npx vitest run
+```
+
+### 4. Solidity (23 tests)
+```bash
+cd sol && forge build && forge test
+```
+
+### 5. Frontend build
+```bash
+cd nozk_ts && npm install && cd ../app && npm install && npm run build
+```
+
+### 6. End-to-end mock flow
+```bash
+cd nozk_py && bash nozk_flow.sh --to 0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7 --mock
+```
+Expected: deposit -> mint -> reveal -> redeem all verified offline, token marked SPENT.
+
+### Quick full check (copy-paste)
+```bash
+cd nozk_py && uv run pre-commit run --all-files && \
+  uv run pytest -v && \
+  cd ../nozk_ts && npx vitest run && \
+  cd ../sol && forge build && forge test && \
+  cd ../app && npm run build && \
+  cd ../nozk_py && bash nozk_flow.sh --to 0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7 --mock
+```
 
 ## Changelog
 

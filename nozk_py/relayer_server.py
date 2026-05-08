@@ -223,7 +223,7 @@ def load_config() -> RelayerConfig:
 
 # ── Contract ABI ──────────────────────────────────────────────────────────────
 
-_ABI_PATH = Path(__file__).resolve().parent / ".." / "abi" / "nozk_vault_abi.json"
+_ABI_PATH = Path(__file__).resolve().parent / ".." / "abi" / "nozk_vault_v2_abi.json"
 NOZK_VAULT_ABI = json.loads(_ABI_PATH.read_text())
 
 
@@ -347,9 +347,12 @@ class Relayer:
 
         # BLS pairing pre-check (if we have the pubkey)
         if self.config.mint_bls_pubkey is not None:
-            Y = hash_to_g2(abi_encode_g1(spend_pub))
-            if not verify_mint_pairing(S, Y, self.config.mint_bls_pubkey):
-                raise HTTPException(status_code=400, detail="BLS pairing check failed")
+            try:
+                Y = hash_to_g2(abi_encode_g1(spend_pub))
+                if not verify_mint_pairing(S, Y, self.config.mint_bls_pubkey):
+                    raise HTTPException(status_code=400, detail="BLS pairing check failed")
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=f"Invalid BLS point: {exc}")
 
         # Compute nullifier ID
         from eth_utils import keccak
@@ -460,12 +463,13 @@ class Relayer:
         self._log_tx("redeem", req.nullifier_id[:18], tx_hash, block, gas)
         return TxResponse(tx_hash=tx_hash, block_number=block, gas_used=gas, nullifier=req.nullifier_id)
 
-    def get_status(self, nullifier_addr: str) -> StatusResponse:
-        nullifier = Web3.to_checksum_address(nullifier_addr)
-        state_val = self.contract.functions.nullifierState(nullifier).call()
-        amount = self.contract.functions.revealedAmount(nullifier).call()
+    def get_status(self, nullifier_id_hex: str) -> StatusResponse:
+        """Query nullifier lifecycle state. nullifier_id is a 32-byte hex string."""
+        nid = bytes.fromhex(nullifier_id_hex.replace("0x", ""))
+        state_val = self.contract.functions.nullifierState(nid).call()
+        amount = self.contract.functions.revealedAmount(nid).call()
         state_name = {0: "UNREVEALED", 1: "REVEALED", 2: "SPENT"}.get(state_val, f"UNKNOWN({state_val})")
-        return StatusResponse(nullifier=nullifier, state=state_name, amount=amount)
+        return StatusResponse(nullifier=nullifier_id_hex, state=state_name, amount=amount)
 
     def get_health(self) -> HealthResponse:
         balance = self.w3.eth.get_balance(self.wallet)

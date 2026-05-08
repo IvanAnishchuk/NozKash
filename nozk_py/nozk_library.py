@@ -1,11 +1,24 @@
 import os
 from dataclasses import dataclass
-from typing import NewType
 
 from eth_keys import keys
-from eth_keys.exceptions import ValidationError as _EthKeysValidationError
 from eth_utils import keccak
-from py_ecc.bn128 import FQ, FQ2, G2, b, curve_order, field_modulus, is_on_curve, multiply, pairing
+
+from bls12_381_crypto import (
+    CURVE_ORDER,
+    G2_GEN,
+    G1Point,
+    G2Point,
+    Scalar,
+    abi_encode_g2,
+    aggregate_g1,
+    aggregate_g2,
+    g1_scalar_mul,
+    g2_scalar_mul,
+    hash_to_g1,
+    is_g1_identity,
+    verify_pairing,
+)
 
 # ==============================================================================
 # EXCEPTION HIERARCHY
@@ -23,12 +36,6 @@ class CurveError(NozkError):
 class InvalidPointError(CurveError):
     """Raised when a supplied point does not lie on the expected curve."""
 
-    def __init__(self, x: int, y: int, curve: str = "BN254 G1") -> None:
-        super().__init__(f"Point (0x{x:x}, 0x{y:x}) is not on the {curve} curve")
-        self.x = x
-        self.y = y
-        self.curve = curve
-
 
 class ScalarMultiplicationError(CurveError):
     """Raised when scalar multiplication returns an unexpected result (e.g. point at infinity)."""
@@ -42,14 +49,6 @@ class VerificationError(NozkError):
     """Raised when a cryptographic verification step produces an unrecoverable error
     (as distinct from a clean False return from a verify_* function)."""
 
-
-# ==============================================================================
-# TYPE ALIASES
-# ==============================================================================
-
-G1Point = NewType("G1Point", tuple[FQ, FQ])
-G2Point = NewType("G2Point", tuple[FQ2, FQ2])
-Scalar = NewType("Scalar", int)
 
 # ==============================================================================
 # EIP-712 CONSTANTS
@@ -84,30 +83,6 @@ def eip712_redemption_hash(
     return keccak(b"\x19\x01" + domain_sep + struct_hash)
 
 
-def _mul_g1(point: G1Point, scalar: Scalar) -> G1Point:
-    """
-    Typed G1 scalar multiplication. Raises ScalarMultiplicationError instead
-    of returning None — py_ecc types multiply() as Optional but None is only
-    possible for the zero scalar, which is invalid in all protocol contexts.
-    """
-    result = multiply(point, scalar)
-    if result is None:
-        raise ScalarMultiplicationError(
-            "G1 scalar multiplication returned the point at infinity — scalar must be non-zero"
-        )
-    return G1Point(result)
-
-
-def _mul_g2(point: G2Point, scalar: Scalar) -> G2Point:
-    """Typed G2 scalar multiplication — same contract as _mul_g1."""
-    result = multiply(point, scalar)
-    if result is None:
-        raise ScalarMultiplicationError(
-            "G2 scalar multiplication returned the point at infinity — scalar must be non-zero"
-        )
-    return G2Point(result)
-
-
 # ==============================================================================
 # DATA CLASSES
 # ==============================================================================
@@ -116,12 +91,8 @@ def _mul_g2(point: G2Point, scalar: Scalar) -> G2Point:
 @dataclass
 class TokenKeypair:
     """
-    A secp256k1 keypair derived deterministically from the master seed.
-    Both the spend keypair and the blind keypair share this structure.
-
-    The Ethereum address of each keypair serves a protocol role:
-      - spend keypair address → nullifier (prevents double-spend)
-      - blind keypair address → deposit ID (deterministic, unlinkable identifier)
+    A secp256k1 keypair used ONLY for deposit ID derivation.
+    The Ethereum address of the blind keypair serves as the deposit ID.
     """
 
     priv: keys.PrivateKey
@@ -133,66 +104,46 @@ class TokenKeypair:
 @dataclass
 class TokenSecrets:
     """
-    Client-side only. Both keypairs must never be sent to the mint.
+    Client-side only. Must never be sent to the mint.
 
-    spend:  the nullifier keypair — address is the token's unique on-chain identifier
-            at redemption time; the private key signs the anti-MEV payload.
-
-    blind:  the blinding keypair — address is the deterministic deposit ID submitted
-            with the deposit transaction; the private key (as a BN254 scalar) is the
-            multiplicative blinding factor r used in B = r·Y.
-
-    The deposit ID (blind.address) is revealed at deposit time but cannot be linked
-    to the spend address (spend.address) without the master seed, preserving privacy.
+    spend_bls_priv:  BLS12-381 scalar — signs the anti-MEV redemption proof.
+    spend_bls_pub:   G2 public key — THE NULLIFIER identity.
+    nullifier_id:    bytes32 = keccak256(abi.encode(spend_bls_pub)) — on-chain mapping key.
+    r:               BLS12-381 scalar — multiplicative blinding factor for B = r·Y.
+    deposit_id:      Ethereum address of the blind keypair (revealed at deposit time).
+    deposit_blind_keypair: secp256k1 keypair for deposit ID derivation.
     """
 
-    spend: TokenKeypair
-    blind: TokenKeypair
+    spend_bls_priv: int  # scalar in Z_r
+    spend_bls_pub: G2Point  # sk_spend * G2_gen — the nullifier
+    nullifier_id: bytes  # keccak256(abi.encode(G2)) — 32 bytes
+    r: int  # blind_priv % CURVE_ORDER
+    deposit_id: str  # blind keypair Ethereum address
+    deposit_blind_keypair: TokenKeypair  # secp256k1 keypair
 
     @property
-    def spend_priv(self) -> keys.PrivateKey:
-        """Convenience accessor — the spend private key used in generate_redemption_proof."""
-        return self.spend.priv
-
-    @property
-    def spend_address_hex(self) -> str:
-        return self.spend.address
-
-    @property
-    def spend_address_bytes(self) -> bytes:
-        return self.spend.address_bytes
-
-    @property
-    def r(self) -> Scalar:
-        """
-        The BLS blinding scalar, derived from the blind private key.
-        Equivalent to int(blind.priv) % curve_order.
-        """
-        return Scalar(int.from_bytes(self.blind.priv.to_bytes(), "big") % curve_order)
-
-    @property
-    def deposit_id(self) -> str:
-        """The deposit ID: the Ethereum address of the blind keypair."""
-        return self.blind.address
+    def nullifier_id_hex(self) -> str:
+        return "0x" + self.nullifier_id.hex()
 
 
 @dataclass
 class BlindedPoints:
-    Y: G1Point  # H(spend_address) — unblinded hash-to-curve result
+    Y: G1Point  # H(spend_bls_pub) — unblinded hash-to-curve result
     B: G1Point  # r·Y              — blinded point sent to mint
 
 
 @dataclass
 class RedemptionProof:
-    msg_hash: bytes
-    compact_hex: str  # 128-char r||s hex, matches TS compactHex
-    recovery_bit: int  # 0 or 1 — EVM ecrecover uses v = recovery_bit + 27
-    signature_obj: keys.Signature  # raw eth_keys object for local verify
+    """BLS12-381 redemption proof (replaces the former ECDSA proof)."""
+
+    msg_hash: bytes  # EIP-712 hash
+    sigma: G1Point  # spend_bls_priv * H_G1(msg_hash) — BLS signature
+    spend_pub: G2Point  # spend_bls_priv * G2_gen — for on-chain verification
 
 
 @dataclass
 class MintKeypair:
-    sk: Scalar  # BLS scalar private key in Z_q
+    sk: Scalar  # BLS12-381 scalar private key in Z_r
     pk: G2Point  # sk·G2 — public verification key
 
 
@@ -201,12 +152,12 @@ class MintKeypair:
 # ==============================================================================
 
 
-def _derive_keypair(domain: bytes, base_material: bytes) -> TokenKeypair:
+def _derive_blind_keypair(base_material: bytes) -> TokenKeypair:
     """
-    Derives a secp256k1 TokenKeypair from a domain separator and base material.
-    Domain separators used by this library: b"spend", b"blind".
+    Derives a secp256k1 TokenKeypair for the blind/deposit ID.
+    The Ethereum address serves as the deposit ID.
     """
-    priv_bytes = keccak(domain + base_material)
+    priv_bytes = keccak(b"blind" + base_material)
     priv = keys.PrivateKey(priv_bytes)
     pub_hex = "0x04" + priv.public_key.to_bytes().hex()
     address = priv.public_key.to_address()
@@ -223,42 +174,10 @@ def _derive_keypair(domain: bytes, base_material: bytes) -> TokenKeypair:
 # ==============================================================================
 
 
-def hash_to_curve(message_bytes: bytes) -> G1Point:
-    """
-    Try-and-increment hash-to-curve for BN254 G1.
-    Iterates until keccak(message || counter) yields a valid x coordinate.
-    """
-    counter = 0
-    while True:
-        h = keccak(message_bytes + counter.to_bytes(4, "big"))
-        x = int.from_bytes(h, "big") % field_modulus
-        y_squared = (pow(x, 3, field_modulus) + 3) % field_modulus
-        if pow(y_squared, (field_modulus - 1) // 2, field_modulus) == 1:
-            y = pow(y_squared, (field_modulus + 1) // 4, field_modulus)
-            return G1Point((FQ(x), FQ(y)))
-        counter += 1
-
-
-def serialize_g1(point: G1Point) -> tuple[int, int]:
-    """Returns (x, y) as plain integers, ready for Solidity uint256[2]."""
-    return (point[0].n, point[1].n)
-
-
-def parse_g1(x: int, y: int) -> G1Point:
-    """
-    Reconstructs a G1Point from two uint256 integers (e.g. from a contract event).
-    Raises InvalidPointError if the point is not on the curve.
-    """
-    point = G1Point((FQ(x), FQ(y)))
-    if not is_on_curve(point, b):
-        raise InvalidPointError(x, y)
-    return point
-
-
 def generate_mint_keypair() -> MintKeypair:
-    """Generates a random BLS scalar and its G2 public key."""
-    sk = Scalar(int.from_bytes(os.urandom(32), "big") % curve_order)
-    pk = _mul_g2(G2Point(G2), sk)
+    """Generates a random BLS12-381 scalar and its G2 public key."""
+    sk = Scalar(int.from_bytes(os.urandom(32), "big") % CURVE_ORDER)
+    pk = g2_scalar_mul(G2_GEN, sk)
     return MintKeypair(sk=sk, pk=pk)
 
 
@@ -269,16 +188,12 @@ def generate_mint_keypair() -> MintKeypair:
 
 def derive_token_secrets(master_seed: bytes, token_index: int) -> TokenSecrets:
     """
-    Deterministically derives both token keypairs for a given index.
+    Deterministically derives token secrets for a given index.
 
-    Both keypairs share the same base_material = keccak(seed || index), then
-    are separated by domain: keccak(b"spend" || base) and keccak(b"blind" || base).
-
-    The spend keypair address is the nullifier (revealed only at redemption).
-    The blind keypair address is the deposit ID (revealed at deposit time).
-    The blind private key, interpreted as a BN254 scalar, is the blinding factor r.
-
-    The returned object is CLIENT-ONLY — neither private key must reach the mint.
+    spend key:   BLS12-381 keypair (scalar + G2 pubkey). The G2 pubkey IS the nullifier.
+    blind key:   secp256k1 keypair for deposit ID. Its private key (mod curve_order)
+                 is the blinding factor r.
+    nullifier_id: keccak256(abi.encode(spend_bls_pub)) — used as on-chain mapping key.
     """
     if not master_seed:
         raise DerivationError("master_seed must be non-empty")
@@ -289,59 +204,78 @@ def derive_token_secrets(master_seed: bytes, token_index: int) -> TokenSecrets:
 
     base_material = keccak(master_seed + token_index.to_bytes(4, "big"))
 
+    # BLS12-381 spend key
+    spend_priv_bytes = keccak(b"spend" + base_material)
+    spend_bls_priv = int.from_bytes(spend_priv_bytes, "big") % CURVE_ORDER
+    if spend_bls_priv == 0:
+        raise DerivationError("spend_bls_priv derived as zero — use a different seed/index")
+    spend_bls_pub = g2_scalar_mul(G2_GEN, Scalar(spend_bls_priv))
+
+    # Nullifier ID = keccak256(abi.encode(G2_pubkey))
+    nullifier_id = keccak(abi_encode_g2(spend_bls_pub))
+
+    # secp256k1 blind keypair for deposit ID
+    blind_kp = _derive_blind_keypair(base_material)
+
+    # Blinding factor
+    r = int.from_bytes(blind_kp.priv.to_bytes(), "big") % CURVE_ORDER
+    if r == 0:
+        raise DerivationError("blinding factor r derived as zero — use a different seed/index")
+
     return TokenSecrets(
-        spend=_derive_keypair(b"spend", base_material),
-        blind=_derive_keypair(b"blind", base_material),
+        spend_bls_priv=spend_bls_priv,
+        spend_bls_pub=spend_bls_pub,
+        nullifier_id=nullifier_id,
+        r=r,
+        deposit_id=blind_kp.address,
+        deposit_blind_keypair=blind_kp,
     )
 
 
-def blind_token(spend_address_bytes: bytes, r: Scalar) -> BlindedPoints:
+def blind_token(spend_bls_pub: G2Point, r: int) -> BlindedPoints:
     """
-    Maps the spend address to G1 and applies the multiplicative blinding factor.
+    Maps the spend BLS public key (G2) to G1 via hash-to-curve, then blinds.
     Returns BlindedPoints(Y, B) where only B is sent to the mint.
     """
-    Y = hash_to_curve(spend_address_bytes)
-    B = _mul_g1(Y, r)
+    Y = hash_to_g1(abi_encode_g2(spend_bls_pub))
+    B = g1_scalar_mul(Y, Scalar(r))
+    if is_g1_identity(B):
+        raise ScalarMultiplicationError("Blinding produced the identity point — r is invalid")
     return BlindedPoints(Y=Y, B=B)
 
 
-def unblind_signature(S_prime: G1Point, r: Scalar) -> G1Point:
+def unblind_signature(S_prime: G1Point, r: int) -> G1Point:
     """
     Removes the blinding factor from the mint's signature.
     Returns S = S' · r^-1.
     """
-    r_inv = Scalar(pow(r, -1, curve_order))
-    return _mul_g1(S_prime, r_inv)
+    r_inv = pow(r, -1, CURVE_ORDER)
+    return g1_scalar_mul(S_prime, Scalar(r_inv))
 
 
 def generate_redemption_proof(
-    spend_priv: keys.PrivateKey,
+    spend_bls_priv: int,
+    spend_bls_pub: G2Point,
     destination_address: str,
     chain_id: int,
     contract_address: str,
     deadline: int,
 ) -> RedemptionProof:
     """
-    Generates the anti-MEV ECDSA signature binding the token to a destination address.
+    Generates the anti-MEV BLS signature binding the token to a destination address.
 
-    The message hash is an EIP-712 typed structured data hash matching the Solidity
-    contract's redemptionMessageHash(recipient, deadline):
-        keccak256("\\x19\\x01" || DOMAIN_SEPARATOR || keccak256(abi.encode(NOZKREDEEM_TYPEHASH, recipient, deadline)))
+    The message is an EIP-712 typed structured data hash.  The proof is a BLS
+    signature: sigma = spend_bls_priv * H_G1(msg_hash).
 
-    NOTE: recovery_bit is 0 or 1. The EVM ecrecover precompile expects v = recovery_bit + 27.
+    The on-chain contract verifies: e(sigma, G2_gen) == e(H_G1(msg_hash), spend_pub).
     """
     msg_hash = eip712_redemption_hash(destination_address, deadline, chain_id, contract_address)
-    ecdsa_sig = spend_priv.sign_msg_hash(msg_hash)
-
-    r_hex = hex(ecdsa_sig.r)[2:].zfill(64)
-    s_hex = hex(ecdsa_sig.s)[2:].zfill(64)
-    compact_hex = r_hex + s_hex
-
+    msg_point = hash_to_g1(msg_hash)
+    sigma = g1_scalar_mul(msg_point, Scalar(spend_bls_priv))
     return RedemptionProof(
         msg_hash=msg_hash,
-        compact_hex=compact_hex,
-        recovery_bit=ecdsa_sig.v,
-        signature_obj=ecdsa_sig,
+        sigma=sigma,
+        spend_pub=spend_bls_pub,
     )
 
 
@@ -354,53 +288,82 @@ def mint_blind_sign(B: G1Point, sk_mint: Scalar) -> G1Point:
     """
     Blindly signs a client's G1 point using the mint's scalar private key.
     Returns S' = sk · B.
-
-    Raises InvalidPointError if B is not a valid G1 point — prevents signing
-    garbage from a malformed or adversarial client request.
     """
-    if not is_on_curve(B, b):
-        raise InvalidPointError(B[0].n, B[1].n)
-    return _mul_g1(B, sk_mint)
+    result = g1_scalar_mul(B, sk_mint)
+    if is_g1_identity(result):
+        raise ScalarMultiplicationError("Blind signature produced identity — invalid input point or key")
+    return result
 
 
 # ==============================================================================
-# 4. VERIFICATION LOGIC (EVM Equivalents)
+# 4. VERIFICATION LOGIC
 # ==============================================================================
 
 
-def verify_ecdsa_mev_protection(
+def verify_bls_mint_signature(S: G1Point, Y: G1Point, PK_mint: G2Point) -> bool:
+    """
+    Verifies the mint's BLS signature on a token.
+    Checks: e(S, G2_gen) == e(Y, PK_mint).
+    """
+    return verify_pairing(S, Y, PK_mint)
+
+
+def verify_bls_spend_signature(
+    sigma: G1Point,
     msg_hash: bytes,
-    compact_hex: str,
-    recovery_bit: int,
-    expected_address_hex: str,
+    spend_pub: G2Point,
 ) -> bool:
     """
-    Simulates the EVM ecrecover precompile. Derives the signer's address from
-    (msg_hash, compact_hex, recovery_bit) and compares to expected_address_hex.
-
-    Returns False for invalid signatures. Raises VerificationError only for
-    malformed inputs that indicate a programming error (wrong hex length, etc.).
+    Verifies a BLS spend signature (replaces ECDSA ecrecover).
+    Checks: e(sigma, G2_gen) == e(H_G1(msg_hash), spend_pub).
     """
-    if len(compact_hex) != 128:
-        raise VerificationError(f"compact_hex must be 128 hex chars (64 bytes), got {len(compact_hex)}")
-    if recovery_bit not in (0, 1):
-        raise VerificationError(f"recovery_bit must be 0 or 1, got {recovery_bit}")
-    try:
-        r = int(compact_hex[:64], 16)
-        s = int(compact_hex[64:], 16)
-        sig = keys.Signature(vrs=(recovery_bit, r, s))
-        recovered_pubkey = sig.recover_public_key_from_msg_hash(msg_hash)
-        return recovered_pubkey.to_address().lower() == expected_address_hex.lower()
-    except (ValueError, TypeError, _EthKeysValidationError):
-        return False
+    msg_point = hash_to_g1(msg_hash)
+    return verify_pairing(sigma, msg_point, spend_pub)
 
 
-def verify_bls_pairing(S: G1Point, Y: G1Point, PK_mint: G2Point) -> bool:
+# ==============================================================================
+# 5. AGGREGATION
+# ==============================================================================
+
+
+def aggregate_reveal_sigma(unblinded_sigs: list[G1Point]) -> G1Point:
+    """Aggregate multiple unblinded mint signatures for batch reveal."""
+    return aggregate_g1(unblinded_sigs)
+
+
+def verify_aggregated_reveal(
+    sigma: G1Point,
+    spend_pubs: list[G2Point],
+    pk_mint: G2Point,
+) -> bool:
     """
-    Simulates the EVM 0x08 ecPairing precompile.
-    Checks if e(S, G2) == e(Y, PK_mint).
+    Verify an aggregated reveal: multiple tokens signed by the same mint.
+    Checks: e(sigma, G2_gen) == e(Y_agg, pk_mint)
+    where Y_agg = sum(H_G1(abi_encode_g2(pub)) for pub in spend_pubs).
     """
-    return pairing(G2, S) == pairing(PK_mint, Y)
+    ys = [hash_to_g1(abi_encode_g2(pub)) for pub in spend_pubs]
+    y_agg = aggregate_g1(ys)
+    return verify_pairing(sigma, y_agg, pk_mint)
+
+
+def aggregate_redeem_sigma(spend_sigs: list[G1Point]) -> G1Point:
+    """Aggregate multiple spend BLS signatures for batch redeem."""
+    return aggregate_g1(spend_sigs)
+
+
+def verify_aggregated_redeem(
+    sigma: G1Point,
+    msg_hash: bytes,
+    spend_pubs: list[G2Point],
+) -> bool:
+    """
+    Verify an aggregated redeem: multiple spend keys sign the same message.
+    Checks: e(sigma, G2_gen) == e(H_G1(msg_hash), PK_agg)
+    where PK_agg = sum(spend_pubs).
+    """
+    pk_agg = aggregate_g2(spend_pubs)
+    msg_point = hash_to_g1(msg_hash)
+    return verify_pairing(sigma, msg_point, pk_agg)
 
 
 # ==============================================================================
@@ -408,38 +371,34 @@ def verify_bls_pairing(S: G1Point, Y: G1Point, PK_mint: G2Point) -> bool:
 # ==============================================================================
 
 if __name__ == "__main__":
-    print("Testing Nozk Helper Library...")
+    print("Testing Nozk Helper Library (BLS12-381)...")
 
     master_seed = b"super_secret_seed"
     destination = "0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7"
 
     keypair = generate_mint_keypair()
-
     secrets = derive_token_secrets(master_seed, token_index=42)
 
-    print(f"Spend address (nullifier):   {secrets.spend_address_hex}")
-    print(f"Blind address (deposit ID):  {secrets.deposit_id}")
+    print(f"Nullifier ID:               {secrets.nullifier_id_hex}")
+    print(f"Deposit ID (blind addr):     {secrets.deposit_id}")
     print(f"Blinding scalar r:           {hex(secrets.r)}")
 
-    blinded = blind_token(secrets.spend_address_bytes, secrets.r)
+    blinded = blind_token(secrets.spend_bls_pub, secrets.r)
 
     S_prime = mint_blind_sign(blinded.B, keypair.sk)
     S = unblind_signature(S_prime, secrets.r)
+
     proof = generate_redemption_proof(
-        secrets.spend_priv,
+        secrets.spend_bls_priv,
+        secrets.spend_bls_pub,
         destination,
         chain_id=11155111,
         contract_address="0x00000000000000000000000000000000DeaDBeef",
         deadline=2**256 - 1,
     )
 
-    is_valid_ecdsa = verify_ecdsa_mev_protection(
-        proof.msg_hash,
-        proof.compact_hex,
-        proof.recovery_bit,
-        secrets.spend_address_hex,
-    )
-    is_valid_bls = verify_bls_pairing(S, blinded.Y, keypair.pk)
+    is_valid_bls_mint = verify_bls_mint_signature(S, blinded.Y, keypair.pk)
+    is_valid_bls_spend = verify_bls_spend_signature(proof.sigma, proof.msg_hash, secrets.spend_bls_pub)
 
-    print(f"MEV Protection Valid: {is_valid_ecdsa}")
-    print(f"BLS Pairing Valid:    {is_valid_bls}")
+    print(f"BLS Mint Signature Valid:    {is_valid_bls_mint}")
+    print(f"BLS Spend Signature Valid:   {is_valid_bls_spend}")

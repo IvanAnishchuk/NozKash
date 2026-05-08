@@ -54,7 +54,7 @@ git push -u origin main
 
 On GitHub: repo → **Settings** → **Collaborators** (or **Manage access**) → **Add people**.
 
-Share the repo link:  
+Share the repo link:
 `https://github.com/Simonethg/aleph-hackathon-m2026`
 
 ## 4. First-time setup for teammates

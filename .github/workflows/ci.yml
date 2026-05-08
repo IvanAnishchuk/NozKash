@@ -2,9 +2,9 @@ name: CI
 
 on:
   pull_request:
-    branches: [main, init_gen_tool]
+    branches: [main]
   push:
-    branches: [main, init_gen_tool]
+    branches: [main]
 
 jobs:
   python-lint:
@@ -99,6 +99,30 @@ jobs:
       - uses: foundry-rs/foundry-toolchain@v1
       - run: forge build
       - run: forge test
+
+  solidity-fmt:
+    name: "Solidity: forge fmt"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sol
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+      - run: forge fmt --check
+
+  security-scan:
+    name: "Security: gitleaks"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   app-build:
     name: "App: build"

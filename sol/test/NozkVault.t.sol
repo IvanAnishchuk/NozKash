@@ -76,11 +76,7 @@ contract NozkVaultTest is Test {
         // Deploy the default vault at the vector contract address (first keypair, for unit tests).
         string memory j = vm.readFile(_tokenFileIn(keypairDirs[0], 42));
         uint256[4] memory pkMint = _pkMintFromJson(j);
-        deployCodeTo(
-            "NozkVault.t.sol:NozkVaultHarness",
-            abi.encode(pkMint, mintAuthority),
-            vectorContract
-        );
+        deployCodeTo("NozkVault.t.sol:NozkVaultHarness", abi.encode(pkMint, mintAuthority), vectorContract);
         vault = NozkVaultHarness(payable(vectorContract));
     }
 
@@ -141,11 +137,7 @@ contract NozkVaultTest is Test {
             // Deploy a fresh vault at the vector contract address for each keypair's pkMint.
             string memory j0 = vm.readFile(_tokenFileIn(keypairDirs[k], tokenIndices[0]));
             uint256[4] memory pkMint = _pkMintFromJson(j0);
-            deployCodeTo(
-                "NozkVault.t.sol:NozkVaultHarness",
-                abi.encode(pkMint, mintAuthority),
-                vectorContract
-            );
+            deployCodeTo("NozkVault.t.sol:NozkVaultHarness", abi.encode(pkMint, mintAuthority), vectorContract);
             NozkVaultHarness kpVault = NozkVaultHarness(payable(vectorContract));
 
             // Verify crypto for every token index.

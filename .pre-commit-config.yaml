@@ -1,0 +1,123 @@
+# Install:
+#     cd nozk_py && uv run pre-commit install --install-hooks
+#     cd nozk_py && uv run pre-commit install --hook-type commit-msg
+#
+# Run manually:
+#     cd nozk_py && uv run pre-commit run --all-files
+
+default_language_version:
+  python: python3
+
+default_install_hook_types:
+  - pre-commit
+  - commit-msg
+
+default_stages: [pre-commit]
+fail_fast: false
+
+repos:
+  # ── General hygiene ────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: detect-private-key
+      - id: no-commit-to-branch
+        args: [--branch, main]
+      - id: check-ast
+        types: [python]
+      - id: debug-statements
+        types: [python]
+
+  # ── Python: ruff ───────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: uv run ruff check --fix --force-exclude
+        language: system
+        types: [python]
+        files: ^nozk_py/
+
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format --force-exclude
+        language: system
+        types: [python]
+        files: ^nozk_py/
+
+  # ── Python: ty ─────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: ty-check
+        name: ty check
+        entry: bash -c 'cd nozk_py && uv run ty check'
+        language: system
+        pass_filenames: false
+        files: ^nozk_py/.*\.py$
+
+  # ── TypeScript: biome ──────────────────────────────────
+  - repo: local
+    hooks:
+      - id: biome-check
+        name: biome check
+        entry: bash -c 'cd nozk_ts && npx biome check .'
+        language: system
+        pass_filenames: false
+        files: ^nozk_ts/.*\.ts$
+
+  # ── TypeScript: tsc ────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: tsc-check
+        name: tsc --noEmit
+        entry: bash -c 'cd nozk_ts && npx tsc --noEmit'
+        language: system
+        pass_filenames: false
+        files: ^nozk_ts/.*\.ts$
+
+  # ── Solidity: forge fmt ────────────────────────────────
+  - repo: local
+    hooks:
+      - id: forge-fmt-check
+        name: forge fmt --check
+        entry: bash -c 'cd sol && forge fmt --check'
+        language: system
+        pass_filenames: false
+        files: ^sol/.*\.sol$
+
+  # ── Secret scanning ────────────────────────────────────
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.3
+    hooks:
+      - id: gitleaks
+
+  # ── Conventional Commits ───────────────────────────────
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.1.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args:
+          - feat
+          - fix
+          - chore
+          - security
+          - perf
+          - docs
+          - test
+          - refactor
+          - ci
+          - build
+          - revert
+          - style

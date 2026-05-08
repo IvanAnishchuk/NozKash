@@ -1,4 +1,5 @@
 {
+  "curve": "BLS12-381",
   "eip712_domain_name": "NozkVault",
   "eip712_domain_version": "1",
   "chain_id": 11155111,
@@ -6,16 +7,12 @@
   "recipient": "0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7",
   "deadline": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
   "keypairs": [
-    "358e0ef8_15789504",
-    "ed2e5be4_a3acfcde",
-    "77d80269_a2001325"
+    "9ed1bf75_73bc12b4",
+    "d189b5df_79b64b44"
   ],
   "indices": [
     0,
     1,
-    42,
-    255,
-    256,
-    1000
+    42
   ]
 }

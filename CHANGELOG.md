@@ -27,6 +27,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Upgrade vite 8.0.1 -> 8.0.11 in nozk_ts/ and app/ (fixes CVE: server.fs.deny bypass, WebSocket arbitrary file read, optimized deps path traversal)
 - Upgrade postcss 8.5.8 -> 8.5.14 in nozk_ts/ and app/ (fixes XSS via unescaped style in CSS stringify)
 - Upgrade Pygments 2.19.2 -> 2.20.0 in nozk_py/ (fixes ReDoS in GUID matching)
+- Upgrade brace-expansion 1.1.12 -> 1.1.14 in app/ (fixes ReDoS via zero-step sequences)
 
 ### Fixed
 

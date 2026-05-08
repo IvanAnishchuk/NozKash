@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv run ruff check *)",
+      "Bash(uv run ruff format *)",
+      "Bash(uv run ty check*)",
+      "Bash(uv run pytest *)",
+      "Bash(PYENV_VERSION=system uv *)",
+      "Bash(uv run generate_vectors.py)",
+      "Bash(uv run pre-commit run *)",
+      "Bash(npx biome check *)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(npx vitest run*)",
+      "Bash(npx tsx test.ts)",
+      "Bash(forge build*)",
+      "Bash(forge test*)",
+      "Bash(forge fmt*)",
+      "Bash(forge snapshot*)",
+      "Bash(npm run lint*)",
+      "Bash(npm run build*)",
+      "Bash(npm run dev*)",
+      "Bash(npm install*)",
+      "Bash(npm ci*)"
+    ]
+  }
+}

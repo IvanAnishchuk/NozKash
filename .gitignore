@@ -20,5 +20,19 @@ wheels/
 # Virtual environments
 .venv
 
+# Foundry artifacts
+sol/out/
+sol/cache/
+sol/broadcast/
+
+# Python caches
+.ruff_cache/
+.pytest_cache/
+
+# Coverage
+htmlcov/
+.coverage
+.coverage.*
+
 # js stuff
 node_modules

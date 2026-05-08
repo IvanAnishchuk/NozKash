@@ -408,7 +408,6 @@ def test_refund_before_announce(deployed_contract, w3):
     assert vault.functions.depositPending(deposit_id).call()
 
     # Refund
-    bal_before = w3.eth.get_balance(depositor.address)
     tx = vault.functions.refund(deposit_id).build_transaction({
         "from": depositor.address,
         "nonce": w3.eth.get_transaction_count(depositor.address),

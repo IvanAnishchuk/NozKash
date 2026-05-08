@@ -438,10 +438,10 @@ class Relayer:
         Decompresses the BLS spend signature from chia_rs compressed G2 (96 bytes)
         to EIP-2537 uncompressed format (8 uint256) for the on-chain call.
         """
-        from chia_rs import G1Element, G2Element
+        from chia_rs import G2Element
         from py_ecc.bls.g2_primitives import signature_to_G2
 
-        from bls12_381_crypto import G2Point, parse_g1_sol, serialize_g1_sol, serialize_g2_sol
+        from bls12_381_crypto import G2Point, serialize_g2_sol
 
         self.validate_redeem(req)
 

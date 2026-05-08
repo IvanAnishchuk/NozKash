@@ -360,6 +360,7 @@ def sign(
         # G2 signature stored as list of 8 hex-encoded uint256 values
         token_key = str(idx)
         existing = state.get("tokens", {}).get(token_key, {})
+        spend_pub_coords = serialize_g1_sol(secrets.spend_bls_pub)
         state.setdefault("tokens", {})[token_key] = {
             "index": idx,
             "nullifier_id": secrets.nullifier_id_hex,
@@ -367,6 +368,9 @@ def sign(
             "deposit_tx": existing.get("deposit_tx", "mock-mint-offline"),
             "deposit_block": existing.get("deposit_block"),
             "s_unblinded_g2": [hex(c) for c in s_coords],
+            "spend_pub_g1": [hex(c) for c in spend_pub_coords],
+            "b_g2": existing.get("b_g2"),
+            "reveal_tx": existing.get("reveal_tx"),
             "redeem_tx": existing.get("redeem_tx"),
             "spent": existing.get("spent", False),
         }

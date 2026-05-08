@@ -231,6 +231,7 @@ class TokenRecord:
     deposit_tx: Optional[str] = None
     deposit_block: Optional[int] = None
     s_unblinded_g2: Optional[list[str]] = None  # 8 hex strings (G2 EIP-2537)
+    spend_pub_g1: Optional[list[str]] = None  # 4 hex strings (G1 EIP-2537)
     b_g2: Optional[list[str]] = None  # 8 hex strings (G2 EIP-2537)
     reveal_tx: Optional[str] = None
     redeem_tx: Optional[str] = None

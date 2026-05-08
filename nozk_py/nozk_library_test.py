@@ -262,8 +262,12 @@ def test_spend_signature_rejects_tampered_destination(setup_data):
     secrets = gl.derive_token_secrets(master_seed, token_index)
     alice = "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa"
     proof = gl.generate_redemption_proof(
-        secrets.spend_chia_sk, secrets.spend_chia_pk, alice,
-        _TEST_CHAIN_ID, _TEST_CONTRACT, _TEST_DEADLINE,
+        secrets.spend_chia_sk,
+        secrets.spend_chia_pk,
+        alice,
+        _TEST_CHAIN_ID,
+        _TEST_CONTRACT,
+        _TEST_DEADLINE,
     )
 
     bob = "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
@@ -276,8 +280,12 @@ def test_spend_signature_rejects_wrong_key(setup_data):
     secrets = gl.derive_token_secrets(master_seed, token_index)
     alice = "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa"
     proof = gl.generate_redemption_proof(
-        secrets.spend_chia_sk, secrets.spend_chia_pk, alice,
-        _TEST_CHAIN_ID, _TEST_CONTRACT, _TEST_DEADLINE,
+        secrets.spend_chia_sk,
+        secrets.spend_chia_pk,
+        alice,
+        _TEST_CHAIN_ID,
+        _TEST_CONTRACT,
+        _TEST_DEADLINE,
     )
     other = gl.derive_token_secrets(master_seed, token_index + 1)
     assert gl.verify_bls_spend_signature(proof.sigma, proof.msg_hash, other.spend_chia_pk) is False
@@ -395,8 +403,12 @@ def test_aggregated_redeem_3_tokens():
     for i in range(3):
         secrets = gl.derive_token_secrets(seed, i)
         proof = gl.generate_redemption_proof(
-            secrets.spend_chia_sk, secrets.spend_chia_pk,
-            destination, _TEST_CHAIN_ID, _TEST_CONTRACT, _TEST_DEADLINE,
+            secrets.spend_chia_sk,
+            secrets.spend_chia_pk,
+            destination,
+            _TEST_CHAIN_ID,
+            _TEST_CONTRACT,
+            _TEST_DEADLINE,
         )
         sigs.append(proof.sigma)
         pks.append(secrets.spend_chia_pk)
@@ -414,8 +426,12 @@ def test_aggregated_redeem_rejects_wrong_message():
     for i in range(2):
         secrets = gl.derive_token_secrets(seed, i)
         proof = gl.generate_redemption_proof(
-            secrets.spend_chia_sk, secrets.spend_chia_pk,
-            destination, _TEST_CHAIN_ID, _TEST_CONTRACT, _TEST_DEADLINE,
+            secrets.spend_chia_sk,
+            secrets.spend_chia_pk,
+            destination,
+            _TEST_CHAIN_ID,
+            _TEST_CONTRACT,
+            _TEST_DEADLINE,
         )
         sigs.append(proof.sigma)
         pks.append(secrets.spend_chia_pk)
@@ -437,8 +453,12 @@ def test_aggregated_redeem_rejects_extra_key():
     for i in range(2):
         secrets = gl.derive_token_secrets(seed, i)
         proof = gl.generate_redemption_proof(
-            secrets.spend_chia_sk, secrets.spend_chia_pk,
-            destination, _TEST_CHAIN_ID, _TEST_CONTRACT, _TEST_DEADLINE,
+            secrets.spend_chia_sk,
+            secrets.spend_chia_pk,
+            destination,
+            _TEST_CHAIN_ID,
+            _TEST_CONTRACT,
+            _TEST_DEADLINE,
         )
         sigs.append(proof.sigma)
         pks.append(secrets.spend_chia_pk)

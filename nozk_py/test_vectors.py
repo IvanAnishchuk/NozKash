@@ -51,10 +51,14 @@ def _g1_from_dict(d: dict) -> tuple[int, int, int, int]:
 
 def _g2_from_dict(d: dict) -> tuple[int, int, int, int, int, int, int, int]:
     return (
-        int(d["x_c0_hi"], 16), int(d["x_c0_lo"], 16),
-        int(d["x_c1_hi"], 16), int(d["x_c1_lo"], 16),
-        int(d["y_c0_hi"], 16), int(d["y_c0_lo"], 16),
-        int(d["y_c1_hi"], 16), int(d["y_c1_lo"], 16),
+        int(d["x_c0_hi"], 16),
+        int(d["x_c0_lo"], 16),
+        int(d["x_c1_hi"], 16),
+        int(d["x_c1_lo"], 16),
+        int(d["y_c0_hi"], 16),
+        int(d["y_c0_lo"], 16),
+        int(d["y_c1_hi"], 16),
+        int(d["y_c1_lo"], 16),
     )
 
 
@@ -137,9 +141,12 @@ def test_redemption_proof_vector(v):
     eip712 = v["EIP712"]
 
     proof = gl.generate_redemption_proof(
-        secrets.spend_chia_sk, secrets.spend_chia_pk,
-        redeem["recipient"], eip712["chain_id"],
-        eip712["contract_address"], int(eip712["deadline"], 16),
+        secrets.spend_chia_sk,
+        secrets.spend_chia_pk,
+        redeem["recipient"],
+        eip712["chain_id"],
+        eip712["contract_address"],
+        int(eip712["deadline"], 16),
     )
 
     assert proof.msg_hash.hex() == redeem["msg_hash"]

@@ -35,6 +35,8 @@ Collected documentation and research references for the NozKash protocol.
 
 ## Source Documents
 
-- [Standards index](standards/README.md) — 13 EIPs, 9 RFCs/IETF drafts, 4 BIPs (local copies)
+- [Standards index](standards/README.md) — 16 EIPs, 12 RFCs/IETF drafts, 4 BIPs (local copies)
 - [Papers index](papers/README.md) — 23 research papers (local PDF/markdown copies)
-- [Reference Triage Log](reference-triage.md) — Complete list of ~130 references considered, with disposition
+- [Reference Triage Log](reference-triage.md) — Complete list of ~130 backward references considered, with disposition
+- [Forward Citations](forward-citations.md) — ~102 citing works discovered, organized by tier for future triage
+- [Triage Plan](triage-plan.md) — How to process the forward citation backlog

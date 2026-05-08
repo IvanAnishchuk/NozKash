@@ -19,6 +19,37 @@ contract NozkVaultV2Harness is NozkVaultV2 {
     function exposed_compressG1(uint256[4] memory p) external pure returns (bytes memory) {
         return _compressG1(p);
     }
+
+    /// @dev General-purpose expand_message_xmd for RFC 9380 test vectors.
+    function exposed_expandMessageXMD_withDST(
+        bytes memory msg_,
+        bytes memory dst,
+        uint16 lenInBytes
+    ) external view returns (bytes memory uniform) {
+        bytes memory dstPrime = abi.encodePacked(dst, uint8(dst.length));
+        bytes memory msgPrime = abi.encodePacked(new bytes(64), msg_, lenInBytes, uint8(0), dstPrime);
+
+        bytes32 b0 = _sha256(msgPrime);
+        bytes32 bPrev = _sha256(abi.encodePacked(b0, uint8(1), dstPrime));
+
+        uint256 ell = (uint256(lenInBytes) + 31) / 32;
+        uniform = new bytes(ell * 32);
+        assembly {
+            mstore(add(uniform, 0x20), bPrev)
+        }
+        for (uint256 i = 2; i <= ell; i++) {
+            bytes32 xored = b0 ^ bPrev;
+            bPrev = _sha256(abi.encodePacked(xored, uint8(i), dstPrime));
+            assembly {
+                let offset := mul(sub(i, 1), 32)
+                mstore(add(add(uniform, 0x20), offset), bPrev)
+            }
+        }
+        // Truncate to requested length
+        assembly {
+            mstore(uniform, lenInBytes)
+        }
+    }
 }
 
 contract HashToG2ParityTest is Test {
@@ -102,6 +133,45 @@ contract HashToG2ParityTest is Test {
         assertEq(uint8(compressed[0]), 0x89, "first byte should be 0x89 (0x80 flag | 0x09)");
         assertEq(uint8(compressed[1]), 0x2d, "second byte");
     }
+
+    // -- RFC 9380 official test vectors for expand_message_xmd --
+    // https://datatracker.ietf.org/doc/html/rfc9380#name-expand_message_xmdsha-256
+    // DST: "QUUX-V01-CS02-with-expander-SHA256-128"
+
+    function test_expandXMD_rfc9380_empty_msg_32bytes() public view {
+        bytes memory uniform = harness.exposed_expandMessageXMD_withDST(
+            "", "QUUX-V01-CS02-with-expander-SHA256-128", 32
+        );
+        assertEq(uniform.length, 32);
+        bytes32 expected = 0x68a985b87eb6b46952128911f2a4412bbc302a9d759667f87f7a21d803f07235;
+        bytes32 actual;
+        assembly { actual := mload(add(uniform, 0x20)) }
+        assertEq(actual, expected, "RFC 9380 expand_xmd empty/32");
+    }
+
+    function test_expandXMD_rfc9380_abc_32bytes() public view {
+        bytes memory uniform = harness.exposed_expandMessageXMD_withDST(
+            "abc", "QUUX-V01-CS02-with-expander-SHA256-128", 32
+        );
+        bytes32 expected = 0xd8ccab23b5985ccea865c6c97b6e5b8350e794e603b4b97902f53a8a0d605615;
+        bytes32 actual;
+        assembly { actual := mload(add(uniform, 0x20)) }
+        assertEq(actual, expected, "RFC 9380 expand_xmd abc/32");
+    }
+
+    function test_expandXMD_rfc9380_abc_128bytes() public view {
+        bytes memory uniform = harness.exposed_expandMessageXMD_withDST(
+            "abc", "QUUX-V01-CS02-with-expander-SHA256-128", 128
+        );
+        assertEq(uniform.length, 128);
+        // First 32 bytes
+        bytes32 expected_b1 = 0xabba86a6129e366fc877aab32fc4ffc70120d8996c88aee2fe4b32d6c7b6437a;
+        bytes32 actual_b1;
+        assembly { actual_b1 := mload(add(uniform, 0x20)) }
+        assertEq(actual_b1, expected_b1, "RFC 9380 expand_xmd abc/128 b_1");
+    }
+
+    // -- Cross-language parity tests --
 
     /// @dev Full hashToG2 for 80-byte augmented message (redeem case).
     function test_hashToG2_augMessage() public view {

@@ -1,0 +1,276 @@
+# RFC & IETF Draft Source Index
+# Records available formats and source URLs for each document.
+# Use this to refetch or update local copies.
+#
+# Errata source: https://www.rfc-editor.org/errata.json (master list, filtered per-RFC)
+# Errata format: JSON with fields: errata_id, errata_status_code, errata_type_code,
+#   section, orig_text, correct_text, notes, submit_date, submitter_name
+#
+# Last updated: 2026-05-08
+
+documents:
+  - id: rfc2898
+    title: "PKCS#5: Password-Based Cryptography Specification Version 2.0 (PBKDF2)"
+    year: 2000
+    relevance: Key derivation in EIP-2335 keystore
+    local_files:
+      - rfc2898.txt
+      - rfc2898.bib
+      - rfc2898-errata.json
+    formats:
+      txt: https://www.rfc-editor.org/rfc/rfc2898.txt
+      html: https://www.rfc-editor.org/rfc/rfc2898.html
+      pdf: https://www.rfc-editor.org/rfc/pdfrfc/rfc2898.txt.pdf
+    bibtex: https://datatracker.ietf.org/doc/rfc2898/bibtex/
+    errata:
+      source: https://www.rfc-editor.org/errata.json
+      page: https://www.rfc-editor.org/errata/rfc2898
+      count: 3
+      verified: 1
+    datatracker: https://datatracker.ietf.org/doc/rfc2898/
+    github: null
+    notes: No XML or markdown source available (predates RFC XML toolchain)
+
+  - id: rfc3447
+    title: "PKCS#1: RSA Cryptography Specifications Version 2.1"
+    year: 2003
+    relevance: RSA primitives reference
+    local_files:
+      - rfc3447.txt
+      - rfc3447.bib
+      - rfc3447-errata.json
+    formats:
+      txt: https://www.rfc-editor.org/rfc/rfc3447.txt
+      html: https://www.rfc-editor.org/rfc/rfc3447.html
+      pdf: https://www.rfc-editor.org/rfc/pdfrfc/rfc3447.txt.pdf
+    bibtex: https://datatracker.ietf.org/doc/rfc3447/bibtex/
+    errata:
+      source: https://www.rfc-editor.org/errata.json
+      page: https://www.rfc-editor.org/errata/rfc3447
+      count: 13
+      verified: 10
+    datatracker: https://datatracker.ietf.org/doc/rfc3447/
+    github: null
+    notes: No XML or markdown source available (predates RFC XML toolchain)
+
+  - id: rfc3686
+    title: "Using Advanced Encryption Standard (AES) Counter Mode with IPsec ESP"
+    year: 2004
+    relevance: AES-CTR mode reference
+    local_files:
+      - rfc3686.txt
+      - rfc3686.bib
+    formats:
+      txt: https://www.rfc-editor.org/rfc/rfc3686.txt
+      html: https://www.rfc-editor.org/rfc/rfc3686.html
+      pdf: https://www.rfc-editor.org/rfc/pdfrfc/rfc3686.txt.pdf
+    bibtex: https://datatracker.ietf.org/doc/rfc3686/bibtex/
+    errata: null
+    datatracker: https://datatracker.ietf.org/doc/rfc3686/
+    github: null
+    notes: No XML or markdown source; no errata
+
+  - id: rfc4122
+    title: "A Universally Unique IDentifier (UUID) URN Namespace"
+    year: 2005
+    relevance: UUID generation
+    local_files:
+      - rfc4122.txt
+      - rfc4122.bib
+      - rfc4122-errata.json
+    formats:
+      txt: https://www.rfc-editor.org/rfc/rfc4122.txt
+      html: https://www.rfc-editor.org/rfc/rfc4122.html
+      pdf: https://www.rfc-editor.org/rfc/pdfrfc/rfc4122.txt.pdf
+    bibtex: https://datatracker.ietf.org/doc/rfc4122/bibtex/
+    errata:
+      source: https://www.rfc-editor.org/errata.json
+      page: https://www.rfc-editor.org/errata/rfc4122
+      count: 13
+      verified: 8
+    datatracker: https://datatracker.ietf.org/doc/rfc4122/
+    github: null
+    notes: "Superseded by rfc4122bis; see https://github.com/ietf-wg-uuidrev/rfc4122bis"
+
+  - id: rfc5869
+    title: "HMAC-based Extract-and-Expand Key Derivation Function (HKDF)"
+    year: 2010
+    relevance: Key derivation in EIP-2333 BLS key generation
+    local_files:
+      - rfc5869.txt
+      - rfc5869.bib
+      - rfc5869-errata.json
+    formats:
+      txt: https://www.rfc-editor.org/rfc/rfc5869.txt
+      html: https://www.rfc-editor.org/rfc/rfc5869.html
+      pdf: https://www.rfc-editor.org/rfc/pdfrfc/rfc5869.txt.pdf
+    bibtex: https://datatracker.ietf.org/doc/rfc5869/bibtex/
+    errata:
+      source: https://www.rfc-editor.org/errata.json
+      page: https://www.rfc-editor.org/errata/rfc5869
+      count: 1
+      verified: 0
+    datatracker: https://datatracker.ietf.org/doc/rfc5869/
+    github: null
+    notes: No XML or markdown source; 1 reported (unverified) erratum
+
+  - id: rfc6234
+    title: "US Secure Hash Algorithms (SHA and SHA-based HMAC and HKDF)"
+    year: 2011
+    relevance: SHA-256 specification
+    local_files:
+      - rfc6234.txt
+      - rfc6234.bib
+      - rfc6234-errata.json
+    formats:
+      txt: https://www.rfc-editor.org/rfc/rfc6234.txt
+      html: https://www.rfc-editor.org/rfc/rfc6234.html
+      pdf: https://www.rfc-editor.org/rfc/pdfrfc/rfc6234.txt.pdf
+    bibtex: https://datatracker.ietf.org/doc/rfc6234/bibtex/
+    errata:
+      source: https://www.rfc-editor.org/errata.json
+      page: https://www.rfc-editor.org/errata/rfc6234
+      count: 4
+      verified: 1
+    datatracker: https://datatracker.ietf.org/doc/rfc6234/
+    github: null
+    notes: No XML or markdown source available (predates RFC XML toolchain)
+
+  - id: rfc7748
+    title: "Elliptic Curves for Security (X25519, X448)"
+    year: 2016
+    relevance: Elliptic curve reference (Curve25519, Curve448)
+    local_files:
+      - rfc7748.txt
+      - rfc7748.bib
+      - rfc7748-errata.json
+    formats:
+      txt: https://www.rfc-editor.org/rfc/rfc7748.txt
+      html: https://www.rfc-editor.org/rfc/rfc7748.html
+      pdf: https://www.rfc-editor.org/rfc/pdfrfc/rfc7748.txt.pdf
+    bibtex: https://datatracker.ietf.org/doc/rfc7748/bibtex/
+    errata:
+      source: https://www.rfc-editor.org/errata.json
+      page: https://www.rfc-editor.org/errata/rfc7748
+      count: 9
+      verified: 4
+    datatracker: https://datatracker.ietf.org/doc/rfc7748/
+    github: null
+    notes: CFRG document but no source repo found on github.com/cfrg
+
+  - id: rfc7914
+    title: "The scrypt Password-Based Key Derivation Function"
+    year: 2016
+    relevance: Key derivation in EIP-2335 keystore
+    local_files:
+      - rfc7914.txt
+      - rfc7914.bib
+      - rfc7914-errata.json
+    formats:
+      txt: https://www.rfc-editor.org/rfc/rfc7914.txt
+      html: https://www.rfc-editor.org/rfc/rfc7914.html
+      pdf: https://www.rfc-editor.org/rfc/pdfrfc/rfc7914.txt.pdf
+    bibtex: https://datatracker.ietf.org/doc/rfc7914/bibtex/
+    errata:
+      source: https://www.rfc-editor.org/errata.json
+      page: https://www.rfc-editor.org/errata/rfc7914
+      count: 6
+      verified: 2
+    datatracker: https://datatracker.ietf.org/doc/rfc7914/
+    github: null
+    notes: Independent submission by Colin Percival; no IETF source repo
+
+  - id: rfc8032
+    title: "Edwards-Curve Digital Signature Algorithm (EdDSA)"
+    year: 2017
+    relevance: EdDSA reference for signature schemes
+    local_files:
+      - rfc8032.txt
+      - rfc8032.bib
+      - rfc8032-errata.json
+    formats:
+      txt: https://www.rfc-editor.org/rfc/rfc8032.txt
+      html: https://www.rfc-editor.org/rfc/rfc8032.html
+      pdf: https://www.rfc-editor.org/rfc/pdfrfc/rfc8032.txt.pdf
+    bibtex: https://datatracker.ietf.org/doc/rfc8032/bibtex/
+    errata:
+      source: https://www.rfc-editor.org/errata.json
+      page: https://www.rfc-editor.org/errata/rfc8032
+      count: 11
+      verified: 6
+    datatracker: https://datatracker.ietf.org/doc/rfc8032/
+    github: null
+    notes: CFRG document but no source repo found on github.com/cfrg
+
+  - id: rfc9380
+    title: "Hashing to Elliptic Curves"
+    year: 2023
+    relevance: Hash-to-curve specification; NozKash uses try-and-increment variant
+    local_files:
+      - rfc9380.txt
+      - rfc9380.xml
+      - rfc9380.bib
+      - rfc9380-errata.json
+      - draft-irtf-cfrg-hash-to-curve.md
+    formats:
+      txt: https://www.rfc-editor.org/rfc/rfc9380.txt
+      html: https://www.rfc-editor.org/rfc/rfc9380.html
+      xml: https://www.rfc-editor.org/rfc/rfc9380.xml
+      pdf: https://www.rfc-editor.org/rfc/rfc9380.pdf
+    bibtex: https://datatracker.ietf.org/doc/rfc9380/bibtex/
+    errata:
+      source: https://www.rfc-editor.org/errata.json
+      page: https://www.rfc-editor.org/errata/rfc9380
+      count: 1
+      verified: 1
+    datatracker: https://datatracker.ietf.org/doc/rfc9380/
+    github:
+      repo: https://github.com/cfrg/draft-irtf-cfrg-hash-to-curve
+      source_md: https://raw.githubusercontent.com/cfrg/draft-irtf-cfrg-hash-to-curve/master/draft-irtf-cfrg-hash-to-curve.md
+    notes: Published from draft-irtf-cfrg-hash-to-curve; markdown is the draft source
+
+  - id: draft-irtf-cfrg-bls-signature-05
+    title: "BLS Signatures"
+    year: 2022
+    relevance: Core BLS signature specification used by NozKash
+    local_files:
+      - draft-irtf-cfrg-bls-signature.txt
+      - draft-irtf-cfrg-bls-signature.xml
+      - draft-irtf-cfrg-bls-signature.md
+      - draft-irtf-cfrg-bls-signature.bib
+      - draft-irtf-cfrg-bls-signature-plans.md
+      - draft-irtf-cfrg-bls-signature-resources.md
+    formats:
+      txt: https://www.ietf.org/archive/id/draft-irtf-cfrg-bls-signature-05.txt
+      xml: https://www.ietf.org/archive/id/draft-irtf-cfrg-bls-signature-05.xml
+      html: https://www.ietf.org/archive/id/draft-irtf-cfrg-bls-signature-05.html
+    bibtex: https://datatracker.ietf.org/doc/draft-irtf-cfrg-bls-signature/bibtex/
+    errata: null
+    datatracker: https://datatracker.ietf.org/doc/draft-irtf-cfrg-bls-signature/
+    github:
+      repo: https://github.com/cfrg/draft-irtf-cfrg-bls-signature
+      source_md: https://raw.githubusercontent.com/cfrg/draft-irtf-cfrg-bls-signature/master/draft-irtf-cfrg-bls-signature.md
+      plans_md: https://raw.githubusercontent.com/cfrg/draft-irtf-cfrg-bls-signature/master/plans.md
+      resources_md: https://raw.githubusercontent.com/cfrg/draft-irtf-cfrg-bls-signature/master/resources.md
+    notes: Draft version -05 stored locally; repo also has -04 and -06
+
+  - id: draft-irtf-cfrg-pairing-friendly-curves-08
+    title: "Pairing-Friendly Curves"
+    year: 2020
+    relevance: BN254 and BLS12-381 curve parameter specifications
+    local_files:
+      - draft-irtf-cfrg-pairing-friendly-curves.txt
+      - draft-irtf-cfrg-pairing-friendly-curves.xml
+      - draft-irtf-cfrg-pairing-friendly-curves.md
+      - draft-irtf-cfrg-pairing-friendly-curves.bib
+    formats:
+      txt: https://www.ietf.org/archive/id/draft-irtf-cfrg-pairing-friendly-curves-08.txt
+      xml: https://www.ietf.org/archive/id/draft-irtf-cfrg-pairing-friendly-curves-08.xml
+      html: https://www.ietf.org/archive/id/draft-irtf-cfrg-pairing-friendly-curves-08.html
+    bibtex: https://datatracker.ietf.org/doc/draft-irtf-cfrg-pairing-friendly-curves/bibtex/
+    errata: null
+    datatracker: https://datatracker.ietf.org/doc/draft-irtf-cfrg-pairing-friendly-curves/
+    github:
+      repo: https://github.com/cfrg/draft-irtf-cfrg-pairing-friendly-curves
+      source_md: https://raw.githubusercontent.com/cfrg/draft-irtf-cfrg-pairing-friendly-curves/master/draft-irtf-cfrg-pairing-friendly-curves.md
+    notes: Draft version -08 stored locally

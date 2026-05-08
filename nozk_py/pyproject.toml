@@ -43,3 +43,20 @@ python-version = "3.13"
 extra-paths = ["typings"]
 
 [tool.pytest.ini_options]
+addopts = "--cov=bls12_381_crypto --cov=nozk_library --cov=mint_mock --cov=redeem_mock --cov=contract_errors --cov=wallet_state --cov-branch --cov-report=term-missing"
+
+[tool.coverage.run]
+branch = true
+source = [
+    "bls12_381_crypto",
+    "nozk_library",
+    "mint_mock",
+    "redeem_mock",
+    "contract_errors",
+    "wallet_state",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
+fail_under = 59

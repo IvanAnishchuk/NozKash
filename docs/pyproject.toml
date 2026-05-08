@@ -1,0 +1,14 @@
+[project]
+name = "nozkash-docs"
+version = "0.1.0"
+description = "NozKash project documentation"
+requires-python = ">=3.13"
+dependencies = [
+    "mkdocs-typer2>=0.3.0",
+    "mkdocstrings-python>=2.0.3",
+    "nozkash",
+    "zensical>=0.0.40",
+]
+
+[tool.uv.sources]
+nozkash = { path = "../nozk_py", editable = true }

@@ -1,0 +1,1216 @@
+# Research Paper Source Index
+# Records available formats, identifiers, and source URLs for each paper.
+# Use this to refetch or update local copies.
+#
+# Sources checked: IACR ePrint, arXiv, DBLP, GitHub, Semantic Scholar
+# Result: All IACR ePrint entries are PDF-only (no LaTeX source bundles).
+#         None of these papers have arXiv entries.
+#         No LaTeX source repos found on GitHub.
+#
+# Last updated: 2026-05-08
+
+documents:
+  # === Cryptographic Foundations ===
+
+  - id: boneh-lynn-shacham-2001
+    title: "Short Signatures from the Weil Pairing"
+    authors: [Boneh, Lynn, Shacham]
+    year: 2001
+    local_file: boneh-lynn-shacham-2001-short-signatures-weil-pairing.pdf
+    venue: "Asiacrypt 2001 / Journal of Cryptology 2004"
+    doi: "10.1007/S00145-004-0314-9"
+    dblp: https://dblp.org/rec/journals/joc/BonehLS04
+    iacr_eprint: https://eprint.iacr.org/2001/050
+    arxiv: null
+    github: null
+    latex_source: false
+    notes: Foundational BLS signature paper
+
+  - id: boneh-franklin-2001
+    title: "Identity-Based Encryption from the Weil Pairing"
+    authors: [Boneh, Franklin]
+    year: 2001
+    local_file: boneh-franklin-2001-ibe-weil-pairing.pdf
+    venue: "CRYPTO 2001 / SIAM J. Computing 2003"
+    doi: "10.1137/S0097539701398521"
+    dblp: https://dblp.org/rec/journals/siamcomp/BonehF03
+    iacr_eprint: https://eprint.iacr.org/2001/090
+    arxiv: null
+    github: null
+    latex_source: false
+
+  - id: barreto-naehrig-2005
+    title: "Pairing-Friendly Elliptic Curves of Prime Order"
+    authors: [Barreto, Naehrig]
+    year: 2005
+    local_file: barreto-naehrig-2005-pairing-friendly-curves.pdf
+    venue: "Selected Areas in Cryptography 2005"
+    doi: "10.1007/11693383_22"
+    dblp: https://dblp.org/rec/conf/sacrypt/BarretoN05
+    iacr_eprint: https://eprint.iacr.org/2005/133
+    arxiv: null
+    github: null
+    latex_source: false
+
+  - id: groth16
+    title: "On the Size of Pairing-based Non-interactive Arguments"
+    authors: [Groth]
+    year: 2016
+    local_file: groth16-pairing-based-arguments.pdf
+    venue: "EUROCRYPT 2016"
+    doi: "10.1007/978-3-662-49896-5_11"
+    dblp: https://dblp.org/rec/conf/eurocrypt/Groth16
+    iacr_eprint: https://eprint.iacr.org/2016/260
+    arxiv: null
+    github: null
+    latex_source: false
+
+  - id: poseidon-2019
+    title: "Poseidon: A New Hash Function for Zero-Knowledge Proof Systems"
+    authors: [Grassi, Khovratovich, Rechberger, Roy, Schofnegger]
+    year: 2019
+    local_file: poseidon-hash-2019.pdf
+    venue: "USENIX Security Symposium 2021"
+    doi: null
+    dblp: https://dblp.org/rec/conf/uss/0001KR0S21
+    iacr_eprint: https://eprint.iacr.org/2019/458
+    arxiv: null
+    github: null
+    latex_source: false
+
+  - id: coron-2000
+    title: "On the Exact Security of Full Domain Hash"
+    authors: [Coron]
+    year: 2000
+    local_file: coron-2000-full-domain-hash.pdf
+    venue: "CRYPTO 2000"
+    doi: "10.1007/3-540-44598-6_14"
+    dblp: https://dblp.org/rec/conf/crypto/Coron00
+    iacr_eprint: https://eprint.iacr.org/2000/016
+    arxiv: null
+    github: null
+    latex_source: false
+
+  # === BLS Signatures & Pairings ===
+
+  - id: boldyreva-2003
+    title: "Threshold Signatures, Multisignatures and Blind Signatures Based on Gap-DH"
+    authors: [Boldyreva]
+    year: 2003
+    local_file: boldyreva-2003-threshold-blind-signatures-gap-dh.pdf
+    venue: "Public Key Cryptography 2003"
+    doi: "10.1007/3-540-36288-6_3"
+    dblp: https://dblp.org/rec/conf/pkc/Boldyreva03
+    iacr_eprint: https://eprint.iacr.org/2002/118
+    arxiv: null
+    github: null
+    latex_source: false
+    notes: Key reference for NozKash blind signature scheme
+
+  - id: boneh-gentry-lynn-shacham-2003
+    title: "Aggregate and Verifiably Encrypted Signatures from Bilinear Maps"
+    authors: [Boneh, Gentry, Lynn, Shacham]
+    year: 2003
+    local_file: boneh-gentry-lynn-shacham-2003-aggregate-signatures.pdf
+    venue: "EUROCRYPT 2003"
+    doi: "10.1007/3-540-39200-9_26"
+    dblp: https://dblp.org/rec/conf/eurocrypt/BonehGLS03
+    iacr_eprint: https://eprint.iacr.org/2002/175
+    arxiv: null
+    github: null
+    latex_source: false
+
+  - id: quan-2021
+    title: "Attacks and Weaknesses of BLS Aggregate Signatures"
+    authors: [Quan]
+    year: 2021
+    local_file: quan-2021-bls-aggregate-attacks.pdf
+    venue: "IACR Cryptol. ePrint Arch."
+    doi: null
+    dblp: https://dblp.org/rec/journals/iacr/Quan21a
+    iacr_eprint: https://eprint.iacr.org/2021/377
+    arxiv: null
+    github: null
+    latex_source: false
+
+  - id: eaton-2023
+    title: "Security Analysis of Signature Schemes with Key Blinding"
+    authors: [Eaton, Lepoint, Wood]
+    year: 2023
+    local_file: eaton-2023-key-blinding-security.pdf
+    venue: "IACR Cryptol. ePrint Arch."
+    doi: null
+    dblp: https://dblp.org/rec/journals/iacr/EatonLW23
+    iacr_eprint: https://eprint.iacr.org/2023/1577
+    arxiv: null
+    github: null
+    latex_source: false
+
+  # === Curves & Hash-to-Curve ===
+
+  - id: kim-barbulescu-2016
+    title: "Extended Tower Number Field Sieve"
+    authors: [Kim, Barbulescu]
+    year: 2016
+    local_file: kim-barbulescu-2016-extnfs.pdf
+    venue: "Public Key Cryptography 2017"
+    doi: "10.1007/978-3-662-54365-8_16"
+    dblp: https://dblp.org/rec/conf/pkc/0001J17
+    iacr_eprint: https://eprint.iacr.org/2017/334
+    arxiv: null
+    github: null
+    latex_source: false
+    notes: Reduced BN254 security to ~100-bit
+
+  - id: barbulescu-duquesne-2018
+    title: "Updating Key Size Estimations for Pairings"
+    authors: [Barbulescu, Duquesne]
+    year: 2018
+    local_file: barbulescu-duquesne-2018-key-size-pairings.pdf
+    venue: "Journal of Cryptology 2019"
+    doi: "10.1007/S00145-018-9280-5"
+    dblp: https://dblp.org/rec/journals/joc/BarbulescuD19
+    iacr_eprint: null
+    arxiv: null
+    github: null
+    latex_source: false
+
+  - id: fouque-tibouchi-2012
+    title: "Indifferentiable Hashing to Barreto-Naehrig Curves"
+    authors: [Fouque, Tibouchi]
+    year: 2012
+    local_file: fouque-tibouchi-2012-hashing-bn-curves.pdf
+    venue: "LATINCRYPT 2012"
+    doi: "10.1007/978-3-642-33481-8_1"
+    dblp: https://dblp.org/rec/conf/latincrypt/FouqueT12
+    iacr_eprint: null
+    arxiv: null
+    github: null
+    latex_source: false
+
+  - id: wahby-boneh-2019
+    title: "Fast and Simple Constant-Time Hashing to BLS12-381"
+    authors: [Wahby, Boneh]
+    year: 2019
+    local_file: wahby-boneh-2019-hash-to-bls12-381.pdf
+    venue: "IACR Trans. Cryptogr. Hardw. Embed. Syst. 2019"
+    doi: "10.13154/TCHES.V2019.I4.154-179"
+    dblp: https://dblp.org/rec/journals/tches/WahbyB19
+    iacr_eprint: https://eprint.iacr.org/2019/099
+    arxiv: null
+    github: null
+    latex_source: false
+
+  # === Blind Signatures & eCash ===
+
+  - id: chaum-fiat-naor-1988
+    title: "Untraceable Electronic Cash"
+    authors: [Chaum, Fiat, Naor]
+    year: 1988
+    local_file: chaum-fiat-naor-1988-untraceable-ecash.pdf
+    venue: "CRYPTO 1988"
+    doi: "10.1007/0-387-34799-2_25"
+    dblp: https://dblp.org/rec/conf/crypto/ChaumFN88
+    iacr_eprint: null
+    arxiv: null
+    github: null
+    latex_source: false
+    notes: Predates arXiv (1991) and IACR ePrint
+
+  - id: chaum-2022
+    title: "eCash 2.0"
+    authors: [Chaum, Moser]
+    year: 2022
+    local_file: chaum-2022-ecash-2.0.pdf
+    venue: whitepaper
+    doi: null
+    dblp: null
+    iacr_eprint: null
+    arxiv: null
+    github: null
+    latex_source: false
+    notes: Industry whitepaper by xx network / David Chaum
+
+  - id: davidson-2018
+    title: "Privacy Pass: Bypassing Internet Challenges Anonymously"
+    authors: [Davidson, Goldberg, Sullivan, Tankersley, Valsorda]
+    year: 2018
+    local_file: davidson-2018-privacy-pass.pdf
+    venue: "Proc. Privacy Enhancing Technologies 2018"
+    doi: "10.1515/POPETS-2018-0026"
+    dblp: https://dblp.org/rec/journals/popets/DavidsonGSTV18
+    iacr_eprint: null
+    arxiv: null
+    github: null
+    latex_source: false
+
+  - id: wahby-boneh-2020
+    title: "An Airdrop that Preserves Recipient Privacy"
+    authors: [Wahby, Boneh, Jeffrey, Poon]
+    year: 2020
+    local_file: wahby-boneh-2020-private-airdrop.pdf
+    venue: "Financial Cryptography 2020"
+    doi: "10.1007/978-3-030-51280-4_24"
+    dblp: https://dblp.org/rec/conf/fc/WahbyBJP20
+    iacr_eprint: https://eprint.iacr.org/2020/729
+    arxiv: null
+    github: null
+    latex_source: false
+
+  # === Privacy Protocols & Compliance ===
+
+  - id: zerocash-2014
+    title: "Zerocash: Decentralized Anonymous Payments from Bitcoin"
+    authors: [Ben-Sasson, Chiesa, Garman, Green, Miers, Tromer, Virza]
+    year: 2014
+    local_file: zerocash-2014.pdf
+    venue: "IEEE Symposium on Security and Privacy 2014"
+    doi: "10.1109/SP.2014.36"
+    dblp: https://dblp.org/rec/conf/sp/Ben-SassonCG0MTV14
+    iacr_eprint: https://eprint.iacr.org/2014/349
+    arxiv: null
+    github: null
+    latex_source: false
+
+  - id: tornado-cash-2019
+    title: "Tornado Cash Privacy Solution"
+    authors: [Pertsev, Semenov, Storm]
+    year: 2019
+    local_file: tornado-cash-whitepaper-2019.pdf
+    venue: whitepaper
+    doi: null
+    dblp: null
+    iacr_eprint: null
+    arxiv: null
+    github: null
+    latex_source: false
+    notes: Whitepaper; original hosting taken down 2022, archived copies exist
+
+  - id: pauwels-2021
+    title: "zkKYC: KYC Without Knowing Your Customer"
+    authors: [Pauwels]
+    year: 2021
+    local_file: pauwels-2021-zkkyc.pdf
+    venue: "IACR Cryptol. ePrint Arch."
+    doi: null
+    dblp: https://dblp.org/rec/journals/iacr/Pauwels21
+    iacr_eprint: https://eprint.iacr.org/2021/846
+    arxiv: null
+    github: null
+    latex_source: false
+
+  - id: a16z-2022
+    title: "Privacy-Protecting Regulatory Solutions Using Zero-Knowledge Proofs"
+    authors: [a16z crypto]
+    year: 2022
+    local_file: a16z-2022-privacy-regulatory-zkp.pdf
+    venue: whitepaper
+    doi: null
+    dblp: null
+    iacr_eprint: null
+    arxiv: null
+    github: null
+    latex_source: false
+    notes: Industry policy paper by a16z crypto
+
+  - id: buterin-2023
+    title: "Blockchain Privacy and Regulatory Compliance: Towards a Practical Equilibrium"
+    authors: [Buterin, Illum, Nadler, Schar, Soleimani]
+    year: 2023
+    local_file: buterin-2023-privacy-pools.pdf
+    local_files_extra:
+      - buterin-2023-privacy-pools.md
+    venue: whitepaper
+    doi: null
+    dblp: null
+    iacr_eprint: null
+    arxiv: null
+    ssrn: "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4563364"
+    github: null
+    latex_source: false
+    notes: Privacy Pools paper; also available on SSRN
+
+  # === Forward Citations (discovered via literature survey) ===
+
+  - id: karantaidou-2024-blind-multisig
+    title: "Blind Multisignatures for Anonymous Tokens with Decentralized Issuance"
+    authors: [Karantaidou, Renawi, Baldimtsi, Kamarinakis, Katz, Loss]
+    year: 2024
+    local_file: karantaidou-2024-blind-multisig.pdf
+    venue: "ACM CCS 2024"
+    iacr_eprint: https://eprint.iacr.org/2024/1406
+    latex_source: false
+    provenance: forward-citation
+    relevance: "BLS blind multisig verified on-chain ~232K gas; closest to NozKash architecture"
+
+  - id: karantaidou-2025-non-transferable
+    title: "Non-Transferable Anonymous Tokens With Decentralized Issuance by Blind Multisignatures"
+    authors: [Karantaidou, Renawi, Baldimtsi, Kamarinakis, Katz, Loss]
+    year: 2025
+    local_file: karantaidou-2025-non-transferable.pdf
+    venue: "IEEE"
+    iacr_eprint: https://eprint.iacr.org/2024/1406
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Extended version with non-transferability; compliance-oriented"
+
+  - id: jarecki-2025-adaptive-threshold-blind-bls
+    title: "Adaptively Secure Threshold Blind BLS Signatures and Threshold Oblivious PRF"
+    authors: [Jarecki, Nazarian]
+    year: 2025
+    local_file: jarecki-2025-adaptive-threshold-blind-bls.pdf
+    venue: "ASIACRYPT 2025"
+    iacr_eprint: https://eprint.iacr.org/2025/483
+    latex_source: false
+    provenance: forward-citation
+    relevance: "First adaptively secure threshold blind BLS; key for decentralizing mint"
+
+  - id: lehmann-2025-stronger-threshold-blind
+    title: "Stronger Security for Threshold Blind Signatures"
+    authors: [Lehmann, Nazarian, Ozbay]
+    year: 2025
+    local_file: lehmann-2025-stronger-threshold-blind.pdf
+    venue: "EUROCRYPT 2025"
+    url: https://link.springer.com/chapter/10.1007/978-3-031-91124-8_12
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Advances security definitions for threshold blind sigs"
+
+  - id: das-2024-adaptive-bls-threshold
+    title: "Adaptively Secure BLS Threshold Signatures from DDH and co-CDH"
+    authors: [Das, Ren]
+    year: 2024
+    local_file: das-2024-adaptive-bls-threshold.pdf
+    venue: "CRYPTO 2024"
+    iacr_eprint: https://eprint.iacr.org/2023/1553
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Standard-assumption adaptive security for BLS threshold"
+
+  - id: bacho-2022-adaptive-threshold-bls
+    title: "On the Adaptive Security of the Threshold BLS Signature Scheme"
+    authors: [Bacho, Loss]
+    year: 2022
+    local_file: bacho-2022-adaptive-threshold-bls.pdf
+    venue: "ACM CCS 2022"
+    iacr_eprint: https://eprint.iacr.org/2022/534
+    latex_source: false
+    provenance: forward-citation
+    relevance: "First proof of adaptive security for Boldyreva's threshold BLS"
+
+  - id: reichle-2025-threshold-blind-cdh
+    title: "Threshold Blind Signatures from CDH"
+    authors: [Reichle, Reinke]
+    year: 2025
+    local_file: reichle-2025-threshold-blind-cdh.pdf
+    venue: "ePrint"
+    iacr_eprint: https://eprint.iacr.org/2025/1798
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Minimal-assumption threshold blind sigs"
+
+  - id: tang-2026-rainblind
+    title: "Rainblind: Fully Adaptive Threshold Blind Signature Without AGM"
+    authors: [Tang, Jiang, Guo, Susilo, Zhu]
+    year: 2026
+    local_file: tang-2026-rainblind.pdf
+    venue: "ePrint"
+    iacr_eprint: https://eprint.iacr.org/2026/740
+    latex_source: false
+    provenance: forward-citation
+    relevance: "First TBS with adaptive security without AGM"
+
+  - id: hansen-2024-ocash
+    title: "OCash: Fully Anonymous Payments between Blockchain Light Clients"
+    authors: [Hansen, Nielsen, Simkin]
+    year: 2024
+    local_file: hansen-2024-ocash.pdf
+    venue: "PKC 2025"
+    iacr_eprint: https://eprint.iacr.org/2024/246
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Most architecturally similar to NozKash"
+
+  - id: maire-2025-blind-ecdsa
+    title: "Blind ECDSA from the ECDSA Assumption"
+    authors: [Maire, Pulval-Dady]
+    year: 2025
+    local_file: maire-2025-blind-ecdsa.pdf
+    venue: "ePrint"
+    iacr_eprint: https://eprint.iacr.org/2025/1827
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Blind ECDSA producing standard sigs; ecash without pairing precompiles"
+
+  - id: dufka-2024-trust-minimizing-mint
+    title: "Trust-minimizing BDHKE-based e-cash mint using secure hardware and distributed computation"
+    authors: [Dufka et al.]
+    year: 2024
+    local_file: dufka-2024-trust-minimizing-mint.pdf
+    venue: "ARES 2024 / ACM"
+    url: https://dl.acm.org/doi/10.1145/3664476.3670889
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Multi-party BDHKE mint; addresses NozKash trusted-mint limitation"
+
+  - id: baldimtsi-2024-sok-privacy-tx
+    title: "SoK: Privacy-Preserving Transactions in Blockchains"
+    authors: [Baldimtsi, Chalkias, Madathil, Roy]
+    year: 2024
+    local_file: baldimtsi-2024-sok-privacy-tx.pdf
+    venue: "ePrint"
+    iacr_eprint: https://eprint.iacr.org/2024/1959
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Definitive SoK for positioning NozKash in privacy taxonomy"
+
+  - id: mariani-2025-sok-mixers
+    title: "SoK: A Survey of Mixing Techniques and Mixers for Cryptocurrencies"
+    authors: [Mariani, Homoliak]
+    year: 2025
+    local_file: mariani-2025-sok-mixers.pdf
+    venue: "arXiv"
+    arxiv: https://arxiv.org/abs/2504.20296
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Mixer/privacy pool taxonomy"
+
+  - id: herranz-2025-intro-blind-sigs
+    title: "A Gentle Introduction to Blind Signatures: From RSA to Lattice-based Cryptography"
+    authors: [Herranz, Sola]
+    year: 2025
+    local_file: herranz-2025-intro-blind-sigs.pdf
+    venue: "arXiv"
+    arxiv: https://arxiv.org/abs/2509.02189
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Full blind signature landscape survey"
+
+  - id: drand-2025-eip2537
+    title: "Verifying the Quicknet Beacons on Ethereum"
+    authors: [drand project]
+    year: 2025
+    local_file: drand-2025-eip2537.html
+    venue: "blog"
+    latex_source: false
+    provenance: forward-citation
+    relevance: "First deployed EIP-2537 use; blog URL not found yet"
+
+  - id: kasheparov-2025-bls12381-precompiles
+    title: "Will BLS12-381 Precompiles Change Everything?"
+    authors: [Kasheparov]
+    year: 2025
+    local_file: kasheparov-2025-bls12381-precompiles.html
+    venue: "blog (Medium/Distributed Lab)"
+    url: https://medium.com/distributed-lab/will-bls12-381-precompiles-change-everything-74336c751a9f
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Gas cost analysis BN254 vs BLS12-381 post-Pectra"
+
+  - id: fuchsbauer-2020-blind-schnorr-agm
+    title: "Blind Schnorr Signatures in the Algebraic Group Model"
+    authors: [Fuchsbauer, Plouviez, Seurin]
+    year: 2020
+    local_file: fuchsbauer-2020-blind-schnorr-agm.pdf
+    venue: "EUROCRYPT 2020"
+    iacr_eprint: https://eprint.iacr.org/2019/877
+    latex_source: false
+    provenance: forward-citation
+    relevance: "AGM+ROM security for blind Schnorr; references BLS blind sig as baseline"
+
+  - id: tessaro-2022-pairing-free-blind
+    title: "Short Pairing-Free Blind Signatures with Exponential Security"
+    authors: [Tessaro, Zhu]
+    year: 2022
+    local_file: tessaro-2022-pairing-free-blind.pdf
+    venue: "EUROCRYPT 2022"
+    iacr_eprint: https://eprint.iacr.org/2022/047
+    latex_source: false
+    provenance: forward-citation
+    relevance: "First practical pairing-free concurrent blind sigs"
+
+  - id: chairattana-2024-pairing-free-cdh
+    title: "Pairing-Free Blind Signatures from CDH Assumptions"
+    authors: [Chairattana-Apirom, Tessaro, Zhu]
+    year: 2024
+    local_file: chairattana-2024-pairing-free-cdh.pdf
+    venue: "CRYPTO 2024"
+    iacr_eprint: https://eprint.iacr.org/2023/1780
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Concurrently-secure without AGM"
+
+  - id: crites-2023-snowblind
+    title: "Snowblind: Threshold Blind Signature in Pairing-Free Groups"
+    authors: [Crites, Komlo, Maller, Tessaro, Zhu]
+    year: 2023
+    local_file: crites-2023-snowblind.pdf
+    venue: "CRYPTO 2023"
+    iacr_eprint: https://eprint.iacr.org/2023/1228
+    latex_source: false
+    provenance: forward-citation
+    relevance: "First threshold blind sigs without pairings"
+
+  - id: brandt-2025-tight-pairing-free
+    title: "Tightly-Secure Blind Signatures in Pairing-Free Groups"
+    authors: [Brandt, Hofheinz, Kloss, Reichle]
+    year: 2025
+    local_file: brandt-2025-tight-pairing-free.pdf
+    venue: "ASIACRYPT 2025"
+    iacr_eprint: https://eprint.iacr.org/2024/2075
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Tight security reductions"
+
+  - id: hanzlik-2025-blindness-note
+    title: "A Note on the Blindness of the Scheme from ePrint 2025/397"
+    authors: [Hanzlik]
+    year: 2025
+    local_file: hanzlik-2025-blindness-note.pdf
+    venue: "ePrint"
+    iacr_eprint: https://eprint.iacr.org/2025/425
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Blindness failure in a proposed scheme; cautionary"
+
+  - id: eprint-2023-491-multi-signer
+    title: "On the Security of Blind Signatures in the Multi-Signer Setting"
+    year: 2023
+    local_file: eprint-2023-491-multi-signer.pdf
+    venue: "ePrint"
+    iacr_eprint: https://eprint.iacr.org/2023/491
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Multi-signer unforgeability with reduction loss"
+
+  - id: eprint-2026-789-vebs
+    title: "Foundations of Verifiably Encrypted (Blind) Signatures"
+    year: 2026
+    local_file: eprint-2026-789-vebs.pdf
+    venue: "ePrint"
+    iacr_eprint: https://eprint.iacr.org/2026/789
+    latex_source: false
+    provenance: forward-citation
+    relevance: "New VEBS primitive"
+
+  - id: hohenberger-2025-aggregate-no-rom
+    title: "Pairing-Based Aggregate Signatures without Random Oracles"
+    authors: [Hohenberger, Waters, Wu]
+    year: 2025
+    local_file: hohenberger-2025-aggregate-no-rom.pdf
+    venue: "ASIACRYPT 2025"
+    iacr_eprint: https://eprint.iacr.org/2025/1548
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Removes ROM from BGLS aggregation"
+
+  - id: chaliasos-2025-tornado-clustering
+    title: "Clustering Deposit and Withdrawal Activity in Tornado Cash: A Cross-Chain Analysis"
+    authors: [Chaliasos et al.]
+    year: 2025
+    local_file: chaliasos-2025-tornado-clustering.pdf
+    venue: "arXiv"
+    arxiv: https://arxiv.org/abs/2510.09433
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Links $2.3B via address-reuse and FIFO heuristics"
+
+  - id: ferretti-2025-tornado-fingerprints
+    title: "Attacking Anonymity Set in Tornado Cash via Wallet Fingerprints"
+    authors: [Soleti, Gangwal, Conti]
+    year: 2025
+    local_file: ferretti-2025-tornado-fingerprints.pdf
+    venue: "ACM SAC 2025"
+    url: https://dl.acm.org/doi/pdf/10.1145/3672608.3707896
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Wallet fingerprints to deanonymize Tornado Cash users"
+
+  - id: chaliasos-2025-sanctions-impact
+    title: "The Impact of Sanctions on Decentralised Privacy Tools"
+    authors: [Chaliasos et al.]
+    year: 2025
+    local_file: chaliasos-2025-sanctions-impact.pdf
+    venue: "arXiv"
+    arxiv: https://arxiv.org/abs/2510.09443
+    latex_source: false
+    provenance: forward-citation
+    relevance: ">90% volume decline post-OFAC sanctions"
+
+  - id: beres-2024-umbra-anonymity
+    title: "Anonymity Analysis of the Umbra Stealth Address Scheme on Ethereum"
+    authors: [Beres et al.]
+    year: 2024
+    local_file: beres-2024-umbra-anonymity.pdf
+    venue: "ACM Web Conf. 2024"
+    arxiv: https://arxiv.org/abs/2308.01703
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Majority of Umbra payments deanonymizable"
+
+  - id: guillevic-2020-tnfs-resistant
+    title: "A Short-List of Pairing-Friendly Curves Resistant to Special TNFS at the 128-Bit Security Level"
+    authors: [Guillevic]
+    year: 2020
+    local_file: guillevic-2020-tnfs-resistant.pdf
+    venue: "PKC 2020"
+    url: https://link.springer.com/chapter/10.1007/978-3-030-45388-6_19
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Reassesses curve families post-TNFS"
+
+  - id: ncc-2022-pairing-bit-security
+    title: "Estimating the Bit Security of Pairing-Friendly Curves"
+    authors: [NCC Group]
+    year: 2022
+    local_file: ncc-2022-pairing-bit-security.html
+    venue: "report"
+    url: https://research.nccgroup.com/2022/03/02/estimating-the-bit-security-of-pairing-friendly-curves/
+    latex_source: false
+    provenance: forward-citation
+    relevance: "BLS12-381 at 117-120 bits; BN254 at ~100 bits"
+
+  - id: kumar-2022-bn256-security
+    title: "Pairing-Friendly Elliptic Curves: Revisited Taxonomy, Attacks and Security Concern"
+    authors: [Kumar, Chand]
+    year: 2022
+    local_file: kumar-2022-bn256-security.pdf
+    venue: "arXiv"
+    arxiv: https://arxiv.org/abs/2212.01855
+    latex_source: false
+    provenance: forward-citation
+    relevance: "BN256 at only 99.92 bits after TNFS"
+
+  - id: chaudhary-2024-sede
+    title: "SeDe: Balancing Blockchain Privacy and Regulatory Compliance by Selective De-Anonymization"
+    authors: [Chaudhary et al.]
+    year: 2024
+    local_file: chaudhary-2024-sede.pdf
+    venue: "arXiv"
+    arxiv: https://arxiv.org/abs/2311.08167
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Threshold-encryption selective deanonymization"
+
+  - id: chaudhary-2025-zkfi
+    title: "zkFi: Privacy-Preserving and Regulation Compliant Transactions"
+    authors: [Chaudhary et al.]
+    year: 2025
+    local_file: chaudhary-2025-zkfi.pdf
+    venue: "arXiv"
+    arxiv: https://arxiv.org/abs/2307.00521
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Multi-chain ZKP compliance middleware"
+
+  - id: popov-2024-blockchain-privacy-compliance
+    title: "Blockchain Privacy and Self-regulatory Compliance"
+    authors: [Popov et al.]
+    year: 2024
+    local_file: popov-2024-blockchain-privacy-compliance.pdf
+    venue: "SSRN"
+    url: https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4787693
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Survey of privacy-preserving compliance measures"
+
+  - id: bis-2023-tourbillon
+    title: "Project Tourbillon"
+    authors: [BIS Innovation Hub]
+    year: 2023
+    local_file: bis-2023-tourbillon.pdf
+    venue: "BIS"
+    url: https://www.bis.org/publ/othp80.pdf
+    latex_source: false
+    provenance: forward-citation
+    relevance: "eCash 2.0 prototype for CBDC; blind signatures at scale"
+
+  - id: chaum-2024-cbdc
+    title: "How to Issue a Central Bank Digital Currency"
+    authors: [Chaum, Grothoff, Moser]
+    year: 2024
+    local_file: chaum-2024-cbdc.pdf
+    venue: "arXiv"
+    arxiv: https://arxiv.org/abs/2103.00254
+    latex_source: false
+    provenance: forward-citation
+    relevance: "GNU Taler CBDC with blind RSA"
+
+  - id: eprint-2024-1746-cbdc-offline
+    title: "Secure CBDC Offline Payments using a Secure Element"
+    year: 2024
+    local_file: eprint-2024-1746-cbdc-offline.pdf
+    venue: "ePrint"
+    iacr_eprint: https://eprint.iacr.org/2024/1746
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Pointcheval-Sanders blind sigs for offline CBDC"
+
+  - id: wahrstatter-2024-basesap
+    title: "BaseSAP: Modular Stealth Address Protocol for Programmable Blockchains"
+    authors: [Wahrstatter et al.]
+    year: 2024
+    local_file: wahrstatter-2024-basesap.pdf
+    venue: "IEEE TIFS 2024"
+    arxiv: https://arxiv.org/abs/2306.14272
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Formal modular protocol on EIP-5564; includes Buterin as coauthor"
+
+  - id: fan-2024-stealth-key-derivable
+    title: "Key derivable signature and its application in blockchain stealth address"
+    authors: [Fan et al.]
+    year: 2024
+    local_file: fan-2024-stealth-key-derivable.pdf
+    venue: "Cybersecurity (Springer)"
+    url: https://link.springer.com/content/pdf/10.1186/s42400-024-00231-x.pdf
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Compact single-key-pair stealth address; open access Springer"
+
+  - id: gupta-plume-nullifier
+    title: "PLUME: Unique Pseudonymity with Ethereum / ERC-7524"
+    authors: [Gupta]
+    year: 2023
+    local_file: gupta-plume-nullifier.html
+    venue: "blog + ERC"
+    url: https://blog.aayushg.com/nullifier/
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Deterministic ECDSA nullifiers for Ethereum"
+
+  - id: google-2026-quantum-crypto
+    title: "Safeguarding cryptocurrency by disclosing quantum vulnerabilities responsibly"
+    authors: [Google Quantum AI et al.]
+    year: 2026
+    local_file: google-2026-quantum-crypto.html
+    venue: "Google Research blog"
+    url: https://research.google/blog/safeguarding-cryptocurrency-by-disclosing-quantum-vulnerabilities-responsibly/
+    latex_source: false
+    provenance: forward-citation
+    relevance: "ECDLP-256 breakable with <500K physical qubits"
+
+  - id: valsorda-2026-quantum-timelines
+    title: "A Cryptography Engineer's Perspective on Quantum Computing Timelines"
+    authors: [Valsorda]
+    year: 2026
+    local_file: valsorda-2026-quantum-timelines.html
+    venue: "blog"
+    url: https://words.filippo.io/crqc-timeline/
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Practitioner timeline analysis; RWPQC 2026 context"
+
+  - id: arxiv-2512-13333-quantum-blockchain
+    title: "Quantum Disruption: SoK of How Post-Quantum Attackers Reshape Blockchain Security"
+    year: 2024
+    local_file: arxiv-2512-13333-quantum-blockchain.pdf
+    venue: "arXiv"
+    arxiv: https://arxiv.org/abs/2512.13333
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Systematic review of quantum attacks on blockchain crypto"
+
+  - id: jeudy-2024-lattice-blind
+    title: "Improved Lattice Blind Signatures from Recycled Entropy"
+    authors: [Jeudy et al.]
+    year: 2024
+    local_file: jeudy-2024-lattice-blind.pdf
+    venue: "ASIACRYPT 2025"
+    iacr_eprint: https://eprint.iacr.org/2024/1289
+    latex_source: false
+    provenance: forward-citation
+    relevance: "~36 KB sigs, ~500ms issuance; most practical lattice blind sig"
+
+  - id: delpino-2023-lattice-blind-round-optimal
+    title: "Lattice-Based Blind Signatures: Short, Efficient, and Round-Optimal"
+    authors: [del Pino et al.]
+    year: 2023
+    local_file: delpino-2023-lattice-blind-round-optimal.pdf
+    venue: "CCS 2023"
+    iacr_eprint: https://eprint.iacr.org/2023/077
+    latex_source: false
+    provenance: forward-citation
+    relevance: "First truly practical round-optimal lattice blind sig"
+
+  - id: baldimtsi-2025-batched-lattice-blind
+    title: "Batched & Non-interactive Blind Signatures from Lattices"
+    authors: [Baldimtsi, Goyal, Yadav]
+    year: 2025
+    local_file: baldimtsi-2025-batched-lattice-blind.pdf
+    venue: "PKC 2026"
+    iacr_eprint: https://eprint.iacr.org/2025/1771
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Non-interactive with batch issuance"
+
+  - id: faller-2025-lattice-threshold-blind
+    title: "Lattice-based Threshold Blind Signatures"
+    authors: [Faller, Niot et al.]
+    year: 2025
+    local_file: faller-2025-lattice-threshold-blind.pdf
+    venue: "ePrint"
+    iacr_eprint: https://eprint.iacr.org/2025/1566
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Threshold signing in 1.5s distributed; PQ mint"
+
+  - id: baldimtsi-2026-nibs-threshold
+    title: "Non-interactive Blind Signatures with Threshold Issuance"
+    authors: [Baldimtsi et al.]
+    year: 2026
+    local_file: baldimtsi-2026-nibs-threshold.pdf
+    venue: "ePrint"
+    iacr_eprint: https://eprint.iacr.org/2026/400
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Extends NIBS to threshold setting"
+
+  - id: katsumata-2023-csi-otter
+    title: "CSI-Otter: Isogeny-Based (Partially) Blind Signatures from the Class Group Action with a Twist"
+    authors: [Katsumata, Lai, LeGrow, Qin]
+    year: 2023
+    local_file: katsumata-2023-csi-otter.pdf
+    venue: "CRYPTO 2023"
+    iacr_eprint: https://eprint.iacr.org/2023/1239
+    latex_source: false
+    provenance: forward-citation
+    relevance: "128 B pubkey, 8 KB sig; smallest PQ blind sig"
+
+  - id: hanzlik-2025-tanuki
+    title: "Tanuki: Blind Signatures from Post-Quantum Group Actions"
+    authors: [Hanzlik et al.]
+    year: 2025
+    local_file: hanzlik-2025-tanuki.pdf
+    venue: "ASIACRYPT 2025"
+    iacr_eprint: https://eprint.iacr.org/2025/1100
+    latex_source: false
+    provenance: forward-citation
+    relevance: "4.5 KB isogeny-based blind sigs"
+
+  - id: feneuil-2025-blinding-post-quantum
+    title: "Blinding Post-Quantum Hash-and-Sign Signatures"
+    authors: [Feneuil, Rivain]
+    year: 2025
+    local_file: feneuil-2025-blinding-post-quantum.pdf
+    venue: "ePrint"
+    iacr_eprint: https://eprint.iacr.org/2025/895
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Generic framework to blind Falcon/UOV/MAYO"
+
+  - id: herranz-2025-hash-blind
+    title: "Hash-Based Blind Signatures: First Steps"
+    authors: [Herranz, Louiso]
+    year: 2025
+    local_file: herranz-2025-hash-blind.pdf
+    venue: "ePrint"
+    iacr_eprint: https://eprint.iacr.org/2025/2097
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Security from hash functions only; most conservative"
+
+  - id: lai-2025-leaf
+    title: "LEAF: Compact Code-Based Blind Signatures"
+    authors: [Lai, Persichetti]
+    year: 2025
+    local_file: lai-2025-leaf.pdf
+    venue: "ePrint"
+    iacr_eprint: https://eprint.iacr.org/2025/1585
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Code-based alternative"
+
+  - id: eprint-2025-274-mebs
+    title: "Post-Quantum Blind Signatures from Matrix Code Equivalence"
+    year: 2025
+    local_file: eprint-2025-274-mebs.pdf
+    venue: "ePrint"
+    iacr_eprint: https://eprint.iacr.org/2025/274
+    latex_source: false
+    provenance: forward-citation
+    relevance: "MEBS scheme"
+
+  - id: aardal-2024-falcon-labrador
+    title: "Aggregating Falcon Signatures with LaBRADOR"
+    authors: [Aardal et al.]
+    year: 2024
+    local_file: aardal-2024-falcon-labrador.pdf
+    venue: "CRYPTO 2024"
+    iacr_eprint: https://eprint.iacr.org/2024/311
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Lattice-SNARK-based Falcon aggregation"
+
+  - id: feneuil-2025-capss
+    title: "CAPSS: SNARK-Friendly Post-Quantum Signatures"
+    authors: [Feneuil, Rivain]
+    year: 2025
+    local_file: feneuil-2025-capss.pdf
+    venue: "ePrint"
+    iacr_eprint: https://eprint.iacr.org/2025/061
+    latex_source: false
+    provenance: forward-citation
+    relevance: "9.5-15.5 KB sigs, sub-KB amortized"
+
+  - id: coratger-2025-hash-multisig-eth
+    title: "Hash-Based Multi-Signatures for Post-Quantum Ethereum"
+    authors: [Coratger et al.]
+    year: 2025
+    local_file: coratger-2025-hash-multisig-eth.pdf
+    venue: "ePrint"
+    iacr_eprint: https://eprint.iacr.org/2025/055
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Targets Ethereum validator sig aggregation"
+
+  - id: delpino-2025-compact-lattice-threshold
+    title: "Finally! A Compact Lattice-Based Threshold Signature"
+    authors: [del Pino et al.]
+    year: 2025
+    local_file: delpino-2025-compact-lattice-threshold.pdf
+    venue: "ePrint"
+    iacr_eprint: https://eprint.iacr.org/2025/872
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Compact threshold sigs for T<=8"
+
+  - id: eprint-2025-091-poqeth
+    title: "poqeth: Efficient post-quantum signature verification on Ethereum"
+    year: 2025
+    local_file: eprint-2025-091-poqeth.pdf
+    venue: "ePrint"
+    iacr_eprint: https://eprint.iacr.org/2025/091
+    latex_source: false
+    provenance: forward-citation
+    relevance: "On-chain PQ signature verification"
+
+  - id: policharla-2023-pq-privacy-pass
+    title: "Post-Quantum Privacy Pass via Post-Quantum Anonymous Credentials"
+    authors: [Policharla et al.]
+    year: 2023
+    local_file: policharla-2023-pq-privacy-pass.pdf
+    venue: "ePrint"
+    iacr_eprint: https://eprint.iacr.org/2023/414
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Foundational PQ Privacy Pass"
+
+  - id: argo-2024-pq-sigs-privacy
+    title: "Practical Post-Quantum Signatures for Privacy"
+    authors: [Argo et al.]
+    year: 2024
+    local_file: argo-2024-pq-sigs-privacy.pdf
+    venue: "CCS 2024"
+    url: https://dl.acm.org/doi/10.1145/3658644.3670297
+    latex_source: false
+    provenance: forward-citation
+    relevance: "~700 KB anonymous credential presentations"
+
+  - id: lyubashevsky-2024-lazer
+    title: "The LaZer Library: Lattice-Based Zero Knowledge and Succinct Proofs for Quantum-Safe Privacy"
+    authors: [Lyubashevsky, Seiler, Steuer]
+    year: 2024
+    local_file: lyubashevsky-2024-lazer.pdf
+    venue: "CCS 2024"
+    iacr_eprint: https://eprint.iacr.org/2024/1846
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Open-source lattice ZK proofs for PQ privacy"
+
+  - id: elhousni-2023-exotic-sigs-survey
+    title: "A Survey on Exotic Signatures for Post-quantum Blockchain"
+    authors: [El Housni, Music, Music]
+    year: 2023
+    local_file: elhousni-2023-exotic-sigs-survey.pdf
+    venue: "ACM Computing Surveys"
+    url: https://dl.acm.org/doi/10.1145/3572771
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Comprehensive PQ blind/aggregate/ring/threshold survey"
+
+  - id: kaur-2025-pq-stealth
+    title: "Post-Quantum Stealth Address Protocols"
+    authors: [Kaur et al.]
+    year: 2025
+    local_file: kaur-2025-pq-stealth.pdf
+    venue: "ePrint / arXiv"
+    iacr_eprint: https://eprint.iacr.org/2025/112
+    url_alt: https://arxiv.org/abs/2501.13733
+    latex_source: false
+    provenance: forward-citation
+    relevance: "LWE/Ring-LWE/Module-LWE based stealth addresses"
+
+  - id: kreuter-2025-anon-tokens-metadata
+    title: "Non-interactive Anonymous Tokens with Private Metadata Bit"
+    authors: [Kreuter, Lepoint et al.]
+    year: 2025
+    local_file: kreuter-2025-anon-tokens-metadata.pdf
+    venue: "ePrint"
+    iacr_eprint: https://eprint.iacr.org/2025/430
+    latex_source: false
+    provenance: forward-citation
+
+  - id: chairattana-2025-everlasting-tokens
+    title: "Everlasting Anonymous Rate-Limited Tokens"
+    authors: [Chairattana-Apirom et al.]
+    year: 2025
+    local_file: chairattana-2025-everlasting-tokens.pdf
+    venue: "ASIACRYPT 2025"
+    iacr_eprint: https://eprint.iacr.org/2025/1030
+    latex_source: false
+    provenance: forward-citation
+
+  - id: eprint-2025-1847-private-privacy-pass
+    title: "Security Analysis of Privately Verifiable Privacy Pass"
+    year: 2025
+    local_file: eprint-2025-1847-private-privacy-pass.pdf
+    venue: "CCS 2025"
+    iacr_eprint: https://eprint.iacr.org/2025/1847
+    latex_source: false
+    provenance: forward-citation
+
+  - id: eprint-2025-659-group-vrf-pp
+    title: "Scalable Privacy Pass from Group VRFs"
+    year: 2025
+    local_file: eprint-2025-659-group-vrf-pp.pdf
+    venue: "ePrint"
+    iacr_eprint: https://eprint.iacr.org/2025/659
+    latex_source: false
+    provenance: forward-citation
+
+  - id: baldimtsi-2025-auth-theory-practice
+    title: "Privacy-Preserving Authentication: Theory vs. Practice"
+    authors: [Baldimtsi et al.]
+    year: 2025
+    local_file: baldimtsi-2025-auth-theory-practice.pdf
+    venue: "EUROCRYPT 2025"
+    arxiv: https://arxiv.org/abs/2501.07209
+    latex_source: false
+    provenance: forward-citation
+
+  - id: conduition-2025-cashu-vuln
+    title: "Vulnerabilities in the Cashu ECash Protocol"
+    authors: [Conduition]
+    year: 2025
+    local_file: conduition-2025-cashu-vuln.html
+    venue: "blog"
+    url: https://conduition.io/code/cashu-disclosure/
+    latex_source: false
+    provenance: forward-citation
+    relevance: "NUT-13 keyset ID collision attack"
+
+  - id: cashu-2024-zk
+    title: "Bringing Zero Knowledge Proofs to Cashu"
+    authors: [Calle / Cashu]
+    year: 2024
+    local_file: cashu-2024-zk.html
+    venue: "blog"
+    url: https://blog.cashu.space/bringing-zero-knowledge-proofs-to-cashu/
+    latex_source: false
+    provenance: forward-citation
+    relevance: "ZK programmable spending conditions"
+
+  - id: somsen-2020-bdhke
+    title: "Blind-DH-ecash.md"
+    authors: [Somsen]
+    year: 2020
+    local_file: somsen-2020-bdhke.html
+    venue: "gist"
+    url: https://gist.github.com/RubenSomsen/be7a4760dd4596d06963d67baf140406
+    latex_source: false
+    provenance: forward-citation
+    relevance: "BDHKE construction origin for Cashu"
+
+  - id: sonnino-2019-coconut
+    title: "Coconut: Threshold Issuance Selective Disclosure Credentials"
+    authors: [Sonnino et al.]
+    year: 2019
+    local_file: sonnino-2019-coconut.pdf
+    venue: "NDSS"
+    arxiv: https://arxiv.org/abs/1802.07344
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Threshold blind sig credentials with on-chain verification"
+
+  - id: geometry-2023-bls-evm
+    title: "Optimized BLS multisignatures on EVM"
+    authors: [Geometry Research]
+    year: 2023
+    local_file: geometry-2023-bls-evm.html
+    venue: "notebook"
+    url: https://geometry.xyz/notebook/Optimized-BLS-multisignatures-on-EVM
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Gas optimization for on-chain BLS"
+
+  - id: koshelev-2021-hash-faster
+    title: "Some Remarks on How to Hash Faster onto Elliptic Curves"
+    authors: [Koshelev]
+    year: 2021
+    local_file: koshelev-2021-hash-faster.pdf
+    venue: "ePrint"
+    iacr_eprint: https://eprint.iacr.org/2021/1082
+    latex_source: false
+    provenance: forward-citation
+
+  - id: koshelev-2023-cipolla
+    title: "Hashing to Elliptic Curves through Cipolla-Lehmer-Muller"
+    authors: [Koshelev]
+    year: 2023
+    local_file: koshelev-2023-cipolla.pdf
+    venue: "Journal of Cryptology 2024"
+    iacr_eprint: https://eprint.iacr.org/2023/390
+    latex_source: false
+    provenance: forward-citation
+
+  - id: koshelev-2025-hashing-friendly
+    title: "Hashing-Friendly Elliptic Curves"
+    authors: [Koshelev]
+    year: 2025
+    local_file: koshelev-2025-hashing-friendly.pdf
+    venue: "ePrint"
+    iacr_eprint: https://eprint.iacr.org/2025/1926
+    latex_source: false
+    provenance: forward-citation
+
+  - id: koshelev-2024-simple-universal
+    title: "Simultaneously Simple Universal and Indifferentiable Hashing"
+    authors: [Koshelev]
+    year: 2024
+    local_file: koshelev-2024-simple-universal.pdf
+    venue: "ePrint"
+    iacr_eprint: https://eprint.iacr.org/2024/085
+    latex_source: false
+    provenance: forward-citation
+
+  - id: buterin-2025-l1-privacy-roadmap
+    title: "A maximally simple L1 privacy roadmap"
+    authors: [Buterin]
+    year: 2025
+    local_file: buterin-2025-l1-privacy-roadmap.html
+    venue: "Ethereum Magicians"
+    url: https://ethereum-magicians.org/t/a-maximally-simple-l1-privacy-roadmap/23459
+    latex_source: false
+    provenance: forward-citation
+    relevance: "Nine-step roadmap including Privacy Pools, stealth addresses"
+
+  - id: benarroch-2024-programmable-privacy
+    title: "SoK: Programmable Privacy in Distributed Systems"
+    authors: [Benarroch et al.]
+    year: 2024
+    local_file: benarroch-2024-programmable-privacy.pdf
+    venue: "ePrint"
+    iacr_eprint: https://eprint.iacr.org/2024/982
+    latex_source: false
+    provenance: forward-citation
+
+  - id: survey-2024-identity-tx-privacy
+    title: "On Identity, Transaction, and Smart Contract Privacy: A Comprehensive Survey"
+    year: 2024
+    local_file: survey-2024-identity-tx-privacy.pdf
+    venue: "ACM Computing Surveys"
+    url: https://dl.acm.org/doi/10.1145/3676164
+    latex_source: false
+    provenance: forward-citation
+

@@ -2,8 +2,11 @@
 # Add .env to .gitignore — never commit secrets to version control.
 .env
 
+# Per-chain mint server secrets (docker compose); see mint.*.env.example
+mint.*.env
+
 # also exposes stuff, used by mock wallet client
-.ghost_wallet.json
+.nozk_wallet.json
 
 # Python-generated files
 __pycache__/
@@ -12,9 +15,24 @@ build/
 dist/
 wheels/
 *.egg-info
+.cursorignore
 
 # Virtual environments
 .venv
+
+# Foundry artifacts
+sol/out/
+sol/cache/
+sol/broadcast/
+
+# Python caches
+.ruff_cache/
+.pytest_cache/
+
+# Coverage
+htmlcov/
+.coverage
+.coverage.*
 
 # js stuff
 node_modules

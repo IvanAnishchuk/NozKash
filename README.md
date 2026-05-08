@@ -1,41 +1,98 @@
-# 👻 Ghost-Tip Protocol
+# 👻 NozKash
 
-A stateless, privacy-preserving eCash system for EVM chains, built on BLS blind signatures over the BN254 curve.
+**aleph-hackathon-m2026**
 
-Users deposit a fixed denomination (0.01 ETH), receive a cryptographically blind-signed token from an off-chain mint, and redeem it to any address — without the mint ever learning which deposit corresponds to which redemption.
+Default testnet: **Ethereum Sepolia** (chain ID 11155111).
 
-This repository is a research and reference implementation containing a shared cryptographic library (Python + TypeScript with byte-for-byte parity), a mint server daemon, a CLI wallet, and a cross-language test suite.
+[Simoneth Arianna Gomez](https://github.com/Simonethg), [Fabio Laura](https://github.com/raptor0929), [Ivan Anishchuk](https://github.com/IvanAnishchuk)
+
+**Privacy-preserving eCash for EVM chains — without zero-knowledge proofs.**
+
+nozkash uses BLS blind signatures over BN254 to deliver unlinkable token transfers at a fraction of the gas cost of zk-SNARK privacy protocols. Users deposit a fixed denomination, receive a cryptographically blind-signed token from a mint, and redeem it to any address — the mint never learns which deposit corresponds to which redemption.
+
+No circuits. No trusted setup. No off-chain relayer infrastructure. Just elliptic curve math that the EVM already understands.
+
+---
+
+## Why nozkash?
+
+Privacy on EVM today sits at two extremes:
+
+| Approach | Privacy | Trust | Gas cost | Complexity |
+|----------|---------|-------|----------|------------|
+| **Custodial mixers** | Weak (operator sees everything) | Full trust in operator | Low | Low |
+| **zk-SNARK pools** | Strong (zero-knowledge) | Trustless | Very high (~1M+ gas) | Very high (circuits, trusted setup, proof generation) |
+| **nozkash** | Strong (blind signatures) | Minimal — mint signs blindly | **~50k gas deposit, ~120k gas redeem** | Low (standard EVM precompiles) |
+
+nozkash occupies a practical middle ground: **privacy comparable to dark pools, costs comparable to a token transfer, complexity comparable to a multisig.**
+
+### The tradeoff
+
+nozkash introduces a **mint** — an off-chain signer that blind-signs deposit tokens. The mint:
+
+- ✅ **Cannot link** deposits to redemptions (blinding factor `r` is secret)
+- ✅ **Cannot forge** tokens (BLS signatures are verified on-chain)
+- ✅ **Cannot steal** funds (redemption goes directly to the user's chosen address)
+- ⚠️ **Can refuse** to sign (liveness dependency)
+- ⚠️ **Can collude** with an observer to deanonymize if it logs timing metadata
+
+These trust assumptions are **strictly weaker** than custodial pools (where the operator controls funds outright) and can be further minimized:
+
+- **Threshold blind signatures** — distribute the mint across N-of-M signers so no single party can deny service or correlate deposits
+- **TEE attestation** — run the mint in a trusted execution environment with remote attestation, proving it doesn't log metadata
+- **Multiple independent mints** — users choose which mint to use, preventing any single point of censorship
+
+In all cases, **verification remains fully on-chain** via the EVM `ecPairing` precompile — no trust is required at redemption time.
 
 ---
 
 ## How It Works
 
 ```
-Client                     GhostVault (on-chain)          Mint Server
+Client                     NozkVault (on-chain)          Mint Server
   │                               │                            │
   │  derive spend + blind keys    │                            │
   │  Y = H(spendAddress)          │                            │
   │  B = r · Y                    │                            │
   │                               │                            │
-  │── deposit(B, blindAddr) ─────▶│                            │
-  │   + 0.01 ETH                  │── DepositLocked(id, B) ──▶│
+  │── deposit(depositId, B) ─────▶│                            │
+  │   + 0.001 ETH                 │── DepositLocked(id, B) ──▶│
   │                               │                            │  S' = sk · B
   │                               │◀── announce(id, S') ──────│
   │                               │                            │
   │  S = S' · r⁻¹  (unblind)     │                            │
   │  verify e(S,G2)==e(Y,PK)      │                            │
   │                               │                            │
-  │── redeem(dest, sig, S) ──────▶│                            │
-  │                               │  ecrecover → nullifier     │
+  │── redeem(dest, sig, null, S)─▶│                            │
+  │                               │  ecrecover → verify sig    │
+  │                               │  nullifier → double-spend  │
   │                               │  ecPairing → BLS verify    │
-  │                               │── 0.01 ETH ──────────────▶ dest
+  │                               │── 0.001 ETH ─────────────▶ dest
 ```
 
-**Privacy:** The blinding factor `r` is known only to the client. The mint signs `B = r·Y` without ever seeing `Y` or the spend address. At redemption the contract learns the nullifier but cannot link it back to the original deposit.
+**Blinding:** The client computes `B = r · H(spendAddress)` where `r` is a secret scalar. The mint sees only `B` — it cannot recover the spend address or link it to any future redemption.
 
-**MEV protection:** The redemption includes an ECDSA signature over `"Pay to: <recipient>"`. The contract recovers the nullifier via `ecrecover` — a front-runner cannot change the recipient without invalidating the signature.
+**Signing:** The mint computes `S' = sk · B` without knowing what it signed. The client removes the blinding: `S = S' · r⁻¹ = sk · H(spendAddress)`.
 
-**Stateless recovery:** All secrets (spend key, blind key, blinding factor) are deterministically derived from a master seed and token index, so the wallet can be fully reconstructed from the seed alone.
+**Verification:** The contract checks `e(S, G2) == e(H(nullifier), PK_mint)` using the EVM `ecPairing` precompile (0x08). This is a single pairing check — no SNARK verification, no Groth16, no circuit compilation.
+
+**MEV protection:** Redemption includes an ECDSA signature over `keccak256("Pay to RAW: " || recipient_address)`. A front-runner cannot redirect funds without the spend private key.
+
+**Stateless recovery:** All secrets derive deterministically from a master seed + token index. Lose your device, recover from seed.
+
+---
+
+## Gas Efficiency
+
+nozkash uses only standard EVM precompiles — no custom verifier contracts, no large proof calldata.
+
+| Operation | Gas cost | What happens |
+|-----------|----------|--------------|
+| `deposit()` | ~50,000 | Store blinded point + emit event |
+| `announce()` | ~55,000 | Mint posts blind signature |
+| `redeem()` | ~120,000 | ecrecover + ecPairing + ETH transfer |
+
+For comparison, a zk-SNARK privacy pool typically costs 500k–1.5M gas per operation due to on-chain proof verification. nozkash's redeem costs less than a Uniswap swap.
 
 ---
 
@@ -44,9 +101,10 @@ Client                     GhostVault (on-chain)          Mint Server
 | Tool | Version | Purpose |
 |------|---------|---------|
 | Python | 3.13+ | Library, mint server, CLI wallet |
-| Node.js | 20+ | TypeScript library, test suite |
+| Node.js | 20+ | TypeScript library, CLI client, test suite |
 | [uv](https://docs.astral.sh/uv/) | latest | Python package management |
 | npm | bundled with Node | TypeScript package management |
+| [Foundry](https://book.getfoundry.sh/) | latest | Solidity testing and deployment |
 
 ---
 
@@ -54,15 +112,22 @@ Client                     GhostVault (on-chain)          Mint Server
 
 ```bash
 # Install dependencies
-uv venv && uv sync      # Python
-npm install              # TypeScript
+cd nozk_py && uv venv && uv sync       # Python
+cd nozk_ts && npm install               # TypeScript (viem, mcl-wasm, @noble/curves, etc.)
 
 # Generate keys and .env
-uv run generate_keys.py
+cd nozk_py && uv run generate_keys.py
+
+# Derive and add BLS public key to .env
+cd nozk_py && uv run derive_bls.py 0x<your_bls_privkey>
 
 # Run tests
-uv run pytest -v         # Python unit + vector tests
-npx vitest run           # TypeScript vector parity tests
+cd nozk_py && uv run pytest -v          # Python unit + vector tests
+cd nozk_ts && npx vitest run            # TypeScript vector parity tests
+cd sol && forge test               # Solidity contract tests (forks Sepolia)
+
+# Generate cross-language test vectors
+cd nozk_py && uv run generate_vectors.py
 ```
 
 ---
@@ -70,445 +135,348 @@ npx vitest run           # TypeScript vector parity tests
 ## Repository Layout
 
 ```
-├── ghost_library.py          # Python cryptographic library (source of truth)
-├── ghost-library.ts          # TypeScript port (byte-for-byte parity)
-├── bn254-crypto.ts           # Low-level BN254 primitives (mcl-wasm)
+├── README.md                         # This file
+├── LICENSE.md                        # CC0 1.0 — public domain dedication
+├── example.env                       # Template for .env configuration
+├── nozk_flow.sh                     # Full lifecycle runner script
 │
-├── mint_server.py            # Off-chain mint daemon
-├── client.py                 # CLI wallet (deposit / scan / redeem / status)
-├── generate_keys.py          # Keypair + .env generator
-├── generate_vectors.py       # Cross-language test vector generator
+├── nozk_py/                               # Python: crypto library, mint, CLI wallet
+│   ├── nozk_library.py              # Cryptographic library (source of truth)
+│   ├── client.py                     # CLI wallet (deposit/scan/redeem/status/balance)
+│   ├── mint_server.py                # Production mint daemon (WebSocket)
+│   ├── mint_mock.py                  # Offline mock mint for testing
+│   ├── redeem_mock.py                # Offline mock redeemer for testing
+│   ├── contract_errors.py            # Decodes NozkVault revert selectors
+│   ├── generate_keys.py              # Keypair + .env generator
+│   ├── generate_vectors.py           # Cross-language test vector generator
+│   ├── derive_bls.py                 # BLS pubkey derivation tool
+│   ├── nozk_library_test.py         # Python unit tests
+│   ├── test_vectors.py               # Python parametrized vector tests
+│   ├── nozk_tip_test.py             # Python end-to-end smoke test
+│   ├── test_vectors/                 # Generated vector files (JSON)
+│   ├── pyproject.toml                # Python dependencies
+│   └── README.md                     # Python-specific documentation
 │
-├── ghost_library_test.py     # Python unit tests (20 cases)
-├── test_vectors.py           # Python parametrized vector tests
-├── test-vectors.test.ts      # TypeScript parametrized vector tests
-├── ghost_tip_test.py         # Python end-to-end smoke test
-├── test.ts                   # TypeScript end-to-end smoke test
+├── nozk_ts/                               # TypeScript: crypto library, CLI client, tests
+│   ├── nozk-library.ts              # TypeScript crypto port (byte-for-byte parity)
+│   ├── bn254-crypto.ts               # Low-level BN254 primitives (mcl-wasm)
+│   ├── client.ts                     # TypeScript CLI wallet (deposit/scan/redeem/balance)
+│   ├── test-vectors.test.ts          # TypeScript parametrized vector tests
+│   ├── test.ts                       # TypeScript end-to-end smoke test
+│   ├── package.json                  # Node dependencies
+│   └── tsconfig.json                 # TypeScript config
 │
-├── test_vectors/             # Generated vector files
-├── pyproject.toml            # Python dependencies
-├── package.json              # Node dependencies
-└── .env                      # Local secrets (never committed)
+├── sol/                              # Solidity: smart contract + Foundry project
+│   ├── src/
+│   │   └── NozkVault.sol            # Solidity smart contract
+│   ├── test/
+│   │   └── NozkVault.t.sol          # Foundry test suite (forks Sepolia)
+│   ├── script/
+│   │   └── NozkVault.s.sol          # Deployment script
+│   ├── scripts/
+│   │   ├── generate_vectors.py       # Vector generator for Solidity tests
+│   │   ├── nozk_library.py          # Standalone copy for sol/scripts
+│   │   └── forge_test_generated_vectors.sh
+│   ├── foundry.toml                  # Foundry configuration
+│   ├── lib/forge-std/                # Forge standard library (git submodule)
+│   └── README.md                     # Solidity-specific documentation
+│
+└── app/                              # Frontend: React wallet UI
+    ├── src/
+    │   ├── crypto/                   # Browser-bundled BN254 + nozk-library
+    │   ├── components/               # React components (Layout, DepositConfirmModal, Splash)
+    │   ├── context/                  # NozkMasterSeedProvider, PrivacyProvider
+    │   ├── hooks/                    # useWallet, useRedeemSign
+    │   ├── lib/                      # nozkVault scanner, RPC helpers, ethereum utils
+    │   ├── pages/                    # Dashboard, Deposit, Redeem, Recovery
+    │   └── styles/                   # enozkash.css (full custom theme)
+    └── ...
 ```
 
 ---
 
-## Library API Reference
+## Smart Contract
 
-The Python library (`ghost_library.py`) is the source of truth. The TypeScript library (`ghost-library.ts` + `bn254-crypto.ts`) is a byte-for-byte port. Both expose the same logical operations with language-appropriate conventions.
+The NozkVault contract (`sol/src/NozkVault.sol`) handles the complete token lifecycle using only standard EVM precompiles:
 
-### Types
+| Function | Description |
+|----------|-------------|
+| `deposit(address depositId, uint256[2] B)` | Lock 0.001 ETH with a blinded G1 point |
+| `announce(address depositId, uint256[2] S')` | Mint posts blind signature (authorized caller only) |
+| `redeem(address recipient, bytes sig, address nullifier, uint256[2] S)` | Verify BLS + ECDSA, transfer ETH |
 
-| Concept | Python | TypeScript |
-|---------|--------|------------|
-| BN254 G1 point | `G1Point` — `tuple[FQ, FQ]` | `mcl.G1` |
-| BN254 G2 point | `G2Point` — `tuple[FQ2, FQ2]` | `mcl.G2` |
-| Field scalar | `Scalar` — `int` | `bigint` |
-| Keypair | `TokenKeypair` dataclass | `TokenKeypair` interface |
-| Both keypairs | `TokenSecrets` dataclass | `TokenSecrets` interface |
-| Blinded pair | `BlindedPoints` dataclass | `BlindedPoints` interface |
-| ECDSA proof | `RedemptionProof` dataclass | `RedemptionProof` interface |
-| Mint keys | `MintKeypair` dataclass | `MintKeypair` interface |
+On-chain verification:
+1. **ecrecover** — recover signer from ECDSA signature, verify against nullifier
+2. **Nullifier check** — prevent double-spend via `spentNullifiers` mapping
+3. **Hash-to-curve** — `keccak256(nullifier || counter)` try-and-increment to BN254 G1
+4. **ecPairing** — verify `e(S, G2) == e(H(nullifier), PK_mint)` in a single precompile call
 
-### `TokenKeypair`
-
-A secp256k1 keypair derived deterministically from the master seed. Both the spend and blind keypairs share this structure.
-
-| Field | Python | TypeScript | Description |
-|-------|--------|------------|-------------|
-| Private key | `priv: keys.PrivateKey` | `priv: Uint8Array` | 32-byte private key |
-| Public key | `pub_hex: str` | `pubHex: string` | `0x04`-prefixed uncompressed key (65 bytes) |
-| Address | `address: str` | `address: string` | `0x`-prefixed Ethereum address |
-| Address bytes | `address_bytes: bytes` | `addressBytes: Uint8Array` | Raw 20 bytes |
-
-### `TokenSecrets`
-
-Client-side only — neither private key must reach the mint.
-
-| Field | Python | TypeScript | Description |
-|-------|--------|------------|-------------|
-| Spend keypair | `spend: TokenKeypair` | `spend: TokenKeypair` | Nullifier identity |
-| Blind keypair | `blind: TokenKeypair` | `blind: TokenKeypair` | Deposit ID + blinding source |
-
-Convenience properties / accessors:
-
-| Property | Python | TypeScript | Returns |
-|----------|--------|------------|---------|
-| Spend private key | `secrets.spend_priv` | `getSpendPriv(secrets)` | Spend private key |
-| Spend address | `secrets.spend_address_hex` | `getSpendAddress(secrets)` | Nullifier address |
-| Spend address bytes | `secrets.spend_address_bytes` | `getSpendAddressBytes(secrets)` | Raw 20 bytes |
-| Deposit ID | `secrets.deposit_id` | `getDepositId(secrets)` | Blind keypair address |
-| Blinding factor | `secrets.r` | `getR(secrets)` | `int(blind_priv) % curve_order` |
-
-### Error Hierarchy
-
-Both libraries define a matching exception/error tree:
-
-```
-GhostError
-├── CurveError              (Python only)
-│   ├── InvalidPointError   (Python only — carries .x, .y, .curve)
-│   └── ScalarMultiplicationError  (Python only)
-├── DerivationError         (bad seed, negative index, index > 2³²)
-└── VerificationError       (malformed compact_hex, invalid recovery_bit)
-```
-
-TypeScript omits `CurveError` and its children since `mcl-wasm` handles point validation internally.
+Custom errors: `InvalidValue`, `InvalidECDSA`, `AlreadySpent`, `InvalidBLS`, `InvalidSignatureLength`, `EthSendFailed`, `HashToCurveFailed`, `NotMintAuthority`, `DepositNotFound`, `DepositIdAlreadyUsed`, `AlreadyFulfilled`, `InvalidDepositId`.
 
 ---
 
-### Setup
+## CLI Wallets
 
-#### `generateMintKeypair`
+Both Python and TypeScript clients implement identical functionality, share the same wallet state file (`.nozk_wallet.json`), and use the same contract ABI.
 
-Generates a random BLS keypair for the mint.
-
-```python
-# Python
-from ghost_library import generate_mint_keypair
-keypair = generate_mint_keypair()
-# keypair.sk: Scalar, keypair.pk: G2Point
-```
-
-```typescript
-// TypeScript — must call initBN254() first
-import { initBN254 } from './bn254-crypto.js';
-import { generateMintKeypair } from './ghost-library.js';
-await initBN254();
-const { skMint, pkMint } = generateMintKeypair();
-```
-
----
-
-### Client Operations
-
-#### `deriveTokenSecrets`
-
-Deterministically derives both token keypairs (spend + blind) for a given index from the master seed. All wallet secrets are recoverable from just the seed.
-
-| Parameter | Python | TypeScript | Constraints |
-|-----------|--------|------------|-------------|
-| Master seed | `master_seed: bytes` | `masterSeed: Uint8Array` | Non-empty |
-| Token index | `token_index: int` | `tokenIndex: number` | 0 ≤ n ≤ 2³² − 1 |
-
-```python
-# Python
-secrets = derive_token_secrets(b"my_seed", token_index=0)
-secrets.spend.address      # nullifier
-secrets.deposit_id         # deposit ID (blind address)
-secrets.r                  # blinding scalar
-```
-
-```typescript
-// TypeScript
-const secrets = deriveTokenSecrets(seed, 0);
-getSpendAddress(secrets)   // nullifier
-getDepositId(secrets)      // deposit ID
-getR(secrets)              // blinding scalar (bigint)
-```
-
-**Throws** `DerivationError` for empty seed, negative index, or index ≥ 2³².
-
-#### `blindToken`
-
-Maps the spend address to a BN254 G1 point and applies multiplicative blinding.
-
-| Parameter | Type (Py / TS) | Description |
-|-----------|----------------|-------------|
-| `spend_address_bytes` | `bytes` / `Uint8Array` | Raw 20-byte spend address |
-| `r` | `Scalar` / `bigint` | Blinding factor from `TokenSecrets` |
-
-**Returns** `BlindedPoints { Y, B }` where `Y = H(address)` and `B = r·Y`. Only `B` is sent to the mint.
-
-```python
-blinded = blind_token(secrets.spend_address_bytes, secrets.r)
-# blinded.Y — keep private; blinded.B — send to contract
-```
-
-```typescript
-const { Y, B } = blindToken(getSpendAddressBytes(secrets), getR(secrets));
-```
-
-#### `unblindSignature`
-
-Removes the blinding factor from the mint's signature: `S = S' · r⁻¹`.
-
-```python
-S = unblind_signature(S_prime, secrets.r)
-```
-
-```typescript
-const S = unblindSignature(S_prime, getR(secrets));
-```
-
-#### `generateRedemptionProof`
-
-Creates the anti-MEV ECDSA signature binding the token to a destination address. The contract calls `ecrecover` on this to derive the nullifier.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `spend_priv` | `PrivateKey` / `Uint8Array` | Spend private key |
-| `destination_address` | `str` / `string` | Recipient `0x` address |
-
-**Returns** `RedemptionProof` with `msg_hash`, `compact_hex` (128-char r‖s), `recovery_bit` (0 or 1).
-
-```python
-proof = generate_redemption_proof(secrets.spend_priv, "0xRecipient...")
-# proof.compact_hex — 128 hex chars (r || s)
-# proof.recovery_bit — 0 or 1; EVM uses v = bit + 27
-```
-
-```typescript
-const proof = await generateRedemptionProof(secrets.spend.priv, "0xRecipient...");
-// proof.compactHex, proof.recoveryBit
-```
-
-> **Note:** The TypeScript version is `async` because `@noble/curves` v2.x sign may be async.
-
----
-
-### Mint Operations
-
-#### `mintBlindSign`
-
-Core mint operation: `S' = sk · B`. The mint never sees the spend address — only the blinded point.
-
-```python
-S_prime = mint_blind_sign(blinded.B, keypair.sk)
-```
-
-```typescript
-const S_prime = mintBlindSign(B, skMint);
-```
-
-**Throws** `InvalidPointError` (Python) if `B` is not on the BN254 G1 curve.
-
----
-
-### Verification
-
-#### `verifyBlsPairing`
-
-Checks the BLS pairing equation: `e(S, G2) == e(Y, PK_mint)`. This is the mathematical statement the on-chain `ecPairing` precompile verifies.
-
-```python
-assert verify_bls_pairing(S, blinded.Y, keypair.pk)
-```
-
-```typescript
-expect(verifyBlsPairing(S, Y, pkMint)).toBe(true);
-```
-
-#### `verifyEcdsaMevProtection`
-
-Simulates the EVM `ecrecover` precompile. Recovers the signer address from the ECDSA proof and checks it matches the expected nullifier.
-
-```python
-assert verify_ecdsa_mev_protection(
-    proof.msg_hash, proof.compact_hex, proof.recovery_bit, secrets.spend_address_hex
-)
-```
-
-```typescript
-expect(verifyEcdsaMevProtection(proof, getSpendAddress(secrets))).toBe(true);
-```
-
-**Throws** `VerificationError` for malformed inputs (wrong hex length, invalid recovery bit). Returns `false` for cryptographically invalid signatures.
-
----
-
-### Point Utilities (Python only)
-
-| Function | Signature | Description |
-|----------|-----------|-------------|
-| `hash_to_curve` | `(message_bytes: bytes) → G1Point` | Try-and-increment hash to BN254 G1 |
-| `serialize_g1` | `(point: G1Point) → tuple[int, int]` | Extract (x, y) as integers for Solidity |
-| `parse_g1` | `(x: int, y: int) → G1Point` | Reconstruct from integers; raises `InvalidPointError` if off-curve |
-
-### BN254 Primitives (TypeScript only — `bn254-crypto.ts`)
-
-| Function | Signature | Description |
-|----------|-----------|-------------|
-| `initBN254` | `() → Promise<void>` | Load mcl-wasm; call once at startup |
-| `hashToCurveBN254` | `(messageBytes: Uint8Array) → mcl.G1` | Try-and-increment (matches Python) |
-| `multiplyBN254` | `(point: mcl.G1, scalar: bigint) → mcl.G1` | G1 scalar multiplication |
-| `verifyPairingBN254` | `(S, Y, PK_mint) → boolean` | BLS pairing check |
-| `formatG1ForSolidity` | `(point: mcl.G1) → [string, string]` | Base-10 strings for ethers/viem |
-| `modularInverse` | `(k: bigint, mod: bigint) → bigint` | Fermat's little theorem |
-
-Constants: `FIELD_MODULUS`, `CURVE_ORDER`.
-
----
-
-## Full Lifecycle Example
-
-```python
-from ghost_library import *
-
-# Setup
-keypair = generate_mint_keypair()
-secrets = derive_token_secrets(b"my_seed", token_index=0)
-
-# Client blinds
-blinded = blind_token(secrets.spend_address_bytes, secrets.r)
-
-# Mint signs (only B crosses the trust boundary)
-S_prime = mint_blind_sign(blinded.B, keypair.sk)
-
-# Client unblinds
-S = unblind_signature(S_prime, secrets.r)
-
-# Generate redemption proof
-proof = generate_redemption_proof(secrets.spend_priv, "0xRecipient...")
-
-# Verify
-assert verify_bls_pairing(S, blinded.Y, keypair.pk)
-assert verify_ecdsa_mev_protection(
-    proof.msg_hash, proof.compact_hex, proof.recovery_bit, secrets.spend_address_hex
-)
-```
-
----
-
-## CLI Wallet (`client.py`)
-
-Each command prints every intermediate cryptographic value for debugging.
+### Python
 
 ```bash
-uv run client.py deposit --index 0              # Lock 0.01 ETH + blinded point
-uv run client.py scan --from-block 7500000       # Recover signed tokens
+cd nozk_py
+uv run client.py deposit --index 0              # Lock 0.001 ETH
+uv run client.py scan                            # Recover signed tokens (incremental)
 uv run client.py redeem --index 0 --to 0xAddr    # Redeem to any address
-uv run client.py redeem --index 0 --to 0xAddr --relayer http://localhost:8000
-uv run client.py status                          # Token lifecycle summary
+uv run client.py status                          # Token lifecycle overview
 uv run client.py balance                         # On-chain ETH balance
 ```
 
-Token lifecycle: `FRESH` → `AWAITING_MINT` → `READY_TO_REDEEM` → `SPENT`
+Additional flags: `--mock` (fully offline), `--dry-run` (simulate with RPC), `--verbosity verbose|debug|quiet`, `--relayer <url>` (gas-free redemption).
 
-Wallet state is cached in `.ghost_wallet.json` but is fully recoverable from the seed via `scan`.
+### TypeScript
+
+```bash
+cd nozk_ts
+npx tsx client.ts deposit --index 0
+npx tsx client.ts scan
+npx tsx client.ts redeem --index 0 --to 0xAddr
+npx tsx client.ts balance
+```
+
+Auto-detects chain ID from RPC — works on any EVM chain.
+
+### Token Lifecycle
+
+```
+FRESH → AWAITING_MINT → READY_TO_REDEEM → SPENT
+```
+
+Scanning is incremental (resumes from last block) and skips tokens with cached signatures. Both clients verify `e(S, G2) == e(Y, PK_mint)` locally before submitting on-chain — catching key mismatches early and saving gas.
 
 ---
 
-## Mint Server (`mint_server.py`)
+## Mint Server
 
-Stateless async daemon. Connects over WebSocket, polls for `DepositLocked` events, computes `S' = sk·B`, and calls `announce()`.
+Stateless async daemon. Connects over WebSocket, listens for `DepositLocked` events, blind-signs, and calls `announce()`.
 
 ```bash
-uv run mint_server.py                        # Normal output
-uv run mint_server.py --verbosity verbose    # Show intermediate crypto values
-uv run mint_server.py --verbosity debug      # Full raw event data
+cd nozk_py
+uv run mint_server.py
+uv run mint_server.py --verbosity verbose    # Intermediate values
+uv run mint_server.py --verbosity debug      # Raw event data
 ```
 
-Validates submitted G1 points before signing — off-curve points are rejected with a warning rather than wasting gas.
+The mint validates G1 points before signing — off-curve inputs are rejected without wasting gas.
 
 ---
 
 ## Environment Variables
 
-### Shared
-
 | Variable | Used by | Description |
 |----------|---------|-------------|
 | `MASTER_SEED` | client | Hex seed — all wallet secrets derive from this |
-| `MINT_BLS_PRIVKEY` | mint | Hex BLS scalar for blind signing |
-| `CONTRACT_ADDRESS` | both | Deployed GhostVault address |
+| `MINT_BLS_PRIVKEY` | mint, client | Hex BLS scalar |
+| `MINT_BLS_PUBKEY` | client | G2 pubkey for local verification (4 hex uint256, EIP-197 order) |
+| `CONTRACT_ADDRESS` | all | Deployed NozkVault address |
+| `WALLET_ADDRESS` / `WALLET_KEY` | client | Gas-paying wallet |
+| `MINT_WALLET_ADDRESS` / `MINT_WALLET_KEY` | mint | Mint's gas-paying wallet |
+| `RPC_HTTP_URL` | client | HTTP RPC endpoint |
+| `RPC_WS_URL` | mint | WebSocket RPC endpoint |
+| `SCAN_FROM_BLOCK` | client | Starting block for event scanning |
 
-### Mint server
+---
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `RPC_WS_URL` | — | WebSocket RPC endpoint |
-| `MINT_WALLET_ADDRESS` | — | Gas-paying address |
-| `MINT_WALLET_KEY` | — | Private key for above |
-| `POLL_INTERVAL_SECONDS` | `2` | Event polling interval |
+## Cross-Language Parity
 
-### CLI wallet
+The Python library (`nozk_py/nozk_library.py`) is the cryptographic source of truth. The TypeScript port (`nozk_ts/nozk-library.ts` + `nozk_ts/bn254-crypto.ts`) produces byte-identical output for every operation.
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `WALLET_ADDRESS` | — | Gas-paying address |
-| `WALLET_KEY` | — | Private key for above |
-| `RPC_HTTP_URL` | — | HTTP RPC endpoint |
-| `SCAN_FROM_BLOCK` | `0` | Starting block for scans |
+Both languages use:
+- Identical hash-to-curve (try-and-increment with `keccak256(msg || counter_be32)`)
+- Identical token derivation (`keccak256(seed || index_be32)` → domain-separated keypairs)
+- Identical message format (`"Pay to RAW: " || raw_20_byte_address`)
+- The standard BN254 G2 generator (EIP-197 / `py_ecc.bn128.G2`)
+
+Parity is enforced by shared test vectors:
+
+```bash
+cd nozk_py && uv run generate_vectors.py        # Generate (Python)
+cd nozk_py && uv run pytest test_vectors.py -v  # Verify (Python)
+cd nozk_ts && npx vitest run                    # Verify (TypeScript)
+```
+
+Each vector tests: G2 key derivation, secret derivation, hash-to-curve, blinding, blind signature, unblinding, ECDSA proof, and full BLS pairing.
+
+---
+
+## Cryptographic Design
+
+**Curve:** BN254 (`alt_bn128`) — the only pairing-friendly curve with native EVM precompile support (`ecAdd` 0x06, `ecMul` 0x07, `ecPairing` 0x08). ECDSA uses secp256k1 via `ecrecover`.
+
+**Hash-to-curve:** Try-and-increment on `keccak256(address_20_bytes || counter_be32)`. Square root via `y = rhs^((p+1)/4) mod p` (valid since `p ≡ 3 mod 4`).
+
+**Blind signature scheme:** Multiplicative blinding in the BN254 scalar field. The algebraic identity `S = S'·r⁻¹ = sk·r·Y·r⁻¹ = sk·Y` ensures the pairing equation holds without the mint ever seeing `Y`.
+
+**Token index encoding:** 4-byte big-endian (`DataView.setUint32` / `int.to_bytes(4, 'big')`). The `Uint8Array` constructor pattern is avoided because it silently truncates values ≥ 256.
+
+**Nullifier design:** The spend address (derived from the spend keypair) serves as the nullifier. It is passed explicitly to `redeem()` and checked against `spentNullifiers` to prevent double-spend. The ECDSA signature binds the nullifier to a specific recipient.
+
+**G2 public key format:** EIP-197 limb order `[X_imag, X_real, Y_imag, Y_real]`. The `py_ecc` internal order is `FQ2([real, imag])` — all conversion code handles this correctly.
 
 ---
 
 ## Testing
 
-### Python unit tests
-
 ```bash
-uv run pytest ghost_library_test.py -v    # 20 tests
+# Python unit tests
+cd nozk_py && uv run pytest nozk_library_test.py -v
+
+# Cross-language vector tests
+cd nozk_py && uv run pytest test_vectors.py -v     # Python
+cd nozk_ts && npx vitest run                       # TypeScript
+
+# Solidity contract tests (forks Ethereum Sepolia)
+cd sol && forge test
+
+# End-to-end smoke tests
+cd nozk_py && uv run nozk_tip_test.py             # Python (or --mock for full offline flow)
+cd nozk_ts && npx tsx test.ts                      # TypeScript
+
+# Full lifecycle (on-chain or mock)
+./nozk_flow.sh --to 0xRecipient              # On-chain
+./nozk_flow.sh --to 0xRecipient --mock       # Offline
+./nozk_flow.sh --to 0xRecipient --dry-run    # Simulate
 ```
-
-Covers the full exception hierarchy, determinism, index-256 boundary (catches the `Uint8Array` truncation bug), point validation, MEV protection edge cases, and cross-keypair BLS rejection.
-
-### Cross-language vector tests
-
-Both suites load the same JSON vectors and run identical assertions, proving byte-for-byte cryptographic parity.
-
-```bash
-uv run pytest test_vectors.py -v    # Python
-npx vitest run                      # TypeScript
-```
-
-Each vector is tested for: G2 key derivation, token secret derivation, hash-to-curve + blinding, blind signature, unblinding, MEV proof, and full BLS pairing.
-
-### Generating vectors
-
-```bash
-uv run generate_vectors.py                                    # 3 keypairs × 6 indices
-uv run generate_vectors.py --keypairs 10 --indices 0 256 1000 # Custom
-```
-
-Index 256 is always included to exercise the `DataView` fix.
-
-### End-to-end smoke tests
-
-```bash
-uv run ghost_tip_test.py    # Python
-npx tsx test.ts              # TypeScript
-```
-
-Both print identical intermediate values when given the same `.env` secrets.
 
 ---
 
-## Cryptographic Design Notes
+## Frontend App
 
-**Curve:** BN254 (`alt_bn128`) — the only pairing-friendly curve with native EVM precompile support (`ecAdd` 0x06, `ecMul` 0x07, `ecPairing` 0x08). ECDSA uses secp256k1 via the existing `ecrecover` opcode.
+NozKash ships with a mobile-first React wallet UI in the `app/` directory. It connects to MetaMask, derives vault secrets client-side, and talks directly to the deployed NozkVault contract — no backend server required for the wallet itself.
 
-**Hash-to-curve:** Try-and-increment with `keccak256(message ‖ counter_be32)`. The square root uses `y = (y²)^((p+1)/4) mod p` (valid because `p ≡ 3 mod 4`). Python and TypeScript use identical byte encoding.
+<!-- TODO: add screenshots
+![Dashboard](docs/screenshots/dashboard.png)
+![Deposit modal](docs/screenshots/deposit-modal.png)
+![Redeem page](docs/screenshots/redeem.png)
+-->
 
-**Blinding:** Multiplicative in Z_q. The algebraic identity `S = S'·r⁻¹ = sk·r·Y·r⁻¹ = sk·Y` ensures `e(S, G2) = e(Y, sk·G2) = e(Y, PK_mint)`.
+### Quick start
 
-**Token index encoding:** 4-byte big-endian via `DataView.setUint32` (TS) / `int.to_bytes(4, 'big')` (Python). The `Uint8Array` constructor pattern was avoided because it silently truncates values ≥ 256.
+```bash
+cd app
+npm install
+npm run dev          # Vite dev server
+npm run build        # Production build → dist/
+```
 
-**Recovery bit:** The TypeScript library derives the ECDSA recovery bit mathematically via trial recovery — it never reads a `.recovery` property that might default to 0 in older library versions.
+Copy `.env.example` to `.env` if you need to override the RPC endpoint or inject a dev master seed.
+
+### Stack
+
+Vite 8 + React 19 + Tailwind 4 + TypeScript 5.9. The crypto libraries (`mcl-wasm`, `@noble/curves`, `ethereum-cryptography`) are the same ones used by the CLI clients — the app bundles its own copies under `app/src/crypto/` (`bn254-crypto.ts`, `nozk-library.ts`, `nozkDeposit.ts`) so it runs entirely in the browser with no server-side crypto.
+
+### Architecture
+
+The app is a single-page wallet with four routes:
+
+| Route | Page | Description |
+|-------|------|-------------|
+| `/` | Dashboard | Balance card, token stats (valid/spent), activity feed with date range + type filters, deposit button |
+| `/deposit` | Deposit | Opens the deposit confirmation modal and redirects home |
+| `/redeem` | Redeem | Lists redeemable tokens (MintFulfilled), recipient picker from MetaMask accounts or manual address entry |
+| `/recovery` | Recovery | Blockchain scanner — re-derives token indices from seed and checks on-chain state |
+
+### Key components
+
+**`NozkMasterSeedProvider`** — React context that manages the vault master seed. On wallet connect, it prompts a one-time `personal_sign` in MetaMask to derive the seed deterministically (`keccak256(signature)`) — the seed lives only in RAM and is cleared on disconnect. For development, `VITE_NOZK_MASTER_SEED_HEX` bypasses the signature.
+
+**`DepositConfirmModal`** — The deposit flow: amount selection (fixed 0.001 ETH denomination), real-time gas estimation via the configured RPC, calldata construction using `buildNozkVaultDepositCalldata()` (derives secrets → blinds → ABI-encodes `deposit(address,uint256[2])`), and `eth_sendTransaction` through MetaMask. Includes pre-flight checks: `DENOMINATION()` view call, `depositPending()` collision check, and `eth_call` simulation before broadcasting.
+
+**`useWallet`** — Hook managing MetaMask connection, account switching (`wallet_requestPermissions`), chain enforcement (auto-switches to the target chain from `VITE_CHAIN_ID`), and balance polling.
+
+**`nozkVault.ts`** — On-chain scanner that fetches `DepositLocked` and `MintFulfilled` events via `eth_getLogs`, matches them against derived `depositId`s, checks `spentNullifiers`, and assembles the activity feed. Handles RPC rate limiting (burst queue with pause), block range chunking (Avalanche public RPC caps at ~2048 blocks per query), and `last accepted block` edge cases.
+
+### Seed derivation (wallet-based)
+
+When no `VITE_NOZK_MASTER_SEED_HEX` is set, the app derives the master seed from a MetaMask signature:
+
+1. User connects wallet → app prompts `personal_sign` with a deterministic message containing the account address and chain ID
+2. The 65-byte ECDSA signature is hashed: `masterSeed = keccak256(signature)`
+3. This seed is used for all `deriveTokenSecrets()` calls — same as the CLI clients
+4. The seed stays in React state (RAM only) — disconnecting the wallet clears it
+
+This means a user can recover their vault tokens on any device by connecting the same MetaMask account and signing the same derivation message.
+
+### On-chain interaction
+
+All RPC calls go through `chainPublicRpc.ts`, which uses `VITE_PUBLIC_RPC_URL` when set, otherwise a bundled Sepolia public endpoint. If the browser hits CORS errors locally, configure the provider to allow your origin or point `VITE_PUBLIC_RPC_URL` at an endpoint that does.
+
+The deposit transaction is the only write operation — it uses MetaMask's `eth_sendTransaction` with pre-built calldata (same ABI encoding as the Python/TypeScript CLI clients). The app polls `eth_getTransactionReceipt` via HTTP RPC (not MetaMask) with a 30-second interval to avoid rate limits.
+
+### Contract address
+
+Set `VITE_NOZK_VAULT_ADDRESS` in `.env` to the deployed contract address.
+
+### App environment variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VITE_NOZK_MASTER_SEED_HEX` | — | Dev shortcut: 64-char hex seed, bypasses `personal_sign` |
+| `VITE_CHAIN_ID` | Sepolia `0xaa36a7` | Target `eth_chainId` (hex) |
+| `VITE_PUBLIC_RPC_URL` / `VITE_ETHEREUM_RPC_URL` | Sepolia public node | HTTPS JSON-RPC for reads (`chainRpcCall`) |
+| `VITE_PUBLIC_WS_RPC_URL` / `VITE_ETHEREUM_WS_RPC_URL` | — | Optional WebSocket for live vault logs |
+| `VITE_NOZK_VAULT_ADDRESS` | — | Deployed NozkVault contract |
 
 ---
 
-## Sepolia Testnet Walkthrough
+
+## Deployment Walkthrough
+
 
 ```bash
-# 1. Generate secrets
-uv run generate_keys.py
+# 1. Generate all keys
+cd nozk_py && uv run generate_keys.py
 
-# 2. Configure .env with CONTRACT_ADDRESS, RPC URLs, wallet keys
+# 2. Derive BLS public key
+cd nozk_py && uv run derive_bls.py 0x<privkey_from_env>
 
-# 3. Start mint (separate terminal)
-uv run mint_server.py
+# 3. Deploy NozkVault with pkMint (4 uint256) and mintAuthority address
+#    (via Foundry)
+cd sol && forge script script/NozkVault.s.sol:NozkVaultScript --rpc-url <your_rpc_url> --private-key <your_private_key>
+#    Set CONTRACT_ADDRESS in .env
 
-# 4. Deposit
+# 4. Fund wallet addresses with testnet ETH
+
+# 5. Start the mint server (separate terminal)
+cd nozk_py && uv run mint_server.py
+
+# 6. Deposit, scan, redeem (Python or TypeScript)
+cd nozk_py
 uv run client.py deposit --index 0
-# → mint picks up DepositLocked, calls announce()
-
-# 5. Scan and recover
-uv run client.py scan --from-block <block> --index-from 0 --index-to 0
-
-# 6. Redeem
+uv run client.py scan
 uv run client.py redeem --index 0 --to 0xRecipient
 
-# 7. Verify
-uv run pytest -v && npx vitest run
+# Or in TypeScript:
+cd nozk_ts
+npx tsx client.ts deposit --index 0
+npx tsx client.ts scan
+npx tsx client.ts redeem --index 0 --to 0xRecipient
 ```
+
+---
+
+## Future Directions
+
+- **Threshold blind signatures** — N-of-M mint committee for censorship resistance
+- **TEE-backed mint** — attestation that the mint runs no-log code
+- **Variable denominations** — multiple vaults with different face values
+- **Relayer network** — gas-free redemption via meta-transactions
+- **Cross-chain** — deposit on one chain, redeem on another via bridge attestations
+
+---
+
+## License
+
+Dedicated to public goods under CC0.
+
+---
+
+(Buenos Aires, Sunday, March 22 / 9:00 AM Argentina Time)

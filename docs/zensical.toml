@@ -1,0 +1,136 @@
+[project]
+site_name = "NozKash Documentation"
+site_description = "Privacy-preserving eCash for EVM chains using BLS blind signatures"
+site_author = "NozKash Team"
+site_url = "https://nozkash.github.io/docs/"
+copyright = "Dedicated to public goods under CC0."
+docs_dir = "src"
+site_dir = "_site"
+repo_url = "https://github.com/IvanAnishchuk/nozkash"
+repo_name = "IvanAnishchuk/nozkash"
+
+[project.plugins.mkdocstrings.handlers.python]
+paths = ["../nozk_py"]
+
+[project.plugins.mkdocstrings.handlers.python.options]
+docstring_style = "google"
+show_source = true
+show_root_heading = true
+members_order = "source"
+
+[project.plugins.mkdocs-typer2]
+
+[project.theme]
+language = "en"
+
+[[project.theme.palette]]
+scheme = "default"
+primary = "deep purple"
+accent = "amber"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+scheme = "slate"
+primary = "deep purple"
+accent = "amber"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to light mode"
+
+[project.features]
+features = [
+    "navigation.instant",
+    "navigation.sections",
+    "navigation.expand",
+    "navigation.top",
+    "navigation.indexes",
+    "search.highlight",
+    "search.suggest",
+    "content.code.copy",
+    "content.tabs.link",
+    "toc.integrate",
+]
+
+[project.nav]
+nav = [
+    { "Home" = "index.md" },
+    { "Getting Started" = [
+        { "Overview" = "getting-started/index.md" },
+        { "Installation" = "getting-started/installation.md" },
+        { "Quickstart" = "getting-started/quickstart.md" },
+        { "Environment Setup" = "getting-started/environment.md" },
+    ] },
+    { "Protocol" = [
+        { "Overview" = "protocol/index.md" },
+        { "Architecture" = "protocol/architecture.md" },
+        { "Cryptographic Primitives" = "cryptographic-primitives.md" },
+        { "Hash-to-Curve" = "hash-to-curve.md" },
+        { "EVM Precompiles" = "evm-precompiles.md" },
+        { "Signature Encoding (EIP-191, EIP-712)" = "signature-encoding-eips.md" },
+        { "BLS Key Management" = "bls-key-management-eips.md" },
+    ] },
+    { "Python Library" = [
+        { "Overview" = "python/index.md" },
+        { "API Reference" = [
+            { "nozk_library" = "python/api/nozk-library.md" },
+            { "bn254_crypto / bls12_381_crypto" = "python/api/curve-crypto.md" },
+            { "Mint Server" = "python/api/mint-server.md" },
+        ] },
+        { "CLI Wallet" = "python/cli.md" },
+        { "Test Vectors" = "python/test-vectors.md" },
+    ] },
+    { "TypeScript Library" = [
+        { "Overview" = "typescript/index.md" },
+        { "API Reference" = [
+            { "nozk-library" = "typescript/api/nozk-library.md" },
+            { "bn254-crypto" = "typescript/api/bn254-crypto.md" },
+        ] },
+        { "CLI Wallet" = "typescript/cli.md" },
+    ] },
+    { "Smart Contracts" = [
+        { "Overview" = "solidity/index.md" },
+        { "NozkVault" = "solidity/nozkvault.md" },
+        { "NozkVaultV2" = "solidity/nozkvault-v2.md" },
+        { "Deployment" = "solidity/deployment.md" },
+    ] },
+    { "Frontend App" = [
+        { "Overview" = "frontend/index.md" },
+        { "Architecture" = "frontend/architecture.md" },
+        { "Development" = "frontend/development.md" },
+    ] },
+    { "Research" = [
+        { "Overview" = "research/index.md" },
+        { "Library References" = "library-references.md" },
+        { "Privacy Ecosystem" = [
+            { "Stealth Addresses" = "stealth-addresses.md" },
+            { "Kohaku" = "kohaku.md" },
+            { "Privacy Pools" = "privacy-pools.md" },
+            { "Tornado Cash" = "tornado-cash.md" },
+            { "RAILGUN" = "railgun.md" },
+            { "ZK Primitives" = "zk-primitives.md" },
+        ] },
+        { "Papers Index" = "papers/README.md" },
+        { "Standards Index" = "standards/README.md" },
+        { "Reference Triage" = "reference-triage.md" },
+        { "Forward Citations" = "forward-citations.md" },
+    ] },
+    { "Security" = [
+        { "Overview" = "security/index.md" },
+        { "Threat Model & Research" = "security-research.md" },
+    ] },
+    { "Compliance" = [
+        { "Overview" = "compliance/index.md" },
+        { "Privacy Compliance" = "privacy-compliance.md" },
+    ] },
+    { "Development" = [
+        { "Overview" = "development/index.md" },
+        { "Contributing" = "development/contributing.md" },
+        { "CI/CD" = "development/ci-cd.md" },
+        { "Changelog" = "development/changelog.md" },
+    ] },
+    { "R&D" = [
+        { "Melt, Epochs, Batching" = "rd-melt-epochs-batching.md" },
+        { "UX Stories" = "ux-stories.md" },
+        { "Triage Plan" = "triage-plan.md" },
+    ] },
+]

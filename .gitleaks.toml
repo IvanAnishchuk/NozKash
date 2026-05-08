@@ -1,0 +1,13 @@
+[extend]
+# Use the default gitleaks rules as a base
+useDefault = true
+
+[allowlist]
+description = "Allow published standards and test vectors"
+paths = [
+    '''docs/src/standards/rfcs/.*''',
+    '''docs/src/standards/bips/.*''',
+    '''docs/src/standards/eips/.*''',
+    '''docs/src/papers/.*''',
+    '''test_vectors/.*''',
+]

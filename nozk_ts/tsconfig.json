@@ -9,6 +9,7 @@
         "noEmit": true,
         "types": ["node", "vitest/globals"]
     },
+    "exclude": ["*.e2e.test.ts"],
     "ts-node": {
         "esm": true
     }

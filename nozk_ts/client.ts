@@ -1,7 +1,7 @@
 /**
- * Nozk Protocol: TypeScript CLI Client
+ * Nozk Protocol: TypeScript CLI Client (BLS12-381)
  *
- * TypeScript equivalent of client.py. Interacts with the deployed NozkVault
+ * TypeScript equivalent of client.py. Interacts with the deployed NozkVaultV2
  * contract on Sepolia using viem for chain interaction.
  *
  * Commands:
@@ -25,7 +25,6 @@ dotenvConfig({ path: resolve('..', '.env') });
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import mcl from 'mcl-wasm';
 import {
     type Address,
     createPublicClient,
@@ -38,7 +37,18 @@ import {
     parseEther,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { CURVE_ORDER, getG2Generator, initBN254 } from './bn254-crypto.js';
+import {
+    bytesToHex,
+    CURVE_ORDER,
+    G1_GEN,
+    type G1Point,
+    g1ScalarMul,
+    hexToBigint,
+    parseG1Sol,
+    parseG2Sol,
+    serializeG1Sol,
+    serializeG2Sol,
+} from './bls12-381-crypto.js';
 import * as gl from './nozk-library.js';
 
 // ==============================================================================
@@ -56,7 +66,7 @@ interface Config {
     contractAddress: Address;
     rpcUrl: string;
     scanFromBlock: bigint;
-    mintBlsPubkey: mcl.G2 | null;
+    mintBlsPubkey: G1Point | null; // G1 in standard BLS scheme
 }
 
 function loadConfig(): Config {
@@ -72,28 +82,27 @@ function loadConfig(): Config {
         throw new Error('Missing WALLET_KEY, WALLET_ADDRESS, CONTRACT_ADDRESS, or RPC_HTTP_URL in .env');
     }
 
-    // Parse mint BLS pubkey if available
-    let mintBlsPubkey: mcl.G2 | null = null;
+    // Parse mint BLS pubkey from env (4 uint256 = G1 in EIP-2537 format)
+    let mintBlsPubkey: G1Point | null = null;
     const pkStr = process.env.MINT_BLS_PUBKEY || '';
     if (pkStr) {
         const parts = pkStr.split(',').map((p) => p.trim());
         if (parts.length === 4) {
-            const pk = new mcl.G2();
-            // EIP-197 order in env: X_imag, X_real, Y_imag, Y_real
-            // mcl setStr: "1 X_real X_imag Y_real Y_imag"
-            pk.setStr(`1 ${parts[1]} ${parts[0]} ${parts[3]} ${parts[2]}`, 16);
-            mintBlsPubkey = pk;
+            // G1 point as 4 uint256: [x_hi, x_lo, y_hi, y_lo]
+            mintBlsPubkey = parseG1Sol(
+                hexToBigint(parts[0]),
+                hexToBigint(parts[1]),
+                hexToBigint(parts[2]),
+                hexToBigint(parts[3]),
+            );
         }
     }
     // Fallback: derive from privkey
     if (!mintBlsPubkey) {
-        const skHex = process.env.MINT_BLS_PRIVKEY || process.env.MINT_BLS_PRIVKEY_INT || '';
+        const skHex = process.env.MINT_BLS_PRIVKEY || '';
         if (skHex) {
             const sk = BigInt(skHex.startsWith('0x') ? skHex : `0x${skHex}`) % CURVE_ORDER;
-            const g2 = getG2Generator();
-            const fr = new mcl.Fr();
-            fr.setStr(sk.toString(16), 16);
-            mintBlsPubkey = mcl.mul(g2, fr) as mcl.G2;
+            mintBlsPubkey = g1ScalarMul(G1_GEN, sk);
         }
     }
 
@@ -116,12 +125,12 @@ function loadConfig(): Config {
 
 interface TokenRecord {
     index: number;
-    spend_address: string;
+    nullifier_id: string | null;
     deposit_id: string;
     deposit_tx: string | null;
     deposit_block: number | null;
-    s_unblinded_x: string | null;
-    s_unblinded_y: string | null;
+    // Unblinded mint signature S (G2) stored as 8 hex uint256
+    s_unblinded: string[] | null;
     reveal_tx: string | null;
     redeem_tx: string | null;
     spent: boolean;
@@ -145,8 +154,9 @@ function saveWalletState(state: WalletState): void {
 
 function tokenStatus(rec: TokenRecord): string {
     if (rec.spent) return 'SPENT';
+    if (rec.redeem_tx) return 'REDEEMED';
     if (rec.reveal_tx) return 'REVEALED';
-    if (rec.s_unblinded_x) return 'READY_TO_REVEAL';
+    if (rec.s_unblinded) return 'READY_TO_REVEAL';
     if (rec.deposit_tx) return 'AWAITING_MINT';
     return 'FRESH';
 }
@@ -165,34 +175,26 @@ function log(msg: string) {
     console.log(`  ${msg}`);
 }
 function ok(msg: string) {
-    console.log(`  ✅  ${msg}`);
+    console.log(`  [ok] ${msg}`);
 }
 function err(msg: string) {
-    console.log(`  ❌  ${msg}`);
+    console.log(`  [err] ${msg}`);
 }
 function kv(k: string, v: string) {
     console.log(`    ${k.padEnd(24)} ${v}`);
 }
 function section(title: string) {
-    console.log(`\n──── ${title} ────`);
+    console.log(`\n---- ${title} ----`);
 }
 function shortHex(hex: string, head = 18, tail = 8): string {
     if (hex.length <= head + tail + 3) return hex;
-    return `${hex.slice(0, head)}…${hex.slice(-tail)}`;
-}
-
-function encodeSpendSignature(compactHex: string, recoveryBit: number): Hex {
-    const r = compactHex.slice(0, 64);
-    const s = compactHex.slice(64);
-    const v = (recoveryBit + 27).toString(16).padStart(2, '0');
-    return `0x${r}${s}${v}`;
+    return `${hex.slice(0, head)}...${hex.slice(-tail)}`;
 }
 
 async function buildClients(config: Config) {
     const account = privateKeyToAccount(config.walletKey);
     const transport = http(config.rpcUrl);
 
-    // First create a minimal public client to detect the chain ID
     const tempClient = createPublicClient({ transport });
     const chainId = await tempClient.getChainId();
 
@@ -211,44 +213,32 @@ async function buildClients(config: Config) {
     return { publicClient, walletClient, account };
 }
 
-// Format G1 point coords as [bigint, bigint] for contract calls
-function g1ToBigInts(point: mcl.G1): [bigint, bigint] {
-    const parts = point.getStr(16).split(' ');
-    return [BigInt(`0x${parts[1]}`), BigInt(`0x${parts[2]}`)];
-}
-
 // ==============================================================================
 // COMMAND: deposit
 // ==============================================================================
 
 async function cmdDeposit(config: Config, tokenIndex: number) {
-    console.log(`\n👻  GHOST-TIP TS CLIENT  👻\n`);
-    section(`📥  DEPOSIT · Token #${tokenIndex}`);
+    console.log('\n  NOZK TS CLIENT\n');
+    section(`DEPOSIT - Token #${tokenIndex}`);
 
     const state = loadWalletState();
 
-    // Step 1: derive
-    section('🔑  Step 1 · Derive Token Secrets');
+    section('Step 1 - Derive Token Secrets');
     const secrets = gl.deriveTokenSecrets(config.masterSeed, tokenIndex);
-    const r = gl.getR(secrets);
 
     kv('Token index', String(tokenIndex));
-    kv('Spend address', gl.getSpendAddress(secrets));
-    kv('Deposit ID', gl.getDepositId(secrets));
-    log('Spend address = nullifier (revealed only at redemption)');
-
-    // Step 2: blind
-    section('🎭  Step 2 · Blind Token → G1');
-    const blinded = gl.blindToken(gl.getSpendAddressBytes(secrets), r);
-    const [bx, by] = g1ToBigInts(blinded.B);
-
-    kv('B.x', shortHex(`0x${bx.toString(16)}`));
-    kv('B.y', shortHex(`0x${by.toString(16)}`));
+    kv('Nullifier ID', shortHex(`0x${gl.getNullifierIdHex(secrets)}`));
     kv('Deposit ID', gl.getDepositId(secrets));
 
-    // Step 3: build and send deposit tx
-    section('📋  Step 3 · Build deposit() Transaction');
-    const { publicClient, walletClient, account } = await buildClients(config);
+    section('Step 2 - Blind Token -> G2');
+    const blinded = gl.blindToken(secrets.spendBlsPub, secrets.r);
+    const bCoords = serializeG2Sol(blinded.B);
+
+    kv('B (G2, 8 uint256)', shortHex(`0x${bCoords[0].toString(16)}`));
+    kv('Deposit ID', gl.getDepositId(secrets));
+
+    section('Step 3 - Build deposit() Transaction');
+    const { publicClient, walletClient } = await buildClients(config);
     const depositId = getAddress(gl.getDepositId(secrets));
 
     const balance = await publicClient.getBalance({ address: config.walletAddress });
@@ -261,34 +251,18 @@ async function cmdDeposit(config: Config, tokenIndex: number) {
         process.exit(1);
     }
 
-    section('📡  Step 4 · Broadcast');
+    section('Step 4 - Broadcast');
     try {
-        // ── DEBUG: dump exact args before contract call ──────────────────
-        console.log('\n=== DEPOSIT DEBUG ===');
-        console.log('[contractAddress]:', config.contractAddress);
-        console.log('[depositId]:', depositId, typeof depositId);
-        console.log('[bx]:', bx, typeof bx);
-        console.log('[by]:', by, typeof by);
-        console.log('[bx hex]:', `0x${bx.toString(16)}`);
-        console.log('[by hex]:', `0x${by.toString(16)}`);
-        console.log('[value]:', DENOMINATION, typeof DENOMINATION);
-        console.log('[args as passed]:', JSON.stringify([depositId, [bx.toString(), by.toString()]], null, 2));
-
-        // Check ABI deposit function
-        const depositAbi = NOZK_VAULT_ABI.find((e: any) => e.name === 'deposit' && e.type === 'function');
-        console.log('[ABI deposit]:', JSON.stringify(depositAbi, null, 2));
-        console.log('=== END DEPOSIT DEBUG ===\n');
-
         const hash = await walletClient.writeContract({
             address: config.contractAddress,
             abi: NOZK_VAULT_ABI,
             functionName: 'deposit',
-            args: [depositId, [bx, by]],
+            args: [depositId, [...bCoords]],
             value: DENOMINATION,
         });
 
         kv('Transaction sent', hash);
-        log('Waiting for confirmation…');
+        log('Waiting for confirmation...');
 
         const receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: 120_000 });
         if (receipt.status !== 'success') {
@@ -298,16 +272,14 @@ async function cmdDeposit(config: Config, tokenIndex: number) {
 
         kv('Confirmed block', String(receipt.blockNumber));
         kv('Gas used', String(receipt.gasUsed));
-        kv('Deposit ID', depositId);
 
         state.tokens[String(tokenIndex)] = {
             index: tokenIndex,
-            spend_address: gl.getSpendAddress(secrets),
+            nullifier_id: `0x${gl.getNullifierIdHex(secrets)}`,
             deposit_id: gl.getDepositId(secrets),
             deposit_tx: hash,
             deposit_block: Number(receipt.blockNumber),
-            s_unblinded_x: null,
-            s_unblinded_y: null,
+            s_unblinded: null,
             reveal_tx: null,
             redeem_tx: null,
             spent: false,
@@ -315,23 +287,18 @@ async function cmdDeposit(config: Config, tokenIndex: number) {
         saveWalletState(state);
         ok('Deposit complete. Next: run scan to recover the signed token.');
     } catch (e: any) {
-        console.log('\n=== DEPOSIT ERROR DEBUG ===');
-        console.log('[error type]:', e.constructor?.name);
-        console.log('[error message]:', e.message?.slice(0, 500));
-        console.log('[error shortMessage]:', e.shortMessage);
-        console.log('[error details]:', e.details);
-        console.log('[error cause]:', e.cause?.message || e.cause);
-        if (e.metaMessages) console.log('[error metaMessages]:', e.metaMessages);
-        console.log('=== END DEPOSIT ERROR DEBUG ===\n');
         err(`Contract error: ${e.shortMessage || e.message}`);
         process.exit(1);
     }
 }
+
+// ==============================================================================
+// COMMAND: scan
 // ==============================================================================
 
 async function cmdScan(config: Config, indexFrom: number, indexTo: number) {
-    console.log(`\n👻  GHOST-TIP TS CLIENT  👻\n`);
-    section(`🔍  SCAN · Tokens ${indexFrom}–${indexTo}`);
+    console.log('\n  NOZK TS CLIENT\n');
+    section(`SCAN - Tokens ${indexFrom}..${indexTo}`);
 
     const state = loadWalletState();
     const { publicClient } = await buildClients(config);
@@ -339,11 +306,10 @@ async function cmdScan(config: Config, indexFrom: number, indexTo: number) {
     const startBlock = BigInt(state.last_scanned_block) || config.scanFromBlock;
     const latestBlock = await publicClient.getBlockNumber();
 
-    kv('Scanning blocks', `${startBlock} → ${latestBlock}`);
-    kv('Token indices', `${indexFrom} – ${indexTo}`);
+    kv('Scanning blocks', `${startBlock} -> ${latestBlock}`);
+    kv('Token indices', `${indexFrom} .. ${indexTo}`);
 
-    // Step 1: fetch MintFulfilled events
-    section('📡  Step 1 · Fetch MintFulfilled Events');
+    section('Step 1 - Fetch MintFulfilled Events');
     const logs = await publicClient.getContractEvents({
         address: config.contractAddress,
         abi: NOZK_VAULT_ABI,
@@ -353,32 +319,31 @@ async function cmdScan(config: Config, indexFrom: number, indexTo: number) {
     });
     kv('Events found', String(logs.length));
 
-    const fulfilled = new Map<string, [bigint, bigint]>();
+    // Map depositId -> S_prime G2 coords (8 uint256)
+    const fulfilled = new Map<string, bigint[]>();
     for (const log of logs) {
         const args = (log as any).args;
         const did = getAddress(args.depositId);
-        fulfilled.set(did, [BigInt(args.S_prime[0]), BigInt(args.S_prime[1])]);
+        const sPrime = (args.S_prime as bigint[]).map((v: bigint) => BigInt(v));
+        fulfilled.set(did, sPrime);
     }
 
-    // Step 2: match tokens
-    section('🔗  Step 2 · Match Tokens by Deposit ID');
+    section('Step 2 - Match Tokens by Deposit ID');
     let recovered = 0;
 
     for (let idx = indexFrom; idx <= indexTo; idx++) {
-        const existing = state.tokens[String(idx)];
         const secrets = gl.deriveTokenSecrets(config.masterSeed, idx);
         const depositId = getAddress(gl.getDepositId(secrets));
 
         // Ensure record exists
-        if (!existing) {
+        if (!state.tokens[String(idx)]) {
             state.tokens[String(idx)] = {
                 index: idx,
-                spend_address: gl.getSpendAddress(secrets),
+                nullifier_id: `0x${gl.getNullifierIdHex(secrets)}`,
                 deposit_id: gl.getDepositId(secrets),
                 deposit_tx: null,
                 deposit_block: null,
-                s_unblinded_x: null,
-                s_unblinded_y: null,
+                s_unblinded: null,
                 reveal_tx: null,
                 redeem_tx: null,
                 spent: false,
@@ -388,80 +353,59 @@ async function cmdScan(config: Config, indexFrom: number, indexTo: number) {
         const rec = state.tokens[String(idx)];
         const status = tokenStatus(rec);
 
-        // Skip FRESH tokens
         if (status === 'FRESH') continue;
-
-        // Show cached / spent / revealed
-        if (status === 'SPENT') {
-            log(`\n  Token ${idx}  ·  SPENT`);
-            continue;
-        }
-        if (status === 'REVEALED') {
-            log(`\n  Token ${idx}  ·  REVEALED  (cached)`);
-            continue;
-        }
-        if (status === 'READY_TO_REVEAL') {
-            log(`\n  Token ${idx}  ·  READY_TO_REVEAL  (cached)`);
+        if (status === 'SPENT' || status === 'REDEEMED' || status === 'REVEALED' || status === 'READY_TO_REVEAL') {
+            log(`\n  Token ${idx}  -  ${status}`);
             continue;
         }
 
         // AWAITING_MINT
-        log(`\n  Token ${idx}  ·  AWAITING_MINT`);
+        log(`\n  Token ${idx}  -  AWAITING_MINT`);
 
         if (!fulfilled.has(depositId)) {
             log(`    No MintFulfilled yet for ${shortHex(depositId)}`);
             continue;
         }
 
-        const [spX, spY] = fulfilled.get(depositId)!;
-        log("    Unblinding: S = S' · r⁻¹ mod q …");
+        const sPrimeCoords = fulfilled.get(depositId)!;
+        log("    Unblinding: S = S' * r^-1 mod q ...");
 
-        // Load S' as mcl.G1
-        const sPrime = new mcl.G1();
-        sPrime.setStr(`1 ${spX.toString(16)} ${spY.toString(16)}`, 16);
+        // Parse S' as G2 point
+        const sPrime = parseG2Sol(
+            sPrimeCoords[0],
+            sPrimeCoords[1],
+            sPrimeCoords[2],
+            sPrimeCoords[3],
+            sPrimeCoords[4],
+            sPrimeCoords[5],
+            sPrimeCoords[6],
+            sPrimeCoords[7],
+        );
 
-        const r = gl.getR(secrets);
-        const S = gl.unblindSignature(sPrime, r);
-        const [sx, sy] = g1ToBigInts(S);
+        const S = gl.unblindSignature(sPrime, secrets.r);
+        const sCoords = serializeG2Sol(S);
 
         // Local BLS verification
         if (config.mintBlsPubkey) {
-            const Y = gl.blindToken(gl.getSpendAddressBytes(secrets), r).Y;
+            const { Y } = gl.blindToken(secrets.spendBlsPub, secrets.r);
             const blsOk = gl.verifyBlsPairing(S, Y, config.mintBlsPubkey);
             if (blsOk) {
-                ok('BLS pairing verified locally ✓');
+                ok('BLS pairing verified locally');
             } else {
-                err('BLS pairing FAILED — check MINT_BLS_PUBKEY');
+                err('BLS pairing FAILED - check MINT_BLS_PUBKEY');
             }
         }
 
-        // On-chain nullifier state check (UNREVEALED=0, REVEALED=1, SPENT=2)
-        const nullifier = getAddress(gl.getSpendAddress(secrets));
-        const nullState = Number(
-            await publicClient.readContract({
-                address: config.contractAddress,
-                abi: NOZK_VAULT_ABI,
-                functionName: 'nullifierState',
-                args: [nullifier],
-            }),
-        );
-
-        rec.s_unblinded_x = `0x${sx.toString(16)}`;
-        rec.s_unblinded_y = `0x${sy.toString(16)}`;
-        if (nullState === 2) {
-            rec.spent = true;
-        } else if (nullState === 1) {
-            rec.reveal_tx = rec.reveal_tx || 'scanned-on-chain';
-        }
+        rec.s_unblinded = sCoords.map((c) => `0x${c.toString(16)}`);
         recovered++;
 
-        log(`  → ${tokenStatus(rec)}`);
+        log(`  -> ${tokenStatus(rec)}`);
     }
 
     state.last_scanned_block = Number(latestBlock);
     saveWalletState(state);
 
-    console.log(`\n  Scan complete: ${recovered} token(s) recovered · block ${latestBlock} saved`);
+    console.log(`\n  Scan complete: ${recovered} token(s) recovered - block ${latestBlock} saved`);
 }
 
 // ==============================================================================
@@ -469,8 +413,8 @@ async function cmdScan(config: Config, indexFrom: number, indexTo: number) {
 // ==============================================================================
 
 async function cmdReveal(config: Config, tokenIndex: number, relayerUrl?: string) {
-    console.log(`\n👻  GHOST-TIP TS CLIENT  👻\n`);
-    section(`🔓  REVEAL · Token #${tokenIndex}`);
+    console.log('\n  NOZK TS CLIENT\n');
+    section(`REVEAL - Token #${tokenIndex}`);
 
     const state = loadWalletState();
     const rec = state.tokens[String(tokenIndex)];
@@ -487,53 +431,54 @@ async function cmdReveal(config: Config, tokenIndex: number, relayerUrl?: string
         log(`Token ${tokenIndex} is already revealed (tx: ${rec.reveal_tx}).`);
         return;
     }
-    if (!rec.s_unblinded_x) {
+    if (!rec.s_unblinded) {
         err(`Token ${tokenIndex} has no unblinded sig. Run scan first.`);
         process.exit(1);
     }
 
     const secrets = gl.deriveTokenSecrets(config.masterSeed, tokenIndex);
 
-    // Step 1: load S and verify BLS
-    section('🔓  Step 1 · Load Unblinded Signature');
-    const sx = BigInt(rec.s_unblinded_x);
-    const sy = BigInt(rec.s_unblinded_y!);
-    kv('S.x', shortHex(`0x${sx.toString(16)}`));
-    kv('S.y', shortHex(`0x${sy.toString(16)}`));
+    section('Step 1 - Load Unblinded Signature');
+    const sCoords = rec.s_unblinded.map((h) => BigInt(h));
+    const S = parseG2Sol(
+        sCoords[0],
+        sCoords[1],
+        sCoords[2],
+        sCoords[3],
+        sCoords[4],
+        sCoords[5],
+        sCoords[6],
+        sCoords[7],
+    );
 
     // Local BLS verification
     if (config.mintBlsPubkey) {
-        const S = new mcl.G1();
-        S.setStr(`1 ${sx.toString(16)} ${sy.toString(16)}`, 16);
-        const r = gl.getR(secrets);
-        const Y = gl.blindToken(gl.getSpendAddressBytes(secrets), r).Y;
+        const { Y } = gl.blindToken(secrets.spendBlsPub, secrets.r);
         const blsOk = gl.verifyBlsPairing(S, Y, config.mintBlsPubkey);
         if (blsOk) {
             ok('BLS pairing verified locally');
         } else {
-            err('BLS pairing FAILED — this token will be rejected on-chain.');
+            err('BLS pairing FAILED - this token will be rejected on-chain.');
             process.exit(1);
         }
-    } else {
-        log('MINT_BLS_PUBKEY not configured — skipping local BLS check.');
     }
 
-    const nullifier = getAddress(gl.getSpendAddress(secrets));
+    // V2 reveal takes: spendPub (uint256[4] G1) + S (uint256[8] G2)
+    const spendPubCoords = serializeG1Sol(secrets.spendBlsPub);
+    const sG2Coords = serializeG2Sol(S);
 
-    // Step 2: submit reveal()
-    section('📡  Step 2 · Submit reveal()');
+    section('Step 2 - Submit reveal()');
 
     if (relayerUrl) {
         kv('Relayer URL', relayerUrl);
-        log('Sending reveal request to relayer — no local ETH required.');
+        log('Sending reveal request to relayer.');
 
         const resp = await fetch(`${relayerUrl.replace(/\/$/, '')}/reveal`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                nullifier,
-                s_x: `0x${sx.toString(16)}`,
-                s_y: `0x${sy.toString(16)}`,
+                spend_pub: spendPubCoords.map((c) => `0x${c.toString(16)}`),
+                s_g2: sG2Coords.map((c) => `0x${c.toString(16)}`),
             }),
         });
 
@@ -543,33 +488,22 @@ async function cmdReveal(config: Config, tokenIndex: number, relayerUrl?: string
         }
 
         const result = (await resp.json()) as any;
-        const txHex = result.tx_hash;
-        kv('Transaction hash', txHex);
-        kv('Confirmed at block', String(result.block_number));
-        kv('Gas used', String(result.gas_used));
-
-        ok('On-chain BLS pairing verified');
-        ok(`Nullifier registered. Token ${tokenIndex} → REVEALED.`);
-
-        rec.reveal_tx = txHex;
+        rec.reveal_tx = result.tx_hash;
         saveWalletState(state);
+        ok(`Nullifier registered. Token ${tokenIndex} -> REVEALED.`);
     } else {
         const { publicClient, walletClient } = await buildClients(config);
-
-        kv('Nullifier', nullifier);
-        kv('S.x', shortHex(`0x${sx.toString(16)}`));
-        kv('S.y', shortHex(`0x${sy.toString(16)}`));
 
         try {
             const hash = await walletClient.writeContract({
                 address: config.contractAddress,
                 abi: NOZK_VAULT_ABI,
                 functionName: 'reveal',
-                args: [nullifier, [sx, sy]],
+                args: [[...spendPubCoords], [...sG2Coords]],
             });
 
             kv('Transaction sent', hash);
-            log('Waiting for confirmation…');
+            log('Waiting for confirmation...');
 
             const receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: 120_000 });
             if (receipt.status !== 'success') {
@@ -581,7 +515,7 @@ async function cmdReveal(config: Config, tokenIndex: number, relayerUrl?: string
             kv('Gas used', String(receipt.gasUsed));
 
             ok('On-chain BLS pairing verified');
-            ok(`Nullifier registered. Token ${tokenIndex} → REVEALED.`);
+            ok(`Nullifier registered. Token ${tokenIndex} -> REVEALED.`);
 
             rec.reveal_tx = hash;
             saveWalletState(state);
@@ -597,8 +531,8 @@ async function cmdReveal(config: Config, tokenIndex: number, relayerUrl?: string
 // ==============================================================================
 
 async function cmdRedeem(config: Config, tokenIndex: number, recipient: string, relayerUrl?: string) {
-    console.log(`\n👻  GHOST-TIP TS CLIENT  👻\n`);
-    section(`💸  REDEEM · Token #${tokenIndex} → ${recipient}`);
+    console.log('\n  NOZK TS CLIENT\n');
+    section(`REDEEM - Token #${tokenIndex} -> ${recipient}`);
 
     const state = loadWalletState();
     const rec = state.tokens[String(tokenIndex)];
@@ -611,7 +545,7 @@ async function cmdRedeem(config: Config, tokenIndex: number, recipient: string, 
         err(`Token ${tokenIndex} already spent.`);
         process.exit(1);
     }
-    if (!rec.s_unblinded_x) {
+    if (!rec.s_unblinded) {
         err(`Token ${tokenIndex} has no unblinded sig. Run scan first.`);
         process.exit(1);
     }
@@ -622,61 +556,66 @@ async function cmdRedeem(config: Config, tokenIndex: number, recipient: string, 
 
     const secrets = gl.deriveTokenSecrets(config.masterSeed, tokenIndex);
 
-    // Step 1: derive spend key
-    section('🔑  Step 1 · Derive Spend Key');
-    const spendAddr = gl.getSpendAddress(secrets);
-    kv('Spend address (nullifier)', spendAddr);
+    section('Step 1 - Derive Spend Key');
+    kv('Nullifier ID', shortHex(`0x${gl.getNullifierIdHex(secrets)}`));
     kv('Deposit ID', gl.getDepositId(secrets));
 
-    // Step 2: generate ECDSA proof (EIP-712)
-    section('🛡️  Step 2 · Generate Anti-MEV ECDSA Proof (EIP-712)');
+    section('Step 2 - Generate BLS Spend Signature (EIP-712)');
     const recipientAddr = getAddress(recipient);
     const { publicClient: tempPub } = await buildClients(config);
     const chainId = await tempPub.getChainId();
     const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600); // 1 hour
-    const proof = await gl.generateRedemptionProof(
-        gl.getSpendPriv(secrets),
+
+    const proof = gl.generateRedemptionProof(
+        secrets.spendBlsPriv,
+        secrets.spendPubCompressed,
         recipientAddr,
         chainId,
         config.contractAddress,
         deadline,
     );
 
-    kv('msg_hash', shortHex(Buffer.from(proof.msgHash).toString('hex')));
-    kv('compact_hex', shortHex(`0x${proof.compactHex}`));
-    kv('recovery_bit', String(proof.recoveryBit));
-    kv('v (EVM)', String(proof.recoveryBit + 27));
+    kv('msg_hash', shortHex(bytesToHex(proof.msgHash)));
 
-    // Local ecrecover check
-    const ecdsaOk = gl.verifyEcdsaMevProtection(proof, spendAddr);
-    if (ecdsaOk) {
-        ok('Local ecrecover check passed');
+    // Local BLS spend sig check
+    const blsOk = gl.verifyBlsSpendSignature(proof);
+    if (blsOk) {
+        ok('Local BLS spend signature verified');
     } else {
-        err('Local ECDSA verification failed — aborting.');
+        err('Local BLS spend signature verification failed - aborting.');
         process.exit(1);
     }
 
-    const spendSig = encodeSpendSignature(proof.compactHex, proof.recoveryBit);
-    const nullifier = getAddress(spendAddr);
+    // V2 redeem takes: recipient, spendSig (uint256[8] G2), nId (bytes32), deadline
+    // We need to convert compressed G2 sigma (96 bytes) to the 8 uint256 Solidity format
+    // The sigma from blsSign is compressed G2; for V2 we pass uncompressed as 8 uint256
+    // Actually, we need to deserialize and re-serialize via parseG2Sol/serializeG2Sol
+    // For now, the contract expects the AugSchemeMPL signature as 8 uint256 (uncompressed G2)
+    // We'll need to decompress and serialize
 
-    // Step 3: build and send redeem tx
-    section('📋  Step 3 · Build redeem() Transaction');
+    // The sigma from proof is compressed (96 bytes). We need to pass it as uint256[8].
+    // Import the Signature.fromBytes helper to decompress, then serialize.
+    const { bls12_381 } = await import('@noble/curves/bls12-381.js');
+    const sigPoint = bls12_381.longSignatures.Signature.fromBytes(proof.sigma);
+    const sigCoords = serializeG2Sol(sigPoint);
 
+    const nullifierIdHex = `0x${gl.getNullifierIdHex(secrets)}` as Hex;
+
+    section('Step 3 - Build redeem() Transaction');
     kv('Recipient', recipientAddr);
-    kv('Nullifier', nullifier);
+    kv('Nullifier ID', shortHex(nullifierIdHex));
 
     if (relayerUrl) {
-        section('📡  Step 4 · Broadcast via Relayer');
+        section('Step 4 - Broadcast via Relayer');
         kv('Relayer URL', relayerUrl);
-        log('Sending redeem request to relayer — no local ETH required.');
 
         const resp = await fetch(`${relayerUrl.replace(/\/$/, '')}/redeem`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 recipient: recipientAddr,
-                spend_signature: spendSig,
-                nullifier,
+                spend_sig: sigCoords.map((c) => `0x${c.toString(16)}`),
+                nullifier_id: nullifierIdHex,
                 deadline: Number(deadline),
             }),
         });
@@ -687,23 +626,12 @@ async function cmdRedeem(config: Config, tokenIndex: number, recipient: string, 
         }
 
         const result = (await resp.json()) as any;
-        const txHex = result.tx_hash;
-        kv('Transaction hash', txHex);
-        kv('Confirmed at block', String(result.block_number));
-        kv('Gas used', String(result.gas_used));
-
-        ok('On-chain checks passed:');
-        log('  ✔  ecrecover → nullifier matches spend address');
-        log('  ✔  nullifier was in REVEALED state');
-        log(`  ✔  0.001 ETH transferred to ${recipientAddr}`);
-
-        rec.redeem_tx = txHex;
+        rec.redeem_tx = result.tx_hash;
         rec.spent = true;
         saveWalletState(state);
-
         ok(`Redemption complete. Token ${tokenIndex} is now spent.`);
     } else {
-        section('📡  Step 4 · Broadcast');
+        section('Step 4 - Broadcast');
         const { publicClient, walletClient } = await buildClients(config);
 
         try {
@@ -711,11 +639,11 @@ async function cmdRedeem(config: Config, tokenIndex: number, recipient: string, 
                 address: config.contractAddress,
                 abi: NOZK_VAULT_ABI,
                 functionName: 'redeem',
-                args: [recipientAddr, spendSig, nullifier, deadline],
+                args: [recipientAddr, [...sigCoords], nullifierIdHex, deadline],
             });
 
             kv('Transaction sent', hash);
-            log('Waiting for confirmation…');
+            log('Waiting for confirmation...');
 
             const receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: 120_000 });
             if (receipt.status !== 'success') {
@@ -726,10 +654,8 @@ async function cmdRedeem(config: Config, tokenIndex: number, recipient: string, 
             kv('Confirmed block', String(receipt.blockNumber));
             kv('Gas used', String(receipt.gasUsed));
 
-            ok('On-chain checks passed:');
-            log('  ✔  ecrecover → nullifier matches spend address');
-            log('  ✔  nullifier was in REVEALED state');
-            log(`  ✔  0.001 ETH transferred to ${recipientAddr}`);
+            ok('On-chain checks passed');
+            ok(`0.001 ETH transferred to ${recipientAddr}`);
 
             rec.redeem_tx = hash;
             rec.spent = true;
@@ -748,8 +674,8 @@ async function cmdRedeem(config: Config, tokenIndex: number, recipient: string, 
 // ==============================================================================
 
 async function cmdBalance(config: Config) {
-    console.log(`\n👻  GHOST-TIP TS CLIENT  👻\n`);
-    section('💰  Balance');
+    console.log('\n  NOZK TS CLIENT\n');
+    section('Balance');
     const { publicClient } = await buildClients(config);
     const balance = await publicClient.getBalance({ address: config.walletAddress });
     kv('Wallet address', config.walletAddress);
@@ -761,8 +687,6 @@ async function cmdBalance(config: Config) {
 // ==============================================================================
 
 async function main() {
-    await initBN254();
-
     const args = process.argv.slice(2);
     const command = args[0];
 
@@ -777,7 +701,6 @@ async function main() {
 
     const config = loadConfig();
 
-    // Optional relayer URL for reveal/redeem
     function getOptionalArg(name: string): string | undefined {
         const idx = args.indexOf(name);
         if (idx === -1 || idx + 1 >= args.length) return undefined;
@@ -814,7 +737,7 @@ async function main() {
             break;
         }
         default:
-            console.log('Nozk TS Client');
+            console.log('Nozk TS Client (BLS12-381)');
             console.log('');
             console.log('Usage:');
             console.log('  npx tsx client.ts deposit --index <n>');

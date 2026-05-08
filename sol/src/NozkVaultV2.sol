@@ -40,11 +40,13 @@ contract NozkVaultV2 {
     bytes32 internal constant NAME_HASH    = keccak256(bytes("NozkVault"));
     bytes32 internal constant VERSION_HASH = keccak256(bytes("1"));
 
-    // EIP-2537 precompile addresses
+    // EIP-2537 precompile addresses (final Pectra spec: 0x0b–0x11)
     address internal constant BLS12_G1ADD     = address(0x0b);
-    address internal constant BLS12_G2ADD     = address(0x0e);
-    address internal constant BLS12_PAIRING   = address(0x11);
-    address internal constant BLS12_MAP_FP_G1 = address(0x12);
+    address internal constant BLS12_G1MSM     = address(0x0c); // scalar mul via k=1 MSM
+    address internal constant BLS12_G2ADD     = address(0x0d);
+    address internal constant BLS12_G2MSM     = address(0x0e); // scalar mul via k=1 MSM
+    address internal constant BLS12_PAIRING   = address(0x0f);
+    address internal constant BLS12_MAP_FP_G1 = address(0x10);
 
     // -- Types ------------------------------------------------------------------
 
@@ -389,7 +391,7 @@ contract NozkVaultV2 {
         if (!success) revert PrecompileFailed();
     }
 
-    /// @dev BLS12-381 G2 point addition via precompile 0x0e.
+    /// @dev BLS12-381 G2 point addition via precompile 0x0d.
     function _g2Add(
         uint256[8] memory a,
         uint256[8] memory b
@@ -415,8 +417,8 @@ contract NozkVaultV2 {
             mstore(add(ptr, 0x1a0),  mload(add(b, 0xa0)))
             mstore(add(ptr, 0x1c0),  mload(add(b, 0xc0)))
             mstore(add(ptr, 0x1e0),  mload(add(b, 0xe0)))
-            // staticcall(gas, 0x0e, inOffset, 512, outOffset, 256)
-            success := staticcall(gas(), 0x0e, ptr, 0x200, result, 0x100)
+            // staticcall(gas, 0x0d, inOffset, 512, outOffset, 256)
+            success := staticcall(gas(), 0x0d, ptr, 0x200, result, 0x100)
         }
         if (!success) revert PrecompileFailed();
     }
@@ -472,9 +474,10 @@ contract NozkVaultV2 {
             mstore(add(ptr, 0x2c0), mload(add(PK, 0xc0)))
             mstore(add(ptr, 0x2e0), mload(add(PK, 0xe0)))
 
-            // Call pairing precompile (0x11), input = 768 bytes, output = 32 bytes
-            success := staticcall(gas(), 0x11, ptr, 0x300, ptr, 0x20)
-            result := mload(ptr)
+            // Call pairing precompile (0x0f), input = 768 bytes, output = 32 bytes
+            // Output is uint256: 1 = pairing holds, 0 = does not hold
+            success := staticcall(gas(), 0x0f, ptr, 0x300, ptr, 0x20)
+            result := eq(mload(ptr), 1)
         }
         if (!success) revert PrecompileFailed();
         return result;
@@ -495,7 +498,7 @@ contract NozkVaultV2 {
             mstore(add(ptr, 0x60),  mload(add(p, 0x60)))
             // Scalar: order - 1 (32 bytes)
             mstore(add(ptr, 0x80),  0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000000)
-            // G1MUL precompile at 0x0c: input = 160 bytes, output = 128 bytes
+            // G1MSM precompile at 0x0c with k=1: input = 160 bytes, output = 128 bytes
             success := staticcall(gas(), 0x0c, ptr, 0xa0, result, 0x80)
         }
         if (!success) revert PrecompileFailed();

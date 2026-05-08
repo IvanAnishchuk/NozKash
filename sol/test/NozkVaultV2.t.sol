@@ -73,7 +73,8 @@ contract NozkVaultV2Test is Test {
     function _bls12PrecompileAvailable() internal view returns (bool) {
         bytes memory fpInput = new bytes(64);
         fpInput[63] = 0x01;
-        (bool ok, bytes memory ret) = address(0x12).staticcall(fpInput);
+        // MAP_FP_TO_G1 is at 0x10 in final Pectra spec
+        (bool ok, bytes memory ret) = address(0x10).staticcall(fpInput);
         return ok && ret.length == 128;
     }
 
@@ -176,6 +177,28 @@ contract NozkVaultV2Test is Test {
 
         bytes32 computedNId = v.nullifierId(spendPub);
         assertEq(computedNId, expectedNId);
+    }
+
+    // -- Diagnostic: precompile output comparison --
+
+    function test_mapFpToG1ReturnsData() public view {
+        if (!_bls12PrecompileAvailable()) return;
+        // Call MAP_FP_TO_G1 with Fp=1 and check we get 128 bytes
+        bytes memory fpInput = new bytes(64);
+        fpInput[63] = 0x01;
+        (bool ok, bytes memory ret) = address(0x10).staticcall(fpInput);
+        assertTrue(ok, "MAP_FP_TO_G1 call failed");
+        assertEq(ret.length, 128, "Expected 128 byte G1 point");
+        // Log the result for comparison with Python
+        uint256 x_hi; uint256 x_lo; uint256 y_hi; uint256 y_lo;
+        assembly {
+            x_hi := mload(add(ret, 0x20))
+            x_lo := mload(add(ret, 0x40))
+            y_hi := mload(add(ret, 0x60))
+            y_lo := mload(add(ret, 0x80))
+        }
+        // Just assert non-zero
+        assertTrue(x_hi != 0 || x_lo != 0, "G1 point x should be non-zero");
     }
 
     // -- Reveal test (requires EIP-2537 precompiles) --

@@ -66,35 +66,34 @@ pragma solidity ^0.8.20;
  *   keccak256(nullifier_20 || be32(counter)) on curve y^2 = x^3 + 3.
  */
 contract NozkVault {
-
     // -- Constants --------------------------------------------------------------
 
     /// @dev BN254 (alt_bn128) field modulus.
-    uint256 internal constant P =
-        21888242871839275222246405745257275088696311157297823662689037894645226208583;
+    uint256 internal constant P = 21888242871839275222246405745257275088696311157297823662689037894645226208583;
 
     /// @dev BN254 curve order q.  r = blind_priv mod BN254_ORDER on the client.
     uint256 internal constant BN254_ORDER =
         21888242871839275222246405745257275088548364400416034343698204186575808495617;
 
-    uint256 public constant DENOMINATION   = 0.001 ether;
-    uint256 public constant MAX_H2C_ITERS  = 65536;
+    uint256 public constant DENOMINATION = 0.001 ether;
+    uint256 public constant MAX_H2C_ITERS = 65536;
 
-    bytes32 public constant EIP712_DOMAIN_TYPEHASH = keccak256(
-        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
-    );
-    bytes32 public constant NOZKREDEEM_TYPEHASH = keccak256(
-        "NozkRedeem(address recipient,uint256 deadline)"
-    );
+    bytes32 public constant EIP712_DOMAIN_TYPEHASH =
+        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+    bytes32 public constant NOZKREDEEM_TYPEHASH = keccak256("NozkRedeem(address recipient,uint256 deadline)");
 
     /// @dev Pre-hashed EIP-712 domain name and version for cross-language parity.
-    bytes32 internal constant NAME_HASH    = keccak256(bytes("NozkVault"));
+    bytes32 internal constant NAME_HASH = keccak256(bytes("NozkVault"));
     bytes32 internal constant VERSION_HASH = keccak256(bytes("1"));
 
     // -- Types ------------------------------------------------------------------
 
     /// @dev Nullifier lifecycle: UNREVEALED (default) → REVEALED → SPENT.
-    enum NullifierState { UNREVEALED, REVEALED, SPENT }
+    enum NullifierState {
+        UNREVEALED,
+        REVEALED,
+        SPENT
+    }
 
     // -- State ------------------------------------------------------------------
 
@@ -165,15 +164,10 @@ contract NozkVault {
     // -- Constructor ------------------------------------------------------------
 
     constructor(uint256[4] memory pkMint_, address mintAuthority_) {
-        pkMint        = pkMint_;
+        pkMint = pkMint_;
         mintAuthority = mintAuthority_;
-        DOMAIN_SEPARATOR = keccak256(abi.encode(
-            EIP712_DOMAIN_TYPEHASH,
-            NAME_HASH,
-            VERSION_HASH,
-            block.chainid,
-            address(this)
-        ));
+        DOMAIN_SEPARATOR =
+            keccak256(abi.encode(EIP712_DOMAIN_TYPEHASH, NAME_HASH, VERSION_HASH, block.chainid, address(this)));
     }
 
     // -- External: deposit ------------------------------------------------------
@@ -184,12 +178,9 @@ contract NozkVault {
      * @param depositId      blind.address — unique deposit identifier.
      * @param blindedPointB  G1 point B = r * H_G1(spend_addr).
      */
-    function deposit(
-        address             depositId,
-        uint256[2] calldata blindedPointB
-    ) external payable {
-        if (msg.value != DENOMINATION)             revert InvalidValue();
-        if (depositId == address(0))               revert InvalidDepositId();
+    function deposit(address depositId, uint256[2] calldata blindedPointB) external payable {
+        if (msg.value != DENOMINATION) revert InvalidValue();
+        if (depositId == address(0)) revert InvalidDepositId();
         if (awaitingFulfillment[depositId] || announced[depositId]) revert DepositIdAlreadyUsed();
 
         awaitingFulfillment[depositId] = true;
@@ -205,12 +196,9 @@ contract NozkVault {
      * @dev Clears `depositors[depositId]` once fulfilled so the depositor↔id
      *      link is not kept on-chain (refund is impossible after announce anyway).
      */
-    function announce(
-        address             depositId,
-        uint256[2] calldata S_prime
-    ) external {
-        if (msg.sender != mintAuthority)      revert NotMintAuthority();
-        if (announced[depositId])             revert AlreadyFulfilled();
+    function announce(address depositId, uint256[2] calldata S_prime) external {
+        if (msg.sender != mintAuthority) revert NotMintAuthority();
+        if (announced[depositId]) revert AlreadyFulfilled();
         if (!awaitingFulfillment[depositId]) revert DepositNotFound();
 
         announced[depositId] = true;
@@ -248,10 +236,7 @@ contract NozkVault {
      * @param nullifier            The spend address (nullifier).
      * @param unblindedSignatureS  G1 point S = sk_mint · H(nullifier).
      */
-    function reveal(
-        address             nullifier,
-        uint256[2] calldata unblindedSignatureS
-    ) external {
+    function reveal(address nullifier, uint256[2] calldata unblindedSignatureS) external {
         _reveal(nullifier, unblindedSignatureS);
     }
 
@@ -259,20 +244,14 @@ contract NozkVault {
      * @notice Batch reveal: verify and register multiple nullifiers in one tx.
      * @dev    Saves per-tx overhead when revealing many tokens at once.
      */
-    function revealBatch(
-        address[]           calldata nullifiers,
-        uint256[2][] calldata unblindedSignatures
-    ) external {
+    function revealBatch(address[] calldata nullifiers, uint256[2][] calldata unblindedSignatures) external {
         if (nullifiers.length != unblindedSignatures.length) revert BatchLengthMismatch();
         for (uint256 i; i < nullifiers.length; i++) {
             _reveal(nullifiers[i], unblindedSignatures[i]);
         }
     }
 
-    function _reveal(
-        address             nullifier,
-        uint256[2] calldata unblindedSignatureS
-    ) internal {
+    function _reveal(address nullifier, uint256[2] calldata unblindedSignatureS) internal {
         if (nullifierState[nullifier] != NullifierState.UNREVEALED) revert AlreadyRevealed();
 
         uint256[2] memory y = hashNullifierPoint(nullifier);
@@ -300,12 +279,7 @@ contract NozkVault {
      * @param nullifier      The spend address; must match ecrecover on the hash.
      * @param deadline       Unix timestamp after which the signature expires.
      */
-    function redeem(
-        address        recipient,
-        bytes calldata spendSignature,
-        address        nullifier,
-        uint256        deadline
-    ) external {
+    function redeem(address recipient, bytes calldata spendSignature, address nullifier, uint256 deadline) external {
         if (block.timestamp > deadline) revert ExpiredSignature();
 
         bytes32 txHash = redemptionMessageHash(recipient, deadline);
@@ -348,7 +322,7 @@ contract NozkVault {
 
     function hashToCurve(bytes memory message) public view returns (uint256[2] memory) {
         for (uint256 i = 0; i < MAX_H2C_ITERS; i++) {
-            uint256 x   = uint256(keccak256(abi.encodePacked(message, uint32(i)))) % P;
+            uint256 x = uint256(keccak256(abi.encodePacked(message, uint32(i)))) % P;
             uint256 rhs = addmod(mulmod(mulmod(x, x, P), x, P), 3, P);
             if (!_legendreIsOne(rhs)) continue;
             uint256 y = _modSqrtFp(rhs);
@@ -367,27 +341,16 @@ contract NozkVault {
 
     // -- Internal: BLS verification ---------------------------------------------
 
-    function verifyBLS(
-        uint256[2] memory S,
-        uint256[2] memory Y,
-        uint256[4] memory PK_mint
-    ) internal view returns (bool) {
+    function verifyBLS(uint256[2] memory S, uint256[2] memory Y, uint256[4] memory PK_mint)
+        internal
+        view
+        returns (bool)
+    {
         uint256[2] memory negY = _negateG1(Y);
-        uint256[4] memory g2   = _g2Gen();
+        uint256[4] memory g2 = _g2Gen();
 
         bytes memory input = abi.encodePacked(
-            S[0],
-            S[1],
-            g2[0],
-            g2[1],
-            g2[2],
-            g2[3],
-            negY[0],
-            negY[1],
-            PK_mint[0],
-            PK_mint[1],
-            PK_mint[2],
-            PK_mint[3]
+            S[0], S[1], g2[0], g2[1], g2[2], g2[3], negY[0], negY[1], PK_mint[0], PK_mint[1], PK_mint[2], PK_mint[3]
         );
 
         (bool ok, bytes memory ret) = address(0x08).staticcall(input);
@@ -399,7 +362,7 @@ contract NozkVault {
         if (sig.length != 65) revert InvalidSignatureLength();
         bytes32 r;
         bytes32 s;
-        uint8   v;
+        uint8 v;
         assembly {
             r := calldataload(sig.offset)
             s := calldataload(add(sig.offset, 32))
@@ -432,7 +395,7 @@ contract NozkVault {
     function _modExp(uint256 base, uint256 exponent) internal view returns (uint256 r) {
         assembly {
             let ptr := mload(0x40)
-            mstore(ptr,            0x20)
+            mstore(ptr, 0x20)
             mstore(add(ptr, 0x20), 0x20)
             mstore(add(ptr, 0x40), 0x20)
             mstore(add(ptr, 0x60), base)

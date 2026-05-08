@@ -238,4 +238,3 @@ export function useNozkVaultActivityLive(params: {
 
   return { rows, loading, error, scanBatch }
 }
-

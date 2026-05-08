@@ -1,4 +1,4 @@
-user@g94 ~/src/ghostsomething $ uv run ghost_tip_test.py 
+user@g94 ~/src/ghostsomething $ uv run ghost_tip_test.py
 👻 GHOST-TIP PROTOCOL: FULL LIFECYCLE TEST (.ENV ENABLED) 👻
 
 [0] Loading Mint Configuration from .env...

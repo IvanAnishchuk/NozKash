@@ -46,7 +46,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Annotated, Optional
 
-import requests
+import httpx
 import typer
 from dotenv import load_dotenv
 from rich import box
@@ -812,7 +812,7 @@ def cmd_reveal(
         info("Sending reveal request to relayer — no local ETH required.")
 
         try:
-            resp = requests.post(
+            resp = httpx.post(
                 relayer_url.rstrip("/") + "/reveal",
                 json={
                     "nullifier_id": nullifier_id,
@@ -820,11 +820,11 @@ def cmd_reveal(
                 },
                 timeout=180,
             )
-        except requests.exceptions.ConnectionError as exc:
+        except httpx.ConnectError as exc:
             err(f"Cannot connect to relayer at {relayer_url}: {exc}")
             raise typer.Exit(code=1) from exc
 
-        if not resp.ok:
+        if not resp.is_success:
             err(f"Relayer returned {resp.status_code}: {resp.text}")
             raise typer.Exit(code=1)
 
@@ -1092,7 +1092,7 @@ def cmd_redeem(
         info("Sending redeem request to relayer — no local ETH required.")
 
         try:
-            resp = requests.post(
+            resp = httpx.post(
                 relayer_url.rstrip("/") + "/redeem",
                 json={
                     "recipient": recipient_checksum,
@@ -1103,11 +1103,11 @@ def cmd_redeem(
                 },
                 timeout=180,
             )
-        except requests.exceptions.ConnectionError as exc:
+        except httpx.ConnectError as exc:
             err(f"Cannot connect to relayer at {relayer_url}: {exc}")
             raise typer.Exit(code=1) from exc
 
-        if not resp.ok:
+        if not resp.is_success:
             err(f"Relayer returned {resp.status_code}: {resp.text}")
             raise typer.Exit(code=1)
 

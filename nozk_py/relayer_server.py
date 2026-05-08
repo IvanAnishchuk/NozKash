@@ -454,9 +454,7 @@ class Relayer:
 
         nid_bytes = bytes.fromhex(req.nullifier_id)
 
-        tx_builder = self.contract.functions.redeem(
-            recipient, spend_sig_coords, nid_bytes, req.deadline
-        )
+        tx_builder = self.contract.functions.redeem(recipient, spend_sig_coords, nid_bytes, req.deadline)
         tx_hash, block, gas = self._send_tx(tx_builder)
 
         self._log_tx("redeem", req.nullifier_id[:18], tx_hash, block, gas)

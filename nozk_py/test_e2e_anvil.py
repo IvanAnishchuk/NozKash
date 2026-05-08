@@ -357,24 +357,28 @@ def _deposit_and_announce(w3, vault, depositor, deployer, secrets, mint_scalar):
     deposit_id = Web3.to_checksum_address(secrets.deposit_id)
 
     # Deposit
-    tx = vault.functions.deposit(deposit_id, list(serialize_g2_sol(blinded.B))).build_transaction({
-        "from": depositor.address,
-        "value": DENOMINATION,
-        "nonce": w3.eth.get_transaction_count(depositor.address),
-        "gas": 200_000,
-        "gasPrice": w3.eth.gas_price,
-    })
+    tx = vault.functions.deposit(deposit_id, list(serialize_g2_sol(blinded.B))).build_transaction(
+        {
+            "from": depositor.address,
+            "value": DENOMINATION,
+            "nonce": w3.eth.get_transaction_count(depositor.address),
+            "gas": 200_000,
+            "gasPrice": w3.eth.gas_price,
+        }
+    )
     receipt = _send_tx(w3, depositor, tx)
     assert receipt["status"] == 1, "Deposit failed"
 
     # Announce
     S_prime = mint_blind_sign(blinded.B, mint_scalar)
-    tx = vault.functions.announce(deposit_id, list(serialize_g2_sol(S_prime))).build_transaction({
-        "from": deployer.address,
-        "nonce": w3.eth.get_transaction_count(deployer.address),
-        "gas": 200_000,
-        "gasPrice": w3.eth.gas_price,
-    })
+    tx = vault.functions.announce(deposit_id, list(serialize_g2_sol(S_prime))).build_transaction(
+        {
+            "from": deployer.address,
+            "nonce": w3.eth.get_transaction_count(deployer.address),
+            "gas": 200_000,
+            "gasPrice": w3.eth.gas_price,
+        }
+    )
     receipt = _send_tx(w3, deployer, tx)
     assert receipt["status"] == 1, "Announce failed"
 
@@ -397,23 +401,27 @@ def test_refund_before_announce(deployed_contract, w3):
     deposit_id = Web3.to_checksum_address(secrets.deposit_id)
 
     # Deposit
-    tx = vault.functions.deposit(deposit_id, list(serialize_g2_sol(blinded.B))).build_transaction({
-        "from": depositor.address,
-        "value": DENOMINATION,
-        "nonce": w3.eth.get_transaction_count(depositor.address),
-        "gas": 200_000,
-        "gasPrice": w3.eth.gas_price,
-    })
+    tx = vault.functions.deposit(deposit_id, list(serialize_g2_sol(blinded.B))).build_transaction(
+        {
+            "from": depositor.address,
+            "value": DENOMINATION,
+            "nonce": w3.eth.get_transaction_count(depositor.address),
+            "gas": 200_000,
+            "gasPrice": w3.eth.gas_price,
+        }
+    )
     _send_tx(w3, depositor, tx)
     assert vault.functions.depositPending(deposit_id).call()
 
     # Refund
-    tx = vault.functions.refund(deposit_id).build_transaction({
-        "from": depositor.address,
-        "nonce": w3.eth.get_transaction_count(depositor.address),
-        "gas": 100_000,
-        "gasPrice": w3.eth.gas_price,
-    })
+    tx = vault.functions.refund(deposit_id).build_transaction(
+        {
+            "from": depositor.address,
+            "nonce": w3.eth.get_transaction_count(depositor.address),
+            "gas": 100_000,
+            "gasPrice": w3.eth.gas_price,
+        }
+    )
     receipt = _send_tx(w3, depositor, tx)
     assert receipt["status"] == 1, "Refund failed"
     assert not vault.functions.depositPending(deposit_id).call()
@@ -430,12 +438,14 @@ def test_refund_after_announce_reverts(deployed_contract, w3):
     deposit_id = Web3.to_checksum_address(secrets.deposit_id)
 
     # Refund should fail
-    tx = vault.functions.refund(deposit_id).build_transaction({
-        "from": depositor.address,
-        "nonce": w3.eth.get_transaction_count(depositor.address),
-        "gas": 100_000,
-        "gasPrice": w3.eth.gas_price,
-    })
+    tx = vault.functions.refund(deposit_id).build_transaction(
+        {
+            "from": depositor.address,
+            "nonce": w3.eth.get_transaction_count(depositor.address),
+            "gas": 100_000,
+            "gasPrice": w3.eth.gas_price,
+        }
+    )
     receipt = _send_tx(w3, depositor, tx)
     assert receipt["status"] == 0, "Refund after announce should revert"
 
@@ -455,30 +465,38 @@ def test_multiple_tokens(deployed_contract, w3):
         tx = vault.functions.reveal(
             list(serialize_g1_sol(secrets.spend_bls_pub)),
             list(serialize_g2_sol(S)),
-        ).build_transaction({
-            "from": depositor.address,
-            "nonce": w3.eth.get_transaction_count(depositor.address),
-            "gas": 500_000,
-            "gasPrice": w3.eth.gas_price,
-        })
+        ).build_transaction(
+            {
+                "from": depositor.address,
+                "nonce": w3.eth.get_transaction_count(depositor.address),
+                "gas": 500_000,
+                "gasPrice": w3.eth.gas_price,
+            }
+        )
         receipt = _send_tx(w3, depositor, tx)
         assert receipt["status"] == 1, f"Reveal failed for token {idx}"
 
         # Redeem
         nid = vault.functions.nullifierId(list(serialize_g1_sol(secrets.spend_bls_pub))).call()
         proof = generate_redemption_proof(
-            secrets.spend_chia_sk, secrets.spend_chia_pk,
-            recipient, CHAIN_ID, vault.address, 2**256 - 1,
+            secrets.spend_chia_sk,
+            secrets.spend_chia_pk,
+            recipient,
+            CHAIN_ID,
+            vault.address,
+            2**256 - 1,
         )
         from py_ecc.bls.g2_primitives import signature_to_G2
 
         spend_sig = list(serialize_g2_sol(signature_to_G2(bytes(proof.sigma))))
-        tx = vault.functions.redeem(recipient, spend_sig, nid, 2**256 - 1).build_transaction({
-            "from": depositor.address,
-            "nonce": w3.eth.get_transaction_count(depositor.address),
-            "gas": 500_000,
-            "gasPrice": w3.eth.gas_price,
-        })
+        tx = vault.functions.redeem(recipient, spend_sig, nid, 2**256 - 1).build_transaction(
+            {
+                "from": depositor.address,
+                "nonce": w3.eth.get_transaction_count(depositor.address),
+                "gas": 500_000,
+                "gasPrice": w3.eth.gas_price,
+            }
+        )
         receipt = _send_tx(w3, depositor, tx)
         assert receipt["status"] == 1, f"Redeem failed for token {idx}"
         assert vault.functions.nullifierState(nid).call() == 2  # SPENT
@@ -495,25 +513,29 @@ def test_wrong_mint_signature_reverts(deployed_contract, w3):
     deposit_id = Web3.to_checksum_address(secrets.deposit_id)
 
     # Deposit + announce with correct key
-    tx = vault.functions.deposit(deposit_id, list(serialize_g2_sol(blinded.B))).build_transaction({
-        "from": depositor.address,
-        "value": DENOMINATION,
-        "nonce": w3.eth.get_transaction_count(depositor.address),
-        "gas": 200_000,
-        "gasPrice": w3.eth.gas_price,
-    })
+    tx = vault.functions.deposit(deposit_id, list(serialize_g2_sol(blinded.B))).build_transaction(
+        {
+            "from": depositor.address,
+            "value": DENOMINATION,
+            "nonce": w3.eth.get_transaction_count(depositor.address),
+            "gas": 200_000,
+            "gasPrice": w3.eth.gas_price,
+        }
+    )
     _send_tx(w3, depositor, tx)
 
     # But sign with WRONG key
     wrong_sk = Scalar(999)
     S_prime_wrong = mint_blind_sign(blinded.B, wrong_sk)
 
-    tx = vault.functions.announce(deposit_id, list(serialize_g2_sol(S_prime_wrong))).build_transaction({
-        "from": deployer.address,
-        "nonce": w3.eth.get_transaction_count(deployer.address),
-        "gas": 200_000,
-        "gasPrice": w3.eth.gas_price,
-    })
+    tx = vault.functions.announce(deposit_id, list(serialize_g2_sol(S_prime_wrong))).build_transaction(
+        {
+            "from": deployer.address,
+            "nonce": w3.eth.get_transaction_count(deployer.address),
+            "gas": 200_000,
+            "gasPrice": w3.eth.gas_price,
+        }
+    )
     _send_tx(w3, deployer, tx)
 
     # Unblind the wrong signature
@@ -523,12 +545,14 @@ def test_wrong_mint_signature_reverts(deployed_contract, w3):
     tx = vault.functions.reveal(
         list(serialize_g1_sol(secrets.spend_bls_pub)),
         list(serialize_g2_sol(S_wrong)),
-    ).build_transaction({
-        "from": depositor.address,
-        "nonce": w3.eth.get_transaction_count(depositor.address),
-        "gas": 500_000,
-        "gasPrice": w3.eth.gas_price,
-    })
+    ).build_transaction(
+        {
+            "from": depositor.address,
+            "nonce": w3.eth.get_transaction_count(depositor.address),
+            "gas": 500_000,
+            "gasPrice": w3.eth.gas_price,
+        }
+    )
     receipt = _send_tx(w3, depositor, tx)
     assert receipt["status"] == 0, "Reveal with wrong mint key should revert"
 
@@ -542,13 +566,15 @@ def test_deposit_wrong_value_reverts(deployed_contract, w3):
     blinded = blind_token(secrets.spend_bls_pub, secrets.r)
     deposit_id = Web3.to_checksum_address(secrets.deposit_id)
 
-    tx = vault.functions.deposit(deposit_id, list(serialize_g2_sol(blinded.B))).build_transaction({
-        "from": depositor.address,
-        "value": Web3.to_wei(0.002, "ether"),  # wrong value
-        "nonce": w3.eth.get_transaction_count(depositor.address),
-        "gas": 200_000,
-        "gasPrice": w3.eth.gas_price,
-    })
+    tx = vault.functions.deposit(deposit_id, list(serialize_g2_sol(blinded.B))).build_transaction(
+        {
+            "from": depositor.address,
+            "value": Web3.to_wei(0.002, "ether"),  # wrong value
+            "nonce": w3.eth.get_transaction_count(depositor.address),
+            "gas": 200_000,
+            "gasPrice": w3.eth.gas_price,
+        }
+    )
     receipt = _send_tx(w3, depositor, tx)
     assert receipt["status"] == 0, "Deposit with wrong value should revert"
 
@@ -563,24 +589,28 @@ def test_deposit_id_reuse_reverts(deployed_contract, w3):
     deposit_id = Web3.to_checksum_address(secrets.deposit_id)
 
     # First deposit — ok
-    tx = vault.functions.deposit(deposit_id, list(serialize_g2_sol(blinded.B))).build_transaction({
-        "from": depositor.address,
-        "value": DENOMINATION,
-        "nonce": w3.eth.get_transaction_count(depositor.address),
-        "gas": 200_000,
-        "gasPrice": w3.eth.gas_price,
-    })
+    tx = vault.functions.deposit(deposit_id, list(serialize_g2_sol(blinded.B))).build_transaction(
+        {
+            "from": depositor.address,
+            "value": DENOMINATION,
+            "nonce": w3.eth.get_transaction_count(depositor.address),
+            "gas": 200_000,
+            "gasPrice": w3.eth.gas_price,
+        }
+    )
     receipt = _send_tx(w3, depositor, tx)
     assert receipt["status"] == 1
 
     # Second deposit with same ID — should revert
-    tx = vault.functions.deposit(deposit_id, list(serialize_g2_sol(blinded.B))).build_transaction({
-        "from": depositor.address,
-        "value": DENOMINATION,
-        "nonce": w3.eth.get_transaction_count(depositor.address),
-        "gas": 200_000,
-        "gasPrice": w3.eth.gas_price,
-    })
+    tx = vault.functions.deposit(deposit_id, list(serialize_g2_sol(blinded.B))).build_transaction(
+        {
+            "from": depositor.address,
+            "value": DENOMINATION,
+            "nonce": w3.eth.get_transaction_count(depositor.address),
+            "gas": 200_000,
+            "gasPrice": w3.eth.gas_price,
+        }
+    )
     receipt = _send_tx(w3, depositor, tx)
     assert receipt["status"] == 0, "Duplicate depositId should revert"
 
@@ -602,12 +632,14 @@ def test_nullifier_state_transitions(deployed_contract, w3):
     tx = vault.functions.reveal(
         list(serialize_g1_sol(secrets.spend_bls_pub)),
         list(serialize_g2_sol(S)),
-    ).build_transaction({
-        "from": depositor.address,
-        "nonce": w3.eth.get_transaction_count(depositor.address),
-        "gas": 500_000,
-        "gasPrice": w3.eth.gas_price,
-    })
+    ).build_transaction(
+        {
+            "from": depositor.address,
+            "nonce": w3.eth.get_transaction_count(depositor.address),
+            "gas": 500_000,
+            "gasPrice": w3.eth.gas_price,
+        }
+    )
     receipt = _send_tx(w3, depositor, tx)
     assert receipt["status"] == 1
 
@@ -616,18 +648,24 @@ def test_nullifier_state_transitions(deployed_contract, w3):
 
     # Redeem
     proof = generate_redemption_proof(
-        secrets.spend_chia_sk, secrets.spend_chia_pk,
-        RECIPIENT, CHAIN_ID, vault.address, 2**256 - 1,
+        secrets.spend_chia_sk,
+        secrets.spend_chia_pk,
+        RECIPIENT,
+        CHAIN_ID,
+        vault.address,
+        2**256 - 1,
     )
     from py_ecc.bls.g2_primitives import signature_to_G2
 
     spend_sig = list(serialize_g2_sol(signature_to_G2(bytes(proof.sigma))))
-    tx = vault.functions.redeem(RECIPIENT, spend_sig, nid, 2**256 - 1).build_transaction({
-        "from": depositor.address,
-        "nonce": w3.eth.get_transaction_count(depositor.address),
-        "gas": 500_000,
-        "gasPrice": w3.eth.gas_price,
-    })
+    tx = vault.functions.redeem(RECIPIENT, spend_sig, nid, 2**256 - 1).build_transaction(
+        {
+            "from": depositor.address,
+            "nonce": w3.eth.get_transaction_count(depositor.address),
+            "gas": 500_000,
+            "gasPrice": w3.eth.gas_price,
+        }
+    )
     receipt = _send_tx(w3, depositor, tx)
     assert receipt["status"] == 1
 
@@ -649,6 +687,4 @@ def test_eip712_hash_matches_solidity(deployed_contract, w3):
     # Solidity computation
     sol_hash = vault.functions.redemptionMessageHash(recipient, deadline).call()
 
-    assert py_hash == sol_hash, (
-        f"EIP-712 mismatch:\n  Python:   {py_hash.hex()}\n  Solidity: {sol_hash.hex()}"
-    )
+    assert py_hash == sol_hash, f"EIP-712 mismatch:\n  Python:   {py_hash.hex()}\n  Solidity: {sol_hash.hex()}"

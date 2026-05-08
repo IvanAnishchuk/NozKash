@@ -180,8 +180,14 @@ def serialize_g2_sol(point: G2Point) -> tuple[int, int, int, int, int, int, int,
 
 
 def parse_g2_sol(
-    x_c0_hi: int, x_c0_lo: int, x_c1_hi: int, x_c1_lo: int,
-    y_c0_hi: int, y_c0_lo: int, y_c1_hi: int, y_c1_lo: int,
+    x_c0_hi: int,
+    x_c0_lo: int,
+    x_c1_hi: int,
+    x_c1_lo: int,
+    y_c0_hi: int,
+    y_c0_lo: int,
+    y_c1_hi: int,
+    y_c1_lo: int,
 ) -> G2Point:
     """Reconstruct py_ecc G2 from 8 uint256."""
     x_c0 = _uint256_pair_to_fp(x_c0_hi, x_c0_lo)
@@ -286,7 +292,6 @@ def hash_to_g2(message: bytes) -> G2Point:
 # ==============================================================================
 # PAIRING VERIFICATION (py_ecc)
 # ==============================================================================
-
 
 
 def verify_mint_pairing(sig_g2: G2Point, msg_g2: G2Point, pk_g1: G1Point) -> bool:

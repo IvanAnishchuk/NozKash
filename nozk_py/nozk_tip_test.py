@@ -28,14 +28,9 @@ from dotenv import load_dotenv
 
 import nozk_library as gl
 from bls12_381_crypto import (
-    CURVE_ORDER,
-    Scalar,
-    abi_encode_g1,
-    g1_scalar_mul,
     G1_GEN,
-    normalize,
-    serialize_g1_sol,
-    serialize_g2_sol,
+    Scalar,
+    g1_scalar_mul,
 )
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
@@ -185,11 +180,13 @@ def main() -> None:
             recipient=destination,
             sigma=proof.sigma,
             spend_pk=proof.spend_pk,
-            msg_hash=proof.msg_hash,
             nullifier_id=nid,
+            chain_id=_TEST_CHAIN_ID,
+            contract_address=_TEST_CONTRACT,
+            deadline=_TEST_DEADLINE,
         )
 
-        print(f"    [BLS spend sig] {'PASS' if result.bls_ok else 'FAIL'}")
+        print(f"    [BLS spend sig] {'PASS' if result.bls_spend_ok else 'FAIL'}")
         print(f"    [State check]   {'REVEALED -> SPENT' if result.success else 'FAILED'}")
 
         assert result.success, f"Mock redemption failed: {result.reason}"
@@ -200,8 +197,10 @@ def main() -> None:
             recipient=destination,
             sigma=proof.sigma,
             spend_pk=proof.spend_pk,
-            msg_hash=proof.msg_hash,
             nullifier_id=nid,
+            chain_id=_TEST_CHAIN_ID,
+            contract_address=_TEST_CONTRACT,
+            deadline=_TEST_DEADLINE,
         )
         assert not result2.success, "Double-spend should have been rejected!"
         assert result2.nullifier_spent is True

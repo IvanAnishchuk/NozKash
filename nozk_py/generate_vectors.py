@@ -35,10 +35,14 @@ def _g1_to_dict(coords: tuple[int, int, int, int]) -> dict:
 
 def _g2_to_dict(coords: tuple[int, int, int, int, int, int, int, int]) -> dict:
     return {
-        "x_c0_hi": hex(coords[0]), "x_c0_lo": hex(coords[1]),
-        "x_c1_hi": hex(coords[2]), "x_c1_lo": hex(coords[3]),
-        "y_c0_hi": hex(coords[4]), "y_c0_lo": hex(coords[5]),
-        "y_c1_hi": hex(coords[6]), "y_c1_lo": hex(coords[7]),
+        "x_c0_hi": hex(coords[0]),
+        "x_c0_lo": hex(coords[1]),
+        "x_c1_hi": hex(coords[2]),
+        "x_c1_lo": hex(coords[3]),
+        "y_c0_hi": hex(coords[4]),
+        "y_c0_lo": hex(coords[5]),
+        "y_c1_hi": hex(coords[6]),
+        "y_c1_lo": hex(coords[7]),
     }
 
 
@@ -53,8 +57,12 @@ def compute_vector(master_seed_hex: str, sk_int: int, token_index: int) -> dict:
     S = gl.unblind_signature(S_prime, secrets.r)
 
     proof = gl.generate_redemption_proof(
-        secrets.spend_chia_sk, secrets.spend_chia_pk,
-        TEST_RECIPIENT, TEST_CHAIN_ID, TEST_CONTRACT, TEST_DEADLINE,
+        secrets.spend_chia_sk,
+        secrets.spend_chia_pk,
+        TEST_RECIPIENT,
+        TEST_CHAIN_ID,
+        TEST_CONTRACT,
+        TEST_DEADLINE,
     )
 
     return {
@@ -128,8 +136,12 @@ def compute_aggregation_vectors(master_seed_hex: str, sk_int: int, indices: list
         nullifier_ids.append(secrets.nullifier_id.hex())
 
         proof = gl.generate_redemption_proof(
-            secrets.spend_chia_sk, secrets.spend_chia_pk,
-            TEST_RECIPIENT, TEST_CHAIN_ID, TEST_CONTRACT, TEST_DEADLINE,
+            secrets.spend_chia_sk,
+            secrets.spend_chia_pk,
+            TEST_RECIPIENT,
+            TEST_CHAIN_ID,
+            TEST_CONTRACT,
+            TEST_DEADLINE,
         )
         spend_sigs_chia.append(proof.sigma)
         spend_pks_chia.append(secrets.spend_chia_pk)
@@ -182,6 +194,7 @@ def main():
         for child in list(out_dir.iterdir()):
             if child.is_dir():
                 import shutil
+
                 shutil.rmtree(child)
 
     print(f"Generating {args.keypairs} keypair(s) × {len(indices)} indices = {args.keypairs * len(indices)} vectors\n")

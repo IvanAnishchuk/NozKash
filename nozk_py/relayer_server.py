@@ -50,17 +50,20 @@ from rich.traceback import install as install_rich_traceback
 from web3 import Web3
 from web3.exceptions import ContractCustomError, ContractLogicError
 
+from bls12_381_crypto import (
+    G1_GEN,
+    G1Point,
+    Scalar,
+    abi_encode_g1,
+    g1_scalar_mul,
+    hash_to_g2,
+    parse_g1_sol,
+    parse_g2_sol,
+    verify_mint_pairing,
+)
 from contract_errors import decode_contract_error
 from nozk_library import (
-    G1Point,
-    G2Point,
-    Scalar,
     VerificationError,
-    _mul_g2,
-    hash_to_curve,
-    parse_g1,
-    verify_bls_pairing,
-    verify_ecdsa_mev_protection,
 )
 from nozk_theme import make_console
 
@@ -160,23 +163,20 @@ class RelayerConfig:
     wallet_address: str
     wallet_key: str
     chain_id: int
-    mint_bls_pubkey: G2Point | None
+    mint_bls_pubkey: G1Point | None
 
 
-def _parse_mint_bls_pubkey(raw: str) -> G2Point | None:
-    from py_ecc.bn128 import FQ2
-    from py_ecc.bn128 import G2 as G2_gen
-
+def _parse_mint_bls_pubkey(raw: str) -> G1Point | None:
     if raw:
         parts = [p.strip() for p in raw.split(",")]
         if len(parts) == 4:
-            x_imag, x_real, y_imag, y_real = (int(p, 16) for p in parts)
-            return G2Point((FQ2([x_real, x_imag]), FQ2([y_real, y_imag])))
+            x_hi, x_lo, y_hi, y_lo = (int(p, 16) for p in parts)
+            return parse_g1_sol(x_hi, x_lo, y_hi, y_lo)
 
     sk_hex = os.getenv("MINT_BLS_PRIVKEY", "").strip() or os.getenv("MINT_BLS_PRIVKEY_INT", "").strip()
     if sk_hex:
         sk_int = int(sk_hex, 16) if sk_hex.startswith("0x") else int(sk_hex)
-        return _mul_g2(G2Point(G2_gen), Scalar(sk_int))
+        return g1_scalar_mul(G1_GEN, Scalar(sk_int))
 
     return None
 
@@ -334,66 +334,60 @@ class Relayer:
         return tx_hash.hex(), receipt["blockNumber"], receipt["gasUsed"]
 
     def validate_reveal(self, req: RevealRequest) -> None:
-        """Off-chain pre-validation for reveal."""
-        nullifier = Web3.to_checksum_address(req.nullifier)
-        s_x = int(req.s_x, 16)
-        s_y = int(req.s_y, 16)
-
-        # Check point is on curve
+        """Off-chain pre-validation for reveal (BLS12-381 standard scheme)."""
+        # Parse G1 spend pubkey and G2 signature from request
         try:
-            S = parse_g1(s_x, s_y)
+            spend_pub = parse_g1_sol(*[int(c, 16) for c in req.spend_pub_g1])
         except Exception as exc:
-            raise HTTPException(status_code=400, detail=f"Invalid G1 point: {exc}")
+            raise HTTPException(status_code=400, detail=f"Invalid G1 spend pubkey: {exc}")
+        try:
+            S = parse_g2_sol(*[int(c, 16) for c in req.s_g2])
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"Invalid G2 signature: {exc}")
 
         # BLS pairing pre-check (if we have the pubkey)
         if self.config.mint_bls_pubkey is not None:
-            nullifier_bytes = bytes.fromhex(nullifier[2:])
-            Y: G1Point = hash_to_curve(nullifier_bytes)
-            if not verify_bls_pairing(S, Y, self.config.mint_bls_pubkey):
-                raise HTTPException(status_code=400, detail="BLS pairing check failed — invalid signature")
+            Y = hash_to_g2(abi_encode_g1(spend_pub))
+            if not verify_mint_pairing(S, Y, self.config.mint_bls_pubkey):
+                raise HTTPException(status_code=400, detail="BLS pairing check failed")
 
-        # On-chain state check
-        state_val = self.contract.functions.nullifierState(nullifier).call()
-        if state_val != 0:  # 0 = UNREVEALED
+        # Compute nullifier ID
+        from eth_utils import keccak
+
+        nullifier_id = keccak(abi_encode_g1(spend_pub))
+        state_val = self.contract.functions.nullifierState(nullifier_id).call()
+        if state_val != 0:
             state_name = {1: "REVEALED", 2: "SPENT"}.get(state_val, f"UNKNOWN({state_val})")
             raise HTTPException(status_code=409, detail=f"Nullifier already {state_name}")
 
     def validate_redeem(self, req: RedeemRequest) -> None:
-        """Off-chain pre-validation for redeem."""
-        nullifier = Web3.to_checksum_address(req.nullifier)
+        """Off-chain pre-validation for redeem (BLS spend signature)."""
+        from chia_rs import AugSchemeMPL, G1Element, G2Element
+
         recipient = Web3.to_checksum_address(req.recipient)
 
         # Deadline check
         if req.deadline < int(time.time()):
             raise HTTPException(status_code=400, detail="Deadline has already passed")
 
-        # Signature format
-        sig_hex = req.spend_signature.replace("0x", "")
-        if len(sig_hex) != 130:  # 65 bytes = 130 hex chars
-            raise HTTPException(status_code=400, detail=f"spend_signature must be 65 bytes, got {len(sig_hex) // 2}")
-
-        # ECDSA pre-check
-        r_hex = sig_hex[:64]
-        s_hex = sig_hex[64:128]
-        v_byte = int(sig_hex[128:130], 16)
-        if v_byte not in (27, 28):
-            raise HTTPException(status_code=400, detail=f"Invalid signature v byte: {v_byte}, expected 27 or 28")
-        recovery_bit = v_byte - 27
-
-        compact_hex = r_hex + s_hex
+        # Parse BLS spend signature (compressed G2) and spend pubkey (compressed G1)
         try:
-            if not verify_ecdsa_mev_protection(
-                self.contract.functions.redemptionMessageHash(recipient, req.deadline).call(),
-                compact_hex,
-                recovery_bit,
-                nullifier,
-            ):
-                raise HTTPException(status_code=400, detail="ECDSA recovery does not match nullifier")
+            sigma = G2Element.from_bytes(bytes.fromhex(req.spend_sigma_compressed))
+            spend_pk = G1Element.from_bytes(bytes.fromhex(req.spend_pk_compressed))
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"Invalid BLS signature or pubkey: {exc}")
+
+        # BLS spend sig pre-check
+        msg_hash = self.contract.functions.redemptionMessageHash(recipient, req.deadline).call()
+        try:
+            if not AugSchemeMPL.verify(spend_pk, msg_hash, sigma):
+                raise HTTPException(status_code=400, detail="BLS spend signature verification failed")
         except VerificationError as exc:
-            raise HTTPException(status_code=400, detail=f"Malformed ECDSA signature: {exc}")
+            raise HTTPException(status_code=400, detail=f"Malformed BLS signature: {exc}")
 
         # On-chain state check
-        state_val = self.contract.functions.nullifierState(nullifier).call()
+        nullifier_id = bytes.fromhex(req.nullifier_id)
+        state_val = self.contract.functions.nullifierState(nullifier_id).call()
         if state_val != 1:  # 1 = REVEALED
             state_name = {0: "UNREVEALED", 2: "SPENT"}.get(state_val, f"UNKNOWN({state_val})")
             raise HTTPException(status_code=409, detail=f"Nullifier is {state_name}, expected REVEALED")

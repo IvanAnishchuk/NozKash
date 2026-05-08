@@ -342,9 +342,7 @@ def verify(
         raise typer.Exit(code=1)
 
     if not rec.get("s_unblinded_g2"):
-        console.print(
-            f"[error]  Token {index} has no unblinded signature. Run 'mint_mock.py sign' first.[/error]"
-        )
+        console.print(f"[error]  Token {index} has no unblinded signature. Run 'mint_mock.py sign' first.[/error]")
         raise typer.Exit(code=1)
 
     if rec.get("spent"):
@@ -375,12 +373,8 @@ def verify(
             )
         )
         if is_verbose:
-            console.print(
-                Text.assemble(("  S_G2[0]        ", "label"), (short_hex(s_g2_hex[0], 18, 8), "hash"))
-            )
-            console.print(
-                Text.assemble(("  spend_pub[0]   ", "label"), (short_hex(spend_pub_hex[0], 18, 8), "hash"))
-            )
+            console.print(Text.assemble(("  S_G2[0]        ", "label"), (short_hex(s_g2_hex[0], 18, 8), "hash")))
+            console.print(Text.assemble(("  spend_pub[0]   ", "label"), (short_hex(spend_pub_hex[0], 18, 8), "hash")))
         console.print()
 
     # -- Derive spend key and generate BLS spend proof -------------------------

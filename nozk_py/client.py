@@ -59,19 +59,24 @@ from web3 import Web3
 from web3.exceptions import ContractCustomError, ContractLogicError
 from web3.types import Wei
 
-from contract_errors import decode_contract_error
-from nozk_library import (
+from bls12_381_crypto import (
+    G1_GEN,
+    G1Point,
     G2Point,
     Scalar,
-    _mul_g2,
+    g1_scalar_mul,
+    parse_g2_sol,
+    serialize_g1_sol,
+    serialize_g2_sol,
+)
+from contract_errors import decode_contract_error
+from nozk_library import (
     blind_token,
     derive_token_secrets,
     generate_redemption_proof,
-    parse_g1,
-    serialize_g1,
     unblind_signature,
-    verify_bls_pairing,
-    verify_ecdsa_mev_protection,
+    verify_bls_mint_signature,
+    verify_bls_spend_signature,
 )
 from nozk_theme import make_console
 from wallet_state import short_hex
@@ -221,19 +226,19 @@ WALLET_STATE_FILE = Path(__file__).resolve().parent / ".." / ".nozk_wallet.json"
 @dataclass
 class TokenRecord:
     index: int
-    spend_address: str
+    nullifier_id: str
     deposit_id: str
     deposit_tx: Optional[str] = None
     deposit_block: Optional[int] = None
-    s_unblinded_x: Optional[str] = None
-    s_unblinded_y: Optional[str] = None
+    s_unblinded_g2: Optional[list[str]] = None  # 8 hex strings (G2 EIP-2537)
+    b_g2: Optional[list[str]] = None  # 8 hex strings (G2 EIP-2537)
     reveal_tx: Optional[str] = None
     redeem_tx: Optional[str] = None
     spent: bool = False
 
     @property
     def has_token(self) -> bool:
-        return self.s_unblinded_x is not None
+        return self.s_unblinded_g2 is not None
 
     @property
     def revealed(self) -> bool:
@@ -294,28 +299,27 @@ class ClientConfig:
     contract_address: str  # may be empty in mock mode
     rpc_http_url: str  # may be empty in mock mode
     scan_from_block: int
-    mint_bls_pubkey: G2Point | None = None  # parsed G2 point, None if not configured
+    mint_bls_pubkey: G1Point | None = None  # parsed G1 point (standard BLS: PK in G1)
 
 
-def _parse_mint_bls_pubkey(raw: str) -> G2Point | None:
+def _parse_mint_bls_pubkey(raw: str) -> G1Point | None:
     """
-    Parse MINT_BLS_PUBKEY env var (4 comma-separated hex uint256 in EIP-197 order:
-    X_imag, X_real, Y_imag, Y_real) into a py_ecc G2Point.
+    Parse MINT_BLS_PUBKEY env var (4 comma-separated hex uint256 in EIP-2537 order:
+    x_hi, x_lo, y_hi, y_lo) into a py_ecc G1Point (standard BLS: PK in G1).
     Falls back to deriving from MINT_BLS_PRIVKEY if available.
     """
-    from py_ecc.bn128 import FQ2
-    from py_ecc.bn128 import G2 as G2_gen
+    from bls12_381_crypto import parse_g1_sol
 
     if raw:
         parts = [p.strip() for p in raw.split(",")]
         if len(parts) == 4:
-            x_imag, x_real, y_imag, y_real = (int(p, 16) for p in parts)
-            return G2Point((FQ2([x_real, x_imag]), FQ2([y_real, y_imag])))
+            x_hi, x_lo, y_hi, y_lo = (int(p, 16) for p in parts)
+            return parse_g1_sol(x_hi, x_lo, y_hi, y_lo)
 
     sk_hex = os.getenv("MINT_BLS_PRIVKEY", "").strip() or os.getenv("MINT_BLS_PRIVKEY_INT", "").strip()
     if sk_hex:
         sk_int = int(sk_hex, 16) if sk_hex.startswith("0x") else int(sk_hex)
-        return _mul_g2(G2Point(G2_gen), Scalar(sk_int))
+        return g1_scalar_mul(G1_GEN, Scalar(sk_int))
 
     return None
 
@@ -405,13 +409,6 @@ NOZK_VAULT_ABI = json.loads(_ABI_PATH.read_text())
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 
-def encode_spend_signature(compact_hex: str, recovery_bit: int) -> bytes:
-    r_bytes = bytes.fromhex(compact_hex[:64])
-    s_bytes = bytes.fromhex(compact_hex[64:])
-    v_byte = bytes([recovery_bit + 27])
-    return r_bytes + s_bytes + v_byte
-
-
 def build_web3(config: ClientConfig) -> Web3:
     w3 = Web3(Web3.HTTPProvider(config.rpc_http_url))
     if not w3.is_connected():
@@ -434,26 +431,26 @@ def cmd_deposit(config: ClientConfig, token_index: int) -> None:
     secrets = derive_token_secrets(config.master_seed, token_index)
 
     kv("Token index", str(token_index))
-    kv("Spend address", secrets.spend.address, style="addr")
-    kv("Blind address", secrets.blind.address, style="addr")
+    kv("Nullifier ID", secrets.nullifier_id_hex, style="addr")
+    kv("Deposit ID", secrets.deposit_id, style="addr")
     if is_verbose():
         kv_hex("Blinding scalar r", hex(secrets.r))
 
-    info("Spend address = nullifier (revealed only at redemption)", muted=True)
-    info("Blind address = deposit ID (submitted with deposit tx)", muted=True)
+    info("Nullifier ID = keccak(spend_bls_pub) (revealed only at redemption)", muted=True)
+    info("Deposit ID = deposit address (submitted with deposit tx)", muted=True)
     console.print()
 
     # Step 2: blind
-    section("Step 2 · Blind Token → G1", "🎭")
-    blinded = blind_token(secrets.spend_address_bytes, secrets.r)
-    b_x, b_y = serialize_g1(blinded.B)
-    y_x, y_y = serialize_g1(blinded.Y)
+    section("Step 2 · Blind Token → G2", "🎭")
+    blinded = blind_token(secrets.spend_bls_pub, secrets.r)
+    b_coords = serialize_g2_sol(blinded.B)
+    y_coords = serialize_g2_sol(blinded.Y)
 
     if is_verbose():
-        kv_hex("Y = H(spend_addr) x", hex(y_x))
-        kv_hex("Y = H(spend_addr) y", hex(y_y))
-    kv_hex("B = r·Y  x", hex(b_x))
-    kv_hex("B = r·Y  y", hex(b_y))
+        for i, v in enumerate(y_coords):
+            kv_hex(f"Y = H(spend_pub) [{i}]", hex(v))
+    for i, v in enumerate(b_coords):
+        kv_hex(f"B = r·Y [{i}]", hex(v))
     kv("Deposit ID", secrets.deposit_id, style="addr")
     info("B is the blinded point — mint cannot derive spend address without r", muted=True)
     console.print()
@@ -461,18 +458,19 @@ def cmd_deposit(config: ClientConfig, token_index: int) -> None:
     # ── Mock / dry-run: skip chain interaction entirely ────────────────────
     if is_mock():
         section("Step 3 · Save Token (mock — no chain)", "🧪")
-        dry("deposit([B.x, B.y], depositId) with value=0.001 ETH")
-        dry(f"B.x       = {hex(b_x)}")
-        dry(f"B.y       = {hex(b_y)}")
+        dry("deposit(B_g2, depositId) with value=0.001 ETH")
+        for i, v in enumerate(b_coords):
+            dry(f"B[{i}]      = {hex(v)}")
         dry(f"depositId = {secrets.deposit_id}")
         dry("No calldata built (mock mode — no contract needed)")
 
         state.tokens[token_index] = TokenRecord(
             index=token_index,
-            spend_address=secrets.spend.address,
+            nullifier_id=secrets.nullifier_id_hex,
             deposit_id=secrets.deposit_id,
             deposit_tx="mock-no-broadcast",
             deposit_block=None,
+            b_g2=[hex(v) for v in b_coords],
         )
         state.save()
         ok("Mock deposit complete. Token saved to wallet state.")
@@ -505,7 +503,7 @@ def cmd_deposit(config: ClientConfig, token_index: int) -> None:
     try:
         tx = contract.functions.deposit(
             Web3.to_checksum_address(secrets.deposit_id),
-            [b_x, b_y],
+            list(b_coords),
         ).build_transaction(
             {
                 "from": wallet,
@@ -527,20 +525,21 @@ def cmd_deposit(config: ClientConfig, token_index: int) -> None:
     section("Step 4 · Broadcast", "📡")
 
     if is_dry_run():
-        dry("deposit([B.x, B.y], depositId) with value=0.001 ETH")
+        dry("deposit(B_g2, depositId) with value=0.001 ETH")
         dry(f"from={wallet}")
         dry(f"to={config.contract_address}")
-        dry(f"B.x = {hex(b_x)}")
-        dry(f"B.y = {hex(b_y)}")
+        for i, v in enumerate(b_coords):
+            dry(f"B[{i}] = {hex(v)}")
         dry(f"depositId = {secrets.deposit_id}")
         dry("Transaction NOT sent (dry-run mode)")
 
         state.tokens[token_index] = TokenRecord(
             index=token_index,
-            spend_address=secrets.spend.address,
+            nullifier_id=secrets.nullifier_id_hex,
             deposit_id=secrets.deposit_id,
             deposit_tx="dry-run-not-broadcast",
             deposit_block=None,
+            b_g2=[hex(v) for v in b_coords],
         )
         state.save()
         ok("Dry-run complete. Run without --dry-run to broadcast.")
@@ -562,10 +561,11 @@ def cmd_deposit(config: ClientConfig, token_index: int) -> None:
 
     state.tokens[token_index] = TokenRecord(
         index=token_index,
-        spend_address=secrets.spend.address,
+        nullifier_id=secrets.nullifier_id_hex,
         deposit_id=secrets.deposit_id,
         deposit_tx=tx_hash.hex(),
         deposit_block=receipt["blockNumber"],
+        b_g2=[hex(v) for v in b_coords],
     )
     state.save()
 
@@ -607,13 +607,13 @@ def cmd_scan(
     )
     kv("Events found", str(len(fulfilled_events)))
 
-    fulfilled: dict[str, tuple[int, int]] = {}
+    fulfilled: dict[str, tuple[int, ...]] = {}
     for evt in fulfilled_events:
         did = Web3.to_checksum_address(evt["args"]["depositId"])
         sig = evt["args"]["S_prime"]
-        fulfilled[did] = (int(sig[0]), int(sig[1]))
+        fulfilled[did] = tuple(int(v) for v in sig)
         if is_verbose():
-            kv_hex(f"  S'.x [{short_hex(did, 6, 4)}]", hex(int(sig[0])))
+            kv_hex(f"  S'[0] [{short_hex(did, 6, 4)}]", hex(int(sig[0])))
 
     console.print()
     section("Step 2 · Match Tokens by Deposit ID", "🔗")
@@ -630,7 +630,7 @@ def cmd_scan(
         if existing is None:
             existing = TokenRecord(
                 index=idx,
-                spend_address=secrets.spend.address,
+                nullifier_id=secrets.nullifier_id_hex,
                 deposit_id=deposit_id,
             )
             state.tokens[idx] = existing
@@ -681,24 +681,24 @@ def cmd_scan(
             info(f"  No MintFulfilled yet for deposit ID {short_hex(deposit_id, 8, 6)}", muted=True)
             continue
 
-        s_prime_x, s_prime_y = fulfilled[deposit_id]
+        s_prime_coords = fulfilled[deposit_id]
         if is_verbose():
-            kv_hex("  S'.x (blind sig)", hex(s_prime_x))
-            kv_hex("  S'.y (blind sig)", hex(s_prime_y))
+            for i, v in enumerate(s_prime_coords):
+                kv_hex(f"  S'[{i}] (blind sig)", hex(v))
 
         info("  Unblinding: S = S' · r⁻¹ mod q …")
-        S_prime = parse_g1(s_prime_x, s_prime_y)
+        S_prime = parse_g2_sol(*s_prime_coords)
         S = unblind_signature(S_prime, secrets.r)
-        s_x, s_y = serialize_g1(S)
+        s_coords = serialize_g2_sol(S)
 
         if is_verbose():
-            kv_hex("  S.x (unblinded)", hex(s_x))
-            kv_hex("  S.y (unblinded)", hex(s_y))
+            for i, v in enumerate(s_coords):
+                kv_hex(f"  S[{i}] (unblinded)", hex(v))
 
         # Local BLS verification against mint public key
         if config.mint_bls_pubkey is not None:
-            Y = blind_token(secrets.spend_address_bytes, secrets.r).Y
-            bls_ok = verify_bls_pairing(S, Y, config.mint_bls_pubkey)
+            Y = blind_token(secrets.spend_bls_pub, secrets.r).Y
+            bls_ok = verify_bls_mint_signature(S, Y, config.mint_bls_pubkey)
             if bls_ok:
                 ok("  BLS pairing verified locally ✓")
             else:
@@ -708,11 +708,10 @@ def cmd_scan(
             info("  MINT_BLS_PUBKEY not configured — skipping local BLS check.", muted=True)
 
         # On-chain nullifier state check (UNREVEALED=0, REVEALED=1, SPENT=2)
-        nullifier_addr = Web3.to_checksum_address(secrets.spend.address)
-        null_state = contract.functions.nullifierState(nullifier_addr).call()
+        nullifier_id = secrets.nullifier_id_hex
+        null_state = contract.functions.nullifierState(nullifier_id).call()
 
-        existing.s_unblinded_x = hex(s_x)
-        existing.s_unblinded_y = hex(s_y)
+        existing.s_unblinded_g2 = [hex(v) for v in s_coords]
         if null_state == 2:
             existing.spent = True
         elif null_state == 1:
@@ -770,17 +769,16 @@ def cmd_reveal(
 
     # Step 1: load S
     section("Step 1 · Load Unblinded Signature", "🔓")
-    assert rec.s_unblinded_x is not None and rec.s_unblinded_y is not None
-    s_x = int(rec.s_unblinded_x, 16)
-    s_y = int(rec.s_unblinded_y, 16)
-    S = parse_g1(s_x, s_y)
-    kv_hex("S.x", hex(s_x))
-    kv_hex("S.y", hex(s_y))
+    assert rec.s_unblinded_g2 is not None
+    s_ints = [int(v, 16) for v in rec.s_unblinded_g2]
+    S = parse_g2_sol(*s_ints)
+    for i, v in enumerate(s_ints):
+        kv_hex(f"S[{i}]", hex(v))
 
     # Local BLS verification
     if config.mint_bls_pubkey is not None:
-        Y = blind_token(secrets.spend_address_bytes, secrets.r).Y
-        bls_ok = verify_bls_pairing(S, Y, config.mint_bls_pubkey)
+        Y = blind_token(secrets.spend_bls_pub, secrets.r).Y
+        bls_ok = verify_bls_mint_signature(S, Y, config.mint_bls_pubkey)
         if bls_ok:
             ok("BLS pairing verified locally ✓")
         else:
@@ -790,15 +788,15 @@ def cmd_reveal(
         info("MINT_BLS_PUBKEY not configured — skipping local BLS check.", muted=True)
     console.print()
 
-    nullifier_checksum = Web3.to_checksum_address(secrets.spend.address)
+    nullifier_id = secrets.nullifier_id_hex
 
     # ── Mock mode ──────────────────────────────────────────────────────────
     if is_mock():
         section("Step 2 · Mock Reveal", "🧪")
-        dry("reveal(nullifier, [S.x, S.y])")
-        dry(f"nullifier  = {nullifier_checksum}")
-        dry(f"S.x        = {hex(s_x)}")
-        dry(f"S.y        = {hex(s_y)}")
+        dry("reveal(nullifier_id, S_g2)")
+        dry(f"nullifier  = {nullifier_id}")
+        for i, v in enumerate(s_ints):
+            dry(f"S[{i}]       = {hex(v)}")
 
         rec.reveal_tx = "mock-no-broadcast"
         state.save()
@@ -816,9 +814,8 @@ def cmd_reveal(
             resp = requests.post(
                 relayer_url.rstrip("/") + "/reveal",
                 json={
-                    "nullifier": nullifier_checksum,
-                    "s_x": hex(s_x),
-                    "s_y": hex(s_y),
+                    "nullifier_id": nullifier_id,
+                    "s_g2": [hex(v) for v in s_ints],
                 },
                 timeout=180,
             )
@@ -849,8 +846,8 @@ def cmd_reveal(
 
         try:
             tx = contract.functions.reveal(
-                nullifier_checksum,
-                [s_x, s_y],
+                nullifier_id,
+                list(s_ints),
             ).build_transaction(
                 {
                     "from": wallet,
@@ -922,29 +919,30 @@ def cmd_redeem(
 
     if is_verbose():
         section("Intermediate Values", "🔬")
-        kv("Spend address (nullifier)", secrets.spend.address, style="addr")
+        kv("Nullifier ID", secrets.nullifier_id_hex, style="addr")
         kv("Deposit ID", secrets.deposit_id, style="addr")
         kv_hex("Blinding scalar r", hex(secrets.r))
-        blinded = blind_token(secrets.spend_address_bytes, secrets.r)
-        kv_hex("Y.x (hash-to-curve)", hex(blinded.Y[0].n))
-        kv_hex("Y.y (hash-to-curve)", hex(blinded.Y[1].n))
-        kv_hex("B.x (blinded point)", hex(blinded.B[0].n))
-        kv_hex("B.y (blinded point)", hex(blinded.B[1].n))
+        blinded = blind_token(secrets.spend_bls_pub, secrets.r)
+        y_coords = serialize_g2_sol(blinded.Y)
+        b_coords = serialize_g2_sol(blinded.B)
+        for i, v in enumerate(y_coords):
+            kv_hex(f"Y[{i}] (hash-to-curve)", hex(v))
+        for i, v in enumerate(b_coords):
+            kv_hex(f"B[{i}] (blinded point)", hex(v))
         console.print()
 
     # Step 1: load S
     section("Step 1 · Load Unblinded Signature", "🔓")
-    assert rec.s_unblinded_x is not None and rec.s_unblinded_y is not None, "Token has no unblinded signature"
-    s_x = int(rec.s_unblinded_x, 16)
-    s_y = int(rec.s_unblinded_y, 16)
-    S = parse_g1(s_x, s_y)
-    kv_hex("S.x", hex(s_x))
-    kv_hex("S.y", hex(s_y))
+    assert rec.s_unblinded_g2 is not None, "Token has no unblinded signature"
+    s_ints = [int(v, 16) for v in rec.s_unblinded_g2]
+    S = parse_g2_sol(*s_ints)
+    for i, v in enumerate(s_ints):
+        kv_hex(f"S[{i}]", hex(v))
 
     # Local BLS verification before attempting on-chain redeem
     if config.mint_bls_pubkey is not None:
-        Y = blind_token(secrets.spend_address_bytes, secrets.r).Y
-        bls_ok = verify_bls_pairing(S, Y, config.mint_bls_pubkey)
+        Y = blind_token(secrets.spend_bls_pub, secrets.r).Y
+        bls_ok = verify_bls_mint_signature(S, Y, config.mint_bls_pubkey)
         if bls_ok:
             ok("BLS pairing verified locally ✓")
         else:
@@ -957,13 +955,13 @@ def cmd_redeem(
 
     # Step 2: derive spend key
     section("Step 2 · Derive Spend Key", "🔑")
-    kv("Spend address (nullifier)", secrets.spend.address, style="addr")
-    kv("Deposit ID", secrets.blind.address, style="addr")
-    info("The spend address is the nullifier — recorded as spent after redemption.", muted=True)
+    kv("Nullifier ID", secrets.nullifier_id_hex, style="addr")
+    kv("Deposit ID", secrets.deposit_id, style="addr")
+    info("The nullifier ID = keccak(spend_bls_pub) — recorded as spent after redemption.", muted=True)
     console.print()
 
-    # Step 3: generate redemption proof (EIP-712 typed data)
-    section("Step 3 · Generate Anti-MEV ECDSA Proof (EIP-712)", "🛡️")
+    # Step 3: generate anti-MEV BLS spend proof (EIP-712 typed data)
+    section("Step 3 · Generate Anti-MEV BLS Spend Proof (EIP-712)", "🛡️")
     recipient_checksum = Web3.to_checksum_address(recipient)
     deadline = int(time.time()) + 3600  # 1 hour from now
     if is_mock():
@@ -972,7 +970,8 @@ def cmd_redeem(
         w3_tmp = build_web3(config)
         chain_id = w3_tmp.eth.chain_id
     proof = generate_redemption_proof(
-        secrets.spend_priv,
+        secrets.spend_chia_sk,
+        secrets.spend_chia_pk,
         recipient_checksum,
         chain_id,
         config.contract_address,
@@ -981,39 +980,47 @@ def cmd_redeem(
 
     kv("Payload", f"EIP-712 NozkRedeem(recipient={recipient_checksum}, deadline={deadline})")
     kv_hex("msg_hash", proof.msg_hash.hex())
-    kv_hex("compact_hex", "0x" + proof.compact_hex)
-    kv("recovery_bit", str(proof.recovery_bit))
-    kv("v (EVM)", str(proof.recovery_bit + 27))
-    info("ecrecover on-chain will recover the spend address from this signature.", muted=True)
+    kv_hex("sigma (G2)", "0x" + bytes(proof.sigma).hex())
+    info("BLS AugSchemeMPL.verify on-chain will verify the spend signature.", muted=True)
 
-    # Local ecrecover verification
-    is_valid = verify_ecdsa_mev_protection(
+    # Local BLS spend signature verification
+    is_valid = verify_bls_spend_signature(
+        proof.sigma,
         proof.msg_hash,
-        proof.compact_hex,
-        proof.recovery_bit,
-        secrets.spend.address,
+        secrets.spend_chia_pk,
     )
     if is_valid:
-        ok("Local ecrecover check passed")
+        ok("Local BLS spend signature check passed")
     else:
-        err("Local ECDSA verification failed — aborting.")
+        err("Local BLS spend signature verification failed — aborting.")
         raise typer.Exit(code=1)
 
-    spend_sig_bytes = encode_spend_signature(proof.compact_hex, proof.recovery_bit)
+    # Serialize spend signature G2 for on-chain submission
+    from py_ecc.bls.g2_primitives import signature_to_G2
+
+    spend_sig_g2 = G2Point(signature_to_G2(bytes(proof.sigma)))
+    spend_sig_coords = serialize_g2_sol(spend_sig_g2)
+    # Also serialize spend pubkey G1 for on-chain
+    spend_pk_coords = serialize_g1_sol(secrets.spend_bls_pub)
     if is_debug():
-        kv_hex("Encoded sig (65 bytes)", "0x" + spend_sig_bytes.hex())
+        for i, v in enumerate(spend_sig_coords):
+            kv_hex(f"spend_sig[{i}]", hex(v))
+        for i, v in enumerate(spend_pk_coords):
+            kv_hex(f"spend_pk[{i}]", hex(v))
     console.print()
 
     # ── Mock mode: skip calldata / broadcasting entirely ──────────────────
-    nullifier_checksum = Web3.to_checksum_address(secrets.spend.address)
+    nullifier_id = secrets.nullifier_id_hex
     if is_mock():
         section("Step 4 · Mock Redemption Payload", "🧪")
-        dry("redeem(recipient, spendSignature, nullifier, deadline)")
-        dry(f"recipient  = {recipient_checksum}")
-        dry(f"nullifier  = {nullifier_checksum}")
-        dry(f"deadline   = {deadline}")
-        dry(f"v          = {proof.recovery_bit + 27}  (recovery_bit + 27)")
-        dry(f"sig        = 0x{spend_sig_bytes.hex()[:40]}…")
+        dry("redeem(recipient, spendSigG2, spendPkG1, nullifierId, deadline)")
+        dry(f"recipient    = {recipient_checksum}")
+        dry(f"nullifier_id = {nullifier_id}")
+        dry(f"deadline     = {deadline}")
+        for i, v in enumerate(spend_sig_coords):
+            dry(f"spend_sig[{i}] = {hex(v)}")
+        for i, v in enumerate(spend_pk_coords):
+            dry(f"spend_pk[{i}]  = {hex(v)}")
         dry("No calldata built (mock mode — no contract needed)")
         ok("Mock redemption payload generated. Run 'redeem_mock.py verify' to validate.")
         return
@@ -1028,18 +1035,15 @@ def cmd_redeem(
         abi=NOZK_VAULT_ABI,
     )
 
-    # Read the mint's BLS public key from the contract
+    # Read the mint's BLS public key from the contract (now G1: 4 uint256)
     if is_verbose():
         pk_vals = [contract.functions.pkMint(i).call() for i in range(4)]
-        kv("On-chain pkMint[0]", hex(pk_vals[0]), style="hash")
-        kv("On-chain pkMint[1]", hex(pk_vals[1]), style="hash")
-        kv("On-chain pkMint[2]", hex(pk_vals[2]), style="hash")
-        kv("On-chain pkMint[3]", hex(pk_vals[3]), style="hash")
+        for i, v in enumerate(pk_vals):
+            kv(f"On-chain pkMint[{i}]", hex(v), style="hash")
 
         # Cross-check against local MINT_BLS_PUBKEY if configured
         if config.mint_bls_pubkey is not None:
-            pk = config.mint_bls_pubkey
-            local_vals = [pk[0].coeffs[1].n, pk[0].coeffs[0].n, pk[1].coeffs[1].n, pk[1].coeffs[0].n]
+            local_vals = list(serialize_g1_sol(config.mint_bls_pubkey))
             if local_vals == pk_vals:
                 ok("On-chain pkMint matches local MINT_BLS_PUBKEY ✓")
             else:
@@ -1052,8 +1056,9 @@ def cmd_redeem(
     try:
         calldata = contract.functions.redeem(
             recipient_checksum,
-            spend_sig_bytes,
-            nullifier_checksum,
+            list(spend_sig_coords),
+            list(spend_pk_coords),
+            nullifier_id,
             deadline,
         ).build_transaction({"from": ZERO})["data"]
     except (ContractCustomError, ContractLogicError) as exc:
@@ -1061,7 +1066,7 @@ def cmd_redeem(
         raise typer.Exit(code=1) from exc
 
     kv("Recipient", recipient_checksum, style="addr")
-    kv("Nullifier", nullifier_checksum, style="addr")
+    kv("Nullifier ID", nullifier_id, style="addr")
     calldata_hex = str(calldata)
     kv("Calldata size", f"{len(bytes.fromhex(calldata_hex[2:]))} bytes")
     if is_debug():
@@ -1071,12 +1076,11 @@ def cmd_redeem(
     # Step 5: dry-run or broadcast
     if is_dry_run():
         section("Step 5 · DRY-RUN Simulation", "🔵")
-        dry("redeem(recipient, spendSignature, nullifier, deadline)")
-        dry(f"recipient  = {recipient_checksum}")
-        dry(f"nullifier  = {nullifier_checksum}")
-        dry(f"deadline   = {deadline}")
-        dry(f"v          = {proof.recovery_bit + 27}  (recovery_bit + 27)")
-        dry(f"calldata   = {calldata[:42]}…")
+        dry("redeem(recipient, spendSigG2, spendPkG1, nullifierId, deadline)")
+        dry(f"recipient    = {recipient_checksum}")
+        dry(f"nullifier_id = {nullifier_id}")
+        dry(f"deadline     = {deadline}")
+        dry(f"calldata     = {calldata[:42]}…")
         dry("Transaction NOT sent (dry-run mode)")
         ok("Dry-run redemption proof generated successfully.")
         return
@@ -1091,8 +1095,9 @@ def cmd_redeem(
                 relayer_url.rstrip("/") + "/redeem",
                 json={
                     "recipient": recipient_checksum,
-                    "spend_signature": "0x" + spend_sig_bytes.hex(),
-                    "nullifier": nullifier_checksum,
+                    "spend_sig_g2": [hex(v) for v in spend_sig_coords],
+                    "spend_pk_g1": [hex(v) for v in spend_pk_coords],
+                    "nullifier_id": nullifier_id,
                     "deadline": deadline,
                 },
                 timeout=180,
@@ -1122,8 +1127,9 @@ def cmd_redeem(
         try:
             tx = contract.functions.redeem(
                 recipient_checksum,
-                spend_sig_bytes,
-                nullifier_checksum,
+                list(spend_sig_coords),
+                list(spend_pk_coords),
+                nullifier_id,
                 deadline,
             ).build_transaction(
                 {
@@ -1152,7 +1158,7 @@ def cmd_redeem(
 
     console.print()
     ok("On-chain checks passed:")
-    info("  ✔  ecrecover → nullifier matches spend address")
+    info("  ✔  BLS spend signature verified against spend pubkey")
     info("  ✔  nullifier was in REVEALED state")
     info(f"  ✔  0.001 ETH transferred to {recipient_checksum}")
 
@@ -1216,7 +1222,7 @@ def cmd_status(config: ClientConfig) -> None:
     )
     table.add_column("#", style="num", justify="right", no_wrap=True)
     table.add_column("Status", no_wrap=True)
-    table.add_column("Spend addr", style="addr", no_wrap=True)
+    table.add_column("Nullifier ID", style="addr", no_wrap=True)
     table.add_column("Deposit ID", style="secondary", no_wrap=True)
     table.add_column("Deposit tx", style="hash", no_wrap=True)
     table.add_column("Redeem tx", style="hash", no_wrap=True)
@@ -1226,7 +1232,7 @@ def cmd_status(config: ClientConfig) -> None:
         table.add_row(
             str(idx),
             rec.status_styled,
-            short_hex(rec.spend_address, 6, 4),
+            short_hex(rec.nullifier_id, 6, 4),
             short_hex(rec.deposit_id, 6, 4),
             short_hex(rec.deposit_tx, 8, 6) if rec.deposit_tx else "—",
             short_hex(rec.redeem_tx, 8, 6) if rec.redeem_tx else "—",

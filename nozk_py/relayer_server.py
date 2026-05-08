@@ -433,12 +433,34 @@ class Relayer:
         return BatchTxResponse(tx_hash=tx_hash, block_number=block, gas_used=gas, count=len(items))
 
     def submit_redeem(self, req: RedeemRequest) -> TxResponse:
+        """Submit a redeem transaction on behalf of the user.
+
+        Decompresses the BLS spend signature from chia_rs compressed G2 (96 bytes)
+        to EIP-2537 uncompressed format (8 uint256) for the on-chain call.
+        """
+        from chia_rs import G1Element, G2Element
+        from py_ecc.bls.g2_primitives import signature_to_G2
+
+        from bls12_381_crypto import G2Point, parse_g1_sol, serialize_g1_sol, serialize_g2_sol
+
         self.validate_redeem(req)
 
-        # TODO: relayer needs to accept uncompressed G2 spend sig coords for on-chain submission
-        # For now, the relayer validates the BLS sig but cannot yet build the on-chain tx
-        # because decompressing G2 to EIP-2537 format requires additional infrastructure.
-        raise NotImplementedError("Relayer redeem submission needs BLS12-381 G2 decompression — WIP")
+        recipient = Web3.to_checksum_address(req.recipient)
+
+        # Decompress BLS spend sig: compressed G2 (96 bytes) → EIP-2537 (8 uint256)
+        sigma_chia = G2Element.from_bytes(bytes.fromhex(req.spend_sigma_compressed))
+        spend_sig_pyecc = G2Point(signature_to_G2(sigma_chia.to_bytes()))
+        spend_sig_coords = list(serialize_g2_sol(spend_sig_pyecc))
+
+        nid_bytes = bytes.fromhex(req.nullifier_id)
+
+        tx_builder = self.contract.functions.redeem(
+            recipient, spend_sig_coords, nid_bytes, req.deadline
+        )
+        tx_hash, block, gas = self._send_tx(tx_builder)
+
+        self._log_tx("redeem", req.nullifier_id[:18], tx_hash, block, gas)
+        return TxResponse(tx_hash=tx_hash, block_number=block, gas_used=gas, nullifier=req.nullifier_id)
 
     def get_status(self, nullifier_addr: str) -> StatusResponse:
         nullifier = Web3.to_checksum_address(nullifier_addr)

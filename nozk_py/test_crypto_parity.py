@@ -32,6 +32,7 @@ from bls12_381_crypto import (
     serialize_g2_sol,
     verify_mint_pairing,
 )
+from nozk_library import derive_token_secrets
 
 # ==============================================================================
 # expand_message_xmd — RFC 9380 section 5.3.1
@@ -267,3 +268,94 @@ class TestBlindSignatureProtocol:
         Y1 = hash_to_g2(b"message_a")
         Y2 = hash_to_g2(b"message_b")
         assert not eq(Y1, Y2)
+
+    def test_blind_with_r_equals_1(self):
+        """r=1 means B=Y (trivial blinding). Protocol still works."""
+        sk = Scalar(7)
+        pk = g1_scalar_mul(G1_GEN, sk)
+        r = 1
+
+        Y = hash_to_g2(abi_encode_g1(pk))
+        B = g2_scalar_mul(Y, Scalar(r))
+        assert eq(B, Y), "r=1 should give B=Y"
+
+        S_prime = g2_scalar_mul(B, sk)
+        r_inv = pow(r, -1, CURVE_ORDER)
+        S = g2_scalar_mul(S_prime, Scalar(r_inv))
+        assert verify_mint_pairing(S, Y, pk)
+
+    def test_blind_with_large_r(self):
+        """r near CURVE_ORDER-1 (edge case for modular inverse)."""
+        sk = Scalar(42)
+        pk = g1_scalar_mul(G1_GEN, sk)
+        r = CURVE_ORDER - 2  # large r
+
+        Y = hash_to_g2(abi_encode_g1(pk))
+        B = g2_scalar_mul(Y, Scalar(r))
+        S_prime = g2_scalar_mul(B, sk)
+        r_inv = pow(r, -1, CURVE_ORDER)
+        S = g2_scalar_mul(S_prime, Scalar(r_inv))
+        assert verify_mint_pairing(S, Y, pk)
+
+    def test_unblind_inverse_algebraic(self):
+        """Verify S = sk * Y algebraically: unblinding recovers the raw signature."""
+        from py_ecc.optimized_bls12_381 import eq as pt_eq
+
+        sk = Scalar(13)
+        pk = g1_scalar_mul(G1_GEN, sk)
+        Y = hash_to_g2(abi_encode_g1(pk))
+
+        # Direct: S_expected = sk * Y
+        S_expected = g2_scalar_mul(Y, sk)
+
+        # Via blinding: B = r*Y, S' = sk*B = sk*r*Y, S = S' * r^{-1} = sk*Y
+        r = 9999
+        B = g2_scalar_mul(Y, Scalar(r))
+        S_prime = g2_scalar_mul(B, sk)
+        S = g2_scalar_mul(S_prime, Scalar(pow(r, -1, CURVE_ORDER)))
+
+        assert pt_eq(S, S_expected), "Blinding roundtrip must recover sk*Y"
+
+    def test_nullifier_id_deterministic(self):
+        """Same spend_pub always produces the same nullifier_id."""
+        from eth_utils import keccak
+
+        secrets1 = derive_token_secrets(b"det_seed", 5)
+        secrets2 = derive_token_secrets(b"det_seed", 5)
+
+        nid1 = keccak(abi_encode_g1(secrets1.spend_bls_pub))
+        nid2 = keccak(abi_encode_g1(secrets2.spend_bls_pub))
+        assert nid1 == nid2
+        assert nid1 == secrets1.nullifier_id
+
+    def test_different_indices_different_nullifiers(self):
+        """Different token indices must produce different nullifiers."""
+        s0 = derive_token_secrets(b"idx_seed", 0)
+        s1 = derive_token_secrets(b"idx_seed", 1)
+        assert s0.nullifier_id != s1.nullifier_id
+        assert not eq(s0.spend_bls_pub, s1.spend_bls_pub)
+
+    def test_aggregate_reveal_matches_individual(self):
+        """Aggregated reveal verification matches individual checks."""
+        from bls12_381_crypto import aggregate_g2
+
+        sk = Scalar(42)
+        pk = g1_scalar_mul(G1_GEN, sk)
+
+        # 3 independent tokens
+        ys = []
+        ss = []
+        for i in range(3):
+            secrets = derive_token_secrets(b"agg_seed", i)
+            Y = hash_to_g2(abi_encode_g1(secrets.spend_bls_pub))
+            S = g2_scalar_mul(Y, sk)
+            ys.append(Y)
+            ss.append(S)
+
+            # Individual verification must pass
+            assert verify_mint_pairing(S, Y, pk), f"Individual verify failed for {i}"
+
+        # Aggregate: sigma_agg = sum(S_i), Y_agg = sum(Y_i)
+        sigma_agg = aggregate_g2(ss)
+        y_agg = aggregate_g2(ys)
+        assert verify_mint_pairing(sigma_agg, y_agg, pk), "Aggregated verify failed"

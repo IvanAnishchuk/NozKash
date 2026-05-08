@@ -324,31 +324,34 @@ export const NOZK_VAULT_DEPOSIT_AMOUNT_LABEL = '0.001 ETH' as const
 export const NOZK_VAULT_DEPOSIT_VALUE_WEI_HEX = '0x38d7ea4c68000' as const
 
 /**
- * Topic0 for `DepositLocked(address indexed depositId, uint256[2] B)`.
+ * V2 event topic0 hashes (recomputed for V2 signatures with uint256[8] and bytes32).
  */
+
+/** `DepositLocked(address indexed depositId, uint256[8] B)` */
 export const DEPOSIT_LOCKED_TOPIC =
-  '0x862ec9340d087ce196a3c0e8813906101b8309ca08f1b34116302bb83558ed97'
+  '0xe178a1ad0a6551e527bf743737bb290b02b63b06d23210978cb7d3ec4f671730'
 
-/** `MintFulfilled(address indexed depositId, uint256[2] S_prime)` */
+/** `MintFulfilled(address indexed depositId, uint256[8] S_prime)` */
 export const MINT_FULFILLED_TOPIC =
-  '0x7416ef7e58ae7b94b7df89de0e6dc3e80de4ad46d77e62954dbe55de26829f79'
+  '0xa6bf61f6f77b0e662f085afc8515b4d61a6afb45870cbd0f42088b54c789d05d'
 
-/** `Refunded(address indexed depositId, address indexed to)` */
+/** `Refunded(address indexed depositId, address indexed to)` — unchanged */
 export const REFUNDED_TOPIC =
   '0x51ebc7481979ebbd2e5cf0be7bb298c0a8dfe2c94e2b37ec845b412b2b93df52'
 
-/** `NullifierRevealed(address indexed nullifier, uint256 amount)` */
+/** `NullifierRevealed(bytes32 indexed nullifierId, uint256 amount)` */
 export const NULLIFIER_REVEALED_TOPIC =
-  '0x08a7881b64eac318bde190ddac8b02a366234276f091bb1802715ac2eab87b13'
+  '0x475b6724a8fa68fea88b1ebf93141fdff143978465f5cf9535b98c4cdc0c0bf6'
 
-/** `spentNullifiers(address)` getter — backward compat (returns bool). */
-const SPENT_NULLIFIERS_SELECTOR = '0x2b2ba6e8'
+/**
+ * V2 function selectors.
+ */
 
-/** `nullifierState(address)` getter — returns uint8: 0=UNREVEALED, 1=REVEALED, 2=SPENT. */
-const NULLIFIER_STATE_SELECTOR = '0x2d35035c'
-/** `depositPending(address)` getter. */
+/** `nullifierState(bytes32)` — returns uint8: 0=UNREVEALED, 1=REVEALED, 2=SPENT. */
+const NULLIFIER_STATE_SELECTOR = '0x1fa862b9'
+/** `depositPending(address)` — unchanged. */
 const DEPOSIT_PENDING_SELECTOR = '0xd7d82302'
-/** `depositFulfilled(address)` getter. */
+/** `depositFulfilled(address)` — unchanged. */
 const DEPOSIT_FULFILLED_SELECTOR = '0x7cf15601'
 
 function normalizeAddress(a: string): string {
@@ -371,13 +374,13 @@ export function depositIdToTopic(depositId: string): string {
 export function vaultDerivedAddressesForIndices(
   masterSeed: Uint8Array,
   tokenIndices: number[]
-): { tokenIndex: number; depositId: string; spendAddress: string }[] {
+): { tokenIndex: number; depositId: string; nullifierIdHex: string }[] {
   return tokenIndices.map((tokenIndex) => {
     const secrets = deriveTokenSecrets(masterSeed, tokenIndex)
     return {
       tokenIndex,
       depositId: normalizeAddress(getDepositId(secrets)),
-      spendAddress: normalizeAddress(getNullifierIdHex(secrets)),
+      nullifierIdHex: normalizeAddress(getNullifierIdHex(secrets)),
     }
   })
 }
@@ -668,9 +671,9 @@ export async function fetchVaultRowForTokenIndex(
   const netLabel = options?.networkLabel ?? TARGET_NETWORK_LABEL
   const secrets = deriveTokenSecrets(masterSeed, tokenIndex)
   const depositId = normalizeAddress(getDepositId(secrets))
-  const spendAddress = getNullifierIdHex(secrets)
+  const nullifierIdHex = getNullifierIdHex(secrets)
   const blindShort = addrShort(depositId)
-  const spendShort = addrShort(spendAddress)
+  const spendShort = addrShort(nullifierIdHex)
 
   const [lockedRaw, fulfilledRaw, refundedRaw] = await Promise.all([
     fetchLogsForDepositIds(vault, DEPOSIT_LOCKED_TOPIC, [depositId], fromBlock, chainRpcCall),
@@ -685,7 +688,7 @@ export async function fetchVaultRowForTokenIndex(
   if (!lockLog && !mintLog && !refundLog) return null
 
   if (mintLog) {
-    const nState = await fetchNullifierState(vault, spendAddress, chainRpcCall)
+    const nState = await fetchNullifierState(vault, nullifierIdHex, chainRpcCall)
     const bn = parseHexBlock(mintLog.blockNumber)
     const txh = mintLog.transactionHash ?? '—'
     const dateIso = await blockHexToDateIso(mintLog.blockNumber, chainRpcCall)
@@ -707,9 +710,9 @@ export async function fetchVaultRowForTokenIndex(
     if (nState === NULLIFIER_REVEALED) {
       // Fetch the actual NullifierRevealed log for accurate tx metadata
       const revealLogs = await fetchLogsForDepositIds(
-        vault, NULLIFIER_REVEALED_TOPIC, [spendAddress], fromBlock, chainRpcCall
+        vault, NULLIFIER_REVEALED_TOPIC, [nullifierIdHex], fromBlock, chainRpcCall
       )
-      const revealLog = latestLogByDepositId(revealLogs).get(normalizeAddress(spendAddress))
+      const revealLog = latestLogByDepositId(revealLogs).get(normalizeAddress(nullifierIdHex))
       const rBn = revealLog ? parseHexBlock(revealLog.blockNumber) : bn
       const rTxh = revealLog?.transactionHash ?? txh
       const rDateIso = revealLog ? await blockHexToDateIso(revealLog.blockNumber, chainRpcCall) : dateIso
@@ -808,16 +811,17 @@ export const NULLIFIER_REVEALED = 1
 export const NULLIFIER_SPENT = 2
 
 /**
- * Query `nullifierState(address)` → 0=UNREVEALED, 1=REVEALED, 2=SPENT.
- * Falls back to `spentNullifiers(address)` if the new view is unavailable.
+ * V2: Query `nullifierState(bytes32)` → 0=UNREVEALED, 1=REVEALED, 2=SPENT.
+ * Takes a 32-byte nullifier ID hex (keccak of ABI-encoded G1 spend pub).
  */
 async function fetchNullifierState(
   vault: string,
-  spendAddress: string,
+  nullifierIdHex: string,
   rpc: ChainRpcFn = chainRpcCall
 ): Promise<number> {
-  const addr = normalizeAddress(spendAddress).slice(2)
-  const data = (NULLIFIER_STATE_SELECTOR + addr.padStart(64, '0')).toLowerCase()
+  // bytes32: already 32 bytes, pad to 64 hex chars if needed
+  const nid = nullifierIdHex.replace(/^0x/i, '').toLowerCase().padStart(64, '0')
+  const data = (NULLIFIER_STATE_SELECTOR + nid).toLowerCase()
   try {
     const result = await rpc<string>('eth_call', [
       { to: vault, data },
@@ -827,30 +831,9 @@ async function fetchNullifierState(
       return Number(BigInt(result))
     }
   } catch {
-    // fallback to spentNullifiers for older deployments
+    /* contract may not be deployed yet */
   }
-  return await spentNullifierIsSetLegacy(vault, spendAddress, rpc)
-    ? NULLIFIER_SPENT
-    : NULLIFIER_UNREVEALED
-}
-
-async function spentNullifierIsSetLegacy(
-  vault: string,
-  spendAddress: string,
-  rpc: ChainRpcFn = chainRpcCall
-): Promise<boolean> {
-  const addr = normalizeAddress(spendAddress).slice(2)
-  const data = (SPENT_NULLIFIERS_SELECTOR + addr.padStart(64, '0')).toLowerCase()
-  const result = await rpc<string>('eth_call', [
-    { to: vault, data },
-    'latest',
-  ])
-  if (!result || result === '0x') return false
-  try {
-    return BigInt(result) !== 0n
-  } catch {
-    return false
-  }
+  return NULLIFIER_UNREVEALED
 }
 
 /** True if any derived `depositId` in this batch has vault-relevant logs on-chain. */
@@ -1133,9 +1116,9 @@ async function fetchVaultActivityForFirstTokensImpl(
       const tokenIndex = indices[j]!
       const secrets = secretsList[j]!
       const depositId = normalizeAddress(getDepositId(secrets))
-      const spendAddress = getNullifierIdHex(secrets)
+      const nullifierIdHex = getNullifierIdHex(secrets)
       const blindShort = addrShort(depositId)
-      const spendShort = addrShort(spendAddress)
+      const spendShort = addrShort(nullifierIdHex)
 
       if (nullifierStates[j] === NULLIFIER_SPENT) {
         const mintLog = fulfilledById.get(depositId)
@@ -1162,7 +1145,7 @@ async function fetchVaultActivityForFirstTokensImpl(
       }
 
       if (nullifierStates[j] === NULLIFIER_REVEALED) {
-        const revealLog = revealedLogById.get(normalizeAddress(spendAddress))
+        const revealLog = revealedLogById.get(normalizeAddress(nullifierIdHex))
         const mintLog = fulfilledById.get(depositId)
         const lockLog = lockedById.get(depositId)
         const refLog = mintLog ?? lockLog

@@ -39,6 +39,11 @@ Local copies of all standards referenced by the NozKash protocol and its documen
 | [rfc3447.txt](rfcs/rfc3447.txt) | PKCS#1 v2.1 (I2OSP/OS2IP) | Integer-to-octet encoding; referenced by EIP-2333 |
 | [rfc7748.txt](rfcs/rfc7748.txt) | Elliptic Curves for Security | Curve25519/448; referenced by EIP-2494, RFC 9380 |
 | [rfc8032.txt](rfcs/rfc8032.txt) | EdDSA | Edwards-curve signatures; referenced by EIP-2494 |
+| [rfc9474.txt](rfcs/rfc9474.txt) | RSA Blind Signatures | IETF standard for RSA blind sigs; Privacy Pass building block |
+| [rfc9497.txt](rfcs/rfc9497.txt) | OPRFs Using Prime-Order Groups | Oblivious PRF standard; Privacy Pass token issuance |
+| [rfc9576.txt](rfcs/rfc9576.txt) | Privacy Pass Architecture | Architectural framework for anonymous token protocols |
+| [rfc9577.txt](rfcs/rfc9577.txt) | Privacy Pass HTTP Authentication | HTTP integration for Privacy Pass tokens |
+| [rfc9578.txt](rfcs/rfc9578.txt) | Privacy Pass Issuance Protocols | Token issuance protocol (blind RSA + VOPRF modes) |
 
 ## BIPs (Bitcoin Improvement Proposals)
 

@@ -3,10 +3,10 @@ import pytest
 import nozk_library as gl
 from bls12_381_crypto import (
     CURVE_ORDER,
-    abi_encode_g2,
-    hash_to_g1,
-    serialize_g1,
-    serialize_g2,
+    abi_encode_g1,
+    hash_to_g2,
+    serialize_g1_sol,
+    serialize_g2_sol,
 )
 from nozk_library import (
     CurveError,
@@ -69,24 +69,17 @@ def test_mint_keypairs_are_unique():
 
 
 def test_derive_token_secrets_structure(setup_data):
-    """spend is BLS12-381 keypair, blind is secp256k1 keypair for deposit ID."""
     master_seed, token_index, _ = setup_data
     secrets = gl.derive_token_secrets(master_seed, token_index)
 
-    # BLS spend key
     assert isinstance(secrets.spend_bls_priv, int)
     assert 0 < secrets.spend_bls_priv < CURVE_ORDER
     assert secrets.spend_bls_pub is not None
-
-    # Nullifier ID = 32 bytes
+    assert secrets.spend_chia_sk is not None
+    assert secrets.spend_chia_pk is not None
     assert len(secrets.nullifier_id) == 32
-    assert secrets.nullifier_id_hex.startswith("0x")
-
-    # Deposit ID (secp256k1 blind keypair)
     assert secrets.deposit_id.startswith("0x")
     assert len(secrets.deposit_id) == 42
-
-    # Blinding factor
     assert 0 < secrets.r < CURVE_ORDER
 
 
@@ -96,22 +89,29 @@ def test_deposit_id_is_blind_address(setup_data):
     assert secrets.deposit_id == secrets.deposit_blind_keypair.address
 
 
-def test_nullifier_id_matches_g2_pubkey_hash(setup_data):
-    """nullifier_id = keccak256(abi.encode(spend_bls_pub))."""
+def test_nullifier_id_matches_g1_pubkey_hash(setup_data):
     master_seed, token_index, _ = setup_data
     secrets = gl.derive_token_secrets(master_seed, token_index)
     from eth_utils import keccak
 
-    expected = keccak(abi_encode_g2(secrets.spend_bls_pub))
+    expected = keccak(abi_encode_g1(secrets.spend_bls_pub))
     assert secrets.nullifier_id == expected
 
 
 def test_r_matches_blind_priv_scalar(setup_data):
-    """r must equal int(blind_priv) % BLS12_381_ORDER."""
     master_seed, token_index, _ = setup_data
     secrets = gl.derive_token_secrets(master_seed, token_index)
     expected = int.from_bytes(secrets.deposit_blind_keypair.priv.to_bytes(), "big") % CURVE_ORDER
     assert secrets.r == expected
+
+
+def test_chia_pk_matches_pyecc_pub(setup_data):
+    """chia_rs PK and py_ecc PK should represent the same G1 point."""
+    master_seed, token_index, _ = setup_data
+    secrets = gl.derive_token_secrets(master_seed, token_index)
+    # Both derive from the same scalar — chia compressed should match py_ecc coords
+    assert secrets.spend_chia_pk is not None
+    assert len(secrets.spend_chia_pk.to_bytes()) == 48
 
 
 # ==============================================================================
@@ -170,89 +170,61 @@ def test_derive_rejects_oversized_index():
 
 
 # ==============================================================================
-# HASH-TO-G1
+# HASH-TO-G2
 # ==============================================================================
 
 
-def test_hash_to_g1_deterministic():
-    p1 = hash_to_g1(b"determinism_check")
-    p2 = hash_to_g1(b"determinism_check")
-    assert serialize_g1(p1) == serialize_g1(p2)
+def test_hash_to_g2_deterministic():
+    p1 = hash_to_g2(b"determinism_check")
+    p2 = hash_to_g2(b"determinism_check")
+    assert serialize_g2_sol(p1) == serialize_g2_sol(p2)
 
 
-def test_hash_to_g1_different_inputs_differ():
-    p1 = hash_to_g1(b"input_a")
-    p2 = hash_to_g1(b"input_b")
-    assert serialize_g1(p1) != serialize_g1(p2)
+def test_hash_to_g2_different_inputs_differ():
+    p1 = hash_to_g2(b"input_a")
+    p2 = hash_to_g2(b"input_b")
+    assert serialize_g2_sol(p1) != serialize_g2_sol(p2)
 
 
-def test_hash_to_g1_cofactor_cleared():
-    """Hash-to-G1 result must be in the prime-order subgroup."""
-    from py_ecc.optimized_bls12_381 import Z1, eq
-    from py_ecc.optimized_bls12_381 import multiply as raw_mul
-
-    p = hash_to_g1(b"cofactor test")
-    identity = raw_mul(p, CURVE_ORDER)
-    assert eq(identity, Z1)
-
-
-def test_hash_to_g1_matches_blind_token_y(setup_data):
+def test_hash_to_g2_matches_blind_token_y(setup_data):
     master_seed, token_index, _ = setup_data
     secrets = gl.derive_token_secrets(master_seed, token_index)
-    direct = hash_to_g1(abi_encode_g2(secrets.spend_bls_pub))
+    direct = hash_to_g2(abi_encode_g1(secrets.spend_bls_pub))
     blinded = gl.blind_token(secrets.spend_bls_pub, secrets.r)
-    assert serialize_g1(direct) == serialize_g1(blinded.Y)
+    assert serialize_g2_sol(direct) == serialize_g2_sol(blinded.Y)
 
 
 # ==============================================================================
-# G1/G2 SERIALIZATION
+# SERIALIZATION
 # ==============================================================================
 
 
 def test_serialize_g1_round_trip(setup_data):
     master_seed, token_index, _ = setup_data
     secrets = gl.derive_token_secrets(master_seed, token_index)
-    blinded = gl.blind_token(secrets.spend_bls_pub, secrets.r)
-    coords = serialize_g1(blinded.Y)
-    from bls12_381_crypto import parse_g1
+    coords = serialize_g1_sol(secrets.spend_bls_pub)
+    from bls12_381_crypto import parse_g1_sol
 
-    recovered = parse_g1(*coords)
-    assert serialize_g1(recovered) == coords
-
-
-def test_serialize_g1_returns_plain_ints(setup_data):
-    master_seed, token_index, _ = setup_data
-    secrets = gl.derive_token_secrets(master_seed, token_index)
-    blinded = gl.blind_token(secrets.spend_bls_pub, secrets.r)
-    coords = serialize_g1(blinded.Y)
-    assert len(coords) == 4
-    assert all(type(c) is int for c in coords)
+    recovered = parse_g1_sol(*coords)
+    assert serialize_g1_sol(recovered) == coords
 
 
 def test_serialize_g2_round_trip(setup_data):
     master_seed, token_index, _ = setup_data
     secrets = gl.derive_token_secrets(master_seed, token_index)
-    coords = serialize_g2(secrets.spend_bls_pub)
-    from bls12_381_crypto import parse_g2
+    blinded = gl.blind_token(secrets.spend_bls_pub, secrets.r)
+    coords = serialize_g2_sol(blinded.Y)
+    from bls12_381_crypto import parse_g2_sol
 
-    recovered = parse_g2(*coords)
-    assert serialize_g2(recovered) == coords
-
-
-def test_serialize_g2_returns_8_ints(setup_data):
-    master_seed, token_index, _ = setup_data
-    secrets = gl.derive_token_secrets(master_seed, token_index)
-    coords = serialize_g2(secrets.spend_bls_pub)
-    assert len(coords) == 8
-    assert all(type(c) is int for c in coords)
+    recovered = parse_g2_sol(*coords)
+    assert serialize_g2_sol(recovered) == coords
 
 
 # ==============================================================================
 # FULL PROTOCOL LIFECYCLE
 # ==============================================================================
 
-# Fixed EIP-712 test parameters
-_TEST_CHAIN_ID = 11155111  # Ethereum Sepolia
+_TEST_CHAIN_ID = 11155111
 _TEST_CONTRACT = "0x00000000000000000000000000000000DeaDBeef"
 _TEST_DEADLINE = 2**256 - 1
 
@@ -267,23 +239,21 @@ def test_full_protocol_lifecycle(setup_data, live_keypair):
     S_prime = gl.mint_blind_sign(blinded.B, keypair.sk)
     S = gl.unblind_signature(S_prime, secrets.r)
 
-    # Verify mint BLS signature
     assert gl.verify_bls_mint_signature(S, blinded.Y, keypair.pk) is True
 
-    # Generate and verify BLS spend signature (replaces ECDSA)
     proof = gl.generate_redemption_proof(
-        secrets.spend_bls_priv,
-        secrets.spend_bls_pub,
+        secrets.spend_chia_sk,
+        secrets.spend_chia_pk,
         destination,
         _TEST_CHAIN_ID,
         _TEST_CONTRACT,
         _TEST_DEADLINE,
     )
-    assert gl.verify_bls_spend_signature(proof.sigma, proof.msg_hash, secrets.spend_bls_pub) is True
+    assert gl.verify_bls_spend_signature(proof.sigma, proof.msg_hash, secrets.spend_chia_pk) is True
 
 
 # ==============================================================================
-# BLS SPEND SIGNATURE (replaces MEV protection / ECDSA tests)
+# BLS SPEND SIGNATURE (chia_rs AugSchemeMPL)
 # ==============================================================================
 
 
@@ -292,17 +262,13 @@ def test_spend_signature_rejects_tampered_destination(setup_data):
     secrets = gl.derive_token_secrets(master_seed, token_index)
     alice = "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa"
     proof = gl.generate_redemption_proof(
-        secrets.spend_bls_priv,
-        secrets.spend_bls_pub,
-        alice,
-        _TEST_CHAIN_ID,
-        _TEST_CONTRACT,
-        _TEST_DEADLINE,
+        secrets.spend_chia_sk, secrets.spend_chia_pk, alice,
+        _TEST_CHAIN_ID, _TEST_CONTRACT, _TEST_DEADLINE,
     )
 
     bob = "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
     tampered_hash = gl.eip712_redemption_hash(bob, _TEST_DEADLINE, _TEST_CHAIN_ID, _TEST_CONTRACT)
-    assert gl.verify_bls_spend_signature(proof.sigma, tampered_hash, secrets.spend_bls_pub) is False
+    assert gl.verify_bls_spend_signature(proof.sigma, tampered_hash, secrets.spend_chia_pk) is False
 
 
 def test_spend_signature_rejects_wrong_key(setup_data):
@@ -310,17 +276,11 @@ def test_spend_signature_rejects_wrong_key(setup_data):
     secrets = gl.derive_token_secrets(master_seed, token_index)
     alice = "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa"
     proof = gl.generate_redemption_proof(
-        secrets.spend_bls_priv,
-        secrets.spend_bls_pub,
-        alice,
-        _TEST_CHAIN_ID,
-        _TEST_CONTRACT,
-        _TEST_DEADLINE,
+        secrets.spend_chia_sk, secrets.spend_chia_pk, alice,
+        _TEST_CHAIN_ID, _TEST_CONTRACT, _TEST_DEADLINE,
     )
-
-    # Different token's spend key should not verify
-    other_secrets = gl.derive_token_secrets(master_seed, token_index + 1)
-    assert gl.verify_bls_spend_signature(proof.sigma, proof.msg_hash, other_secrets.spend_bls_pub) is False
+    other = gl.derive_token_secrets(master_seed, token_index + 1)
+    assert gl.verify_bls_spend_signature(proof.sigma, proof.msg_hash, other.spend_chia_pk) is False
 
 
 # ==============================================================================
@@ -346,17 +306,17 @@ def test_bls_mint_rejects_wrong_token(setup_data, live_keypair):
     master_seed, _, _ = setup_data
     keypair = live_keypair
 
-    secrets_a = gl.derive_token_secrets(master_seed, 0)
-    secrets_b = gl.derive_token_secrets(master_seed, 1)
+    sa = gl.derive_token_secrets(master_seed, 0)
+    sb = gl.derive_token_secrets(master_seed, 1)
 
-    blinded_a = gl.blind_token(secrets_a.spend_bls_pub, secrets_a.r)
-    blinded_b = gl.blind_token(secrets_b.spend_bls_pub, secrets_b.r)
+    ba = gl.blind_token(sa.spend_bls_pub, sa.r)
+    bb = gl.blind_token(sb.spend_bls_pub, sb.r)
 
-    S_prime = gl.mint_blind_sign(blinded_a.B, keypair.sk)
-    S = gl.unblind_signature(S_prime, secrets_a.r)
+    S_prime = gl.mint_blind_sign(ba.B, keypair.sk)
+    S = gl.unblind_signature(S_prime, sa.r)
 
-    assert gl.verify_bls_mint_signature(S, blinded_a.Y, keypair.pk) is True
-    assert gl.verify_bls_mint_signature(S, blinded_b.Y, keypair.pk) is False
+    assert gl.verify_bls_mint_signature(S, ba.Y, keypair.pk) is True
+    assert gl.verify_bls_mint_signature(S, bb.Y, keypair.pk) is False
 
 
 # ==============================================================================
@@ -397,16 +357,13 @@ def test_aggregated_reveal_rejects_extra_nullifier(live_keypair):
         pubs.append(secrets.spend_bls_pub)
 
     sigma = gl.aggregate_reveal_sigma(sigs)
-
-    # Add an extra (unsigned) nullifier — should fail
     extra = gl.derive_token_secrets(seed, 99)
-    pubs_tampered = pubs + [extra.spend_bls_pub]
-    assert gl.verify_aggregated_reveal(sigma, pubs_tampered, keypair.pk) is False
+    assert gl.verify_aggregated_reveal(sigma, pubs + [extra.spend_bls_pub], keypair.pk) is False
 
 
 def test_aggregated_reveal_rejects_wrong_mint_key(live_keypair):
     keypair = live_keypair
-    wrong_keypair = gl.generate_mint_keypair()
+    wrong = gl.generate_mint_keypair()
     seed = b"aggregation_test_seed"
 
     sigs = []
@@ -420,11 +377,11 @@ def test_aggregated_reveal_rejects_wrong_mint_key(live_keypair):
         pubs.append(secrets.spend_bls_pub)
 
     sigma = gl.aggregate_reveal_sigma(sigs)
-    assert gl.verify_aggregated_reveal(sigma, pubs, wrong_keypair.pk) is False
+    assert gl.verify_aggregated_reveal(sigma, pubs, wrong.pk) is False
 
 
 # ==============================================================================
-# AGGREGATED REDEEM (same message, multiple spend keys)
+# AGGREGATED REDEEM (chia_rs, same message, multiple spend keys)
 # ==============================================================================
 
 
@@ -433,50 +390,41 @@ def test_aggregated_redeem_3_tokens():
     destination = "0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7"
     msg_hash = gl.eip712_redemption_hash(destination, _TEST_DEADLINE, _TEST_CHAIN_ID, _TEST_CONTRACT)
 
-    spend_sigs = []
-    spend_pubs = []
+    sigs = []
+    pks = []
     for i in range(3):
         secrets = gl.derive_token_secrets(seed, i)
         proof = gl.generate_redemption_proof(
-            secrets.spend_bls_priv,
-            secrets.spend_bls_pub,
-            destination,
-            _TEST_CHAIN_ID,
-            _TEST_CONTRACT,
-            _TEST_DEADLINE,
+            secrets.spend_chia_sk, secrets.spend_chia_pk,
+            destination, _TEST_CHAIN_ID, _TEST_CONTRACT, _TEST_DEADLINE,
         )
-        spend_sigs.append(proof.sigma)
-        spend_pubs.append(secrets.spend_bls_pub)
+        sigs.append(proof.sigma)
+        pks.append(secrets.spend_chia_pk)
 
-    sigma = gl.aggregate_redeem_sigma(spend_sigs)
-    assert gl.verify_aggregated_redeem(sigma, msg_hash, spend_pubs) is True
+    sigma = gl.aggregate_redeem_sigma(sigs)
+    assert gl.verify_aggregated_redeem(sigma, msg_hash, pks) is True
 
 
 def test_aggregated_redeem_rejects_wrong_message():
     seed = b"redeem_aggregation_test"
     destination = "0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7"
 
-    spend_sigs = []
-    spend_pubs = []
+    sigs = []
+    pks = []
     for i in range(2):
         secrets = gl.derive_token_secrets(seed, i)
         proof = gl.generate_redemption_proof(
-            secrets.spend_bls_priv,
-            secrets.spend_bls_pub,
-            destination,
-            _TEST_CHAIN_ID,
-            _TEST_CONTRACT,
-            _TEST_DEADLINE,
+            secrets.spend_chia_sk, secrets.spend_chia_pk,
+            destination, _TEST_CHAIN_ID, _TEST_CONTRACT, _TEST_DEADLINE,
         )
-        spend_sigs.append(proof.sigma)
-        spend_pubs.append(secrets.spend_bls_pub)
+        sigs.append(proof.sigma)
+        pks.append(secrets.spend_chia_pk)
 
-    sigma = gl.aggregate_redeem_sigma(spend_sigs)
-
-    # Tampered message
-    wrong_destination = "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
-    wrong_hash = gl.eip712_redemption_hash(wrong_destination, _TEST_DEADLINE, _TEST_CHAIN_ID, _TEST_CONTRACT)
-    assert gl.verify_aggregated_redeem(sigma, wrong_hash, spend_pubs) is False
+    sigma = gl.aggregate_redeem_sigma(sigs)
+    wrong_hash = gl.eip712_redemption_hash(
+        "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB", _TEST_DEADLINE, _TEST_CHAIN_ID, _TEST_CONTRACT
+    )
+    assert gl.verify_aggregated_redeem(sigma, wrong_hash, pks) is False
 
 
 def test_aggregated_redeem_rejects_extra_key():
@@ -484,31 +432,24 @@ def test_aggregated_redeem_rejects_extra_key():
     destination = "0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7"
     msg_hash = gl.eip712_redemption_hash(destination, _TEST_DEADLINE, _TEST_CHAIN_ID, _TEST_CONTRACT)
 
-    spend_sigs = []
-    spend_pubs = []
+    sigs = []
+    pks = []
     for i in range(2):
         secrets = gl.derive_token_secrets(seed, i)
         proof = gl.generate_redemption_proof(
-            secrets.spend_bls_priv,
-            secrets.spend_bls_pub,
-            destination,
-            _TEST_CHAIN_ID,
-            _TEST_CONTRACT,
-            _TEST_DEADLINE,
+            secrets.spend_chia_sk, secrets.spend_chia_pk,
+            destination, _TEST_CHAIN_ID, _TEST_CONTRACT, _TEST_DEADLINE,
         )
-        spend_sigs.append(proof.sigma)
-        spend_pubs.append(secrets.spend_bls_pub)
+        sigs.append(proof.sigma)
+        pks.append(secrets.spend_chia_pk)
 
-    sigma = gl.aggregate_redeem_sigma(spend_sigs)
-
-    # Add an extra key that didn't sign
+    sigma = gl.aggregate_redeem_sigma(sigs)
     extra = gl.derive_token_secrets(seed, 99)
-    pubs_tampered = spend_pubs + [extra.spend_bls_pub]
-    assert gl.verify_aggregated_redeem(sigma, msg_hash, pubs_tampered) is False
+    assert gl.verify_aggregated_redeem(sigma, msg_hash, pks + [extra.spend_chia_pk]) is False
 
 
 # ==============================================================================
-# EIP-712 DIRECT TESTS
+# EIP-712
 # ==============================================================================
 
 

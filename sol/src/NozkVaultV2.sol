@@ -682,15 +682,14 @@ contract NozkVaultV2 {
         compressed = new bytes(48);
         assembly {
             // Build 48-byte compressed point:
-            //   byte[0] = flags | xHi_byte0  (top byte of x with flags OR'd in)
+            //   byte[0] = flags | xHi_top_byte
             //   byte[1..15] = remaining 15 bytes of xHi
             //   byte[16..47] = xLo (32 bytes)
             //
-            // xHi is at most 128 bits (16 bytes) in the low bits of the uint256.
-            // The top byte of the 16 significant bytes = xHi >> 120
-            // Merge flags into top byte: (flags << 120) | (xHi & 0x00ff...ff_15bytes)
-            let mask15 := 0x00ffffffffffffffffffffffffffffff
-            let top16 := or(shl(120, flags), and(xHi, mask15))
+            // xHi is at most 128 bits (16 bytes). Its top byte is at most 0x19
+            // (since x < p, and p starts with 0x1a...), so flag bits (7,6,5)
+            // never collide with x data — simple OR is safe.
+            let top16 := or(shl(120, flags), xHi)
 
             // First 32 bytes of output = [top16 (16 bytes)][xLo high 16 bytes]
             let word0 := or(shl(128, top16), shr(128, xLo))

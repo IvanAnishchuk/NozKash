@@ -336,5 +336,5 @@ def test_double_spend_reverts(deployed_contract, w3):
         }
     )
     signed = depositor.sign_transaction(tx)
-    with pytest.raises(Exception, match="revert|AlreadyRevealed"):
-        w3.eth.wait_for_transaction_receipt(w3.eth.send_raw_transaction(signed.raw_transaction))
+    receipt = w3.eth.wait_for_transaction_receipt(w3.eth.send_raw_transaction(signed.raw_transaction))
+    assert receipt["status"] == 0, "Double-reveal should revert"

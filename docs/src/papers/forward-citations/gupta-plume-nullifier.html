@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<meta property="og:url" content="https://blog.aayushg.com/nullifier/" />
+<meta property="og:title" content="PLUME: Unique Pseudonymity with Ethereum" />
+<meta property="og:description" content="A signature scheme that enables zk applications with nullifiers on Ethereum addresses, like zk voting, zk airdrops, zk message boards, and zk proof of solvency." />
+
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="PLUME: Unique Pseudonymity with Ethereum" />
+<meta name="twitter:description" content="Thanks to Kobi Gurkan, Wei Jie Koh, Vivek Bhupatiraju, Remco, Wei Dai, Nalin, gubsheep, ludens, Blaine Bublitz, Prof. Kalai, Prof. Vaikuntanathan, Prof. Boneh, Richard Liu, Piotr Roslaniec, Lily Jordan, Oren Yomtov, and Riad Wahby [and probably tons of other folks I&rsquo;m missing, please dm me if I did!] for making this work possible :)
+View our progress, technical issues, and grant opportunities on our Github.
+Why do we want PLUMEs? The proliferation of advances in zkSNARK applications has created a useful new privacy primitive: a user can prove statements about their identity without revealing their full identity." />
+<meta name="twitter:image" content="https://blog.aayushg.com/media/default-preview.jpg" />
+<meta name="twitter:site" content="@yush_g" />
+
+ 
+<meta property="og:image" content="https://blog.aayushg.com/media/default-preview.jpg" />
+
+
+<meta name="description" content="A signature scheme that enables zk applications with nullifiers on Ethereum addresses, like zk voting, zk airdrops, zk message boards, and zk proof of solvency." />
+<meta name="keywords" content="yush, yush_g, aayush blog, yushs blog, mit, ayush blog, ayushs blog, yush_gs blog, ayush gupta blog, ayush blog" />
+<link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<meta property="og:type" content="website" />
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500&family=Space+Mono&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css" />
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.js"></script>
+
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body);"></script>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        renderMathInElement(document.body, {
+            delimiters: [
+                { left: "$$", right: "$$", display: true },
+                { left: "$", right: "$", display: false },
+            ],
+        });
+    });
+</script>
+
+<link rel="stylesheet" type="text/css" href="/css/style.css" />
+<link rel="stylesheet" type="text/css" href="/css/custom.css" />
+ 
+<title>PLUME: Unique Pseudonymity with Ethereum</title>
+<script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "PLUME: Unique Pseudonymity with Ethereum",
+    "description": "A signature scheme that enables zk applications with nullifiers on Ethereum addresses, like zk voting, zk airdrops, zk message boards, and zk proof of solvency.",
+    "datePublished": "1011-120-10",
+    "author": {
+      "@type": "Person",
+      "name": ""
+    }
+  }
+</script>
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=AW-11170906656"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'AW-11170906656');
+</script>
+      
+<link rel="canonical" href="https://blog.aayushg.com/nullifier/" />
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-K3VZM7ZJ7M"></script>
+<script>
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.dataLayer = window.dataLayer || [];
+	function gtag(){dataLayer.push(arguments);}
+	gtag('js', new Date());
+	gtag('config', 'G-K3VZM7ZJ7M', { 'anonymize_ip': false });
+}
+</script>
+
+<script src="/js/toc-highlight.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600&display=swap" rel="stylesheet">
+  </head>
+  <body>
+    <div class="grid-container">
+      <div class="noise-layer"></div>
+      <div class="noise-container">
+        <main><div id="nav-border">
+    <div class="header-content"> 
+        <span class="blog-title">aayush's thoughts</span> 
+        <nav id="nav" class="nav justify-content-center">
+            
+                 <a class="nav-link" href="/" style="color: #87CEEB;">
+                
+                
+                    
+                    <i data-feather="home" style="color: #87CEEB;"></i> 
+                
+                
+                Home
+                </a>
+                
+                 <a class="nav-link" href="/posts/" style="color: #87CEEB;">
+                
+                
+                    
+                    <i data-feather="pen-tool" style="color: #87CEEB;"></i> 
+                
+                
+                Posts
+                </a>
+                
+                 <a class="nav-link" href="/tags/" style="color: #87CEEB;">
+                
+                
+                    
+                    <i data-feather="tag" style="color: #87CEEB;"></i> 
+                
+                
+                Tags
+                </a>
+                
+                <a href="https://twitter.com/yush_g" class="twitter-link nav-link" target="_blank" aria-label="Follow on Twitter" style="color: #87CEEB; display: flex; align-items: center;">
+                    <i data-feather="twitter" style="color: #87CEEB; margin-top: 4px;"></i>
+                    <span style="margin-left: 4px; font-size: 0.65em; text-decoration: none;">@yush_g</span>
+                </a>
+        </nav>
+    </div>
+</div>
+<div class="mainPage">
+            <div id="content">
+<div class="post-container">
+    
+    <div class="table-of-contents desktop-toc">
+        <nav id="TableOfContents">
+  <ul>
+    <li><a href="#why-do-we-want-plumes">Why do we want PLUMEs?</a></li>
+    <li><a href="#one-address-one-nullifier">One address, one nullifier</a></li>
+    <li><a href="#some-possible-nullifier-schemes">Some possible nullifier schemes</a>
+      <ul>
+        <li><a href="#1-hashpublic-key">1. hash(public key)</a></li>
+        <li><a href="#2-hashsecret-key">2. hash(secret key)</a></li>
+        <li><a href="#3-hashmessage-secret-key">3. hash(message, secret key)</a></li>
+        <li><a href="#4-deterministic-ecdsa-signature">4. Deterministic ECDSA signature</a></li>
+        <li><a href="#5-verifiable-random-functionsunique-signatures">5. Verifiable random functions/unique signatures</a></li>
+      </ul>
+    </li>
+    <li><a href="#properties-of-a-good-nullifier">Properties of a good nullifier</a>
+      <ul>
+        <li><a href="#1-unique">1. Unique</a></li>
+        <li><a href="#2-deterministic">2. Deterministic</a></li>
+        <li><a href="#3-verifiable-with-only-the-public-key">3. Verifiable with only the public key</a></li>
+        <li><a href="#4-non-interactive">4. Non-interactive</a></li>
+      </ul>
+    </li>
+    <li><a href="#plume-a-promising-new-standard">PLUME: A promising new standard</a></li>
+    <li><a href="#new-use-cases-enabled">New use cases enabled</a>
+      <ul>
+        <li><a href="#why-is-zk-voting-even-interesting">Why is ZK voting even interesting?</a></li>
+        <li><a href="#how-exactly-would-one-use-plume-to-create-a-private-voting-system">How exactly would one use PLUME to create a private voting system?</a></li>
+      </ul>
+    </li>
+    <li><a href="#next-steps">Next steps</a></li>
+    <li><a href="#appendix">Appendix</a>
+      <ul>
+        <li><a href="#the-interactivity-quantum-secrecy-tradeoff">The interactivity-quantum secrecy tradeoff</a></li>
+        <li><a href="#why-use-secp256k1_xmdsha-256_sswu_ro_-for-hash-to-curve">Why Use secp256k1_XMD:SHA-256_SSWU_RO_ for Hash To Curve?</a></li>
+        <li><a href="#why-use-sha256-as-the-hash-function">Why use SHA256 as the hash function?</a></li>
+        <li><a href="#why-is-there-a-v1-and-a-v2">Why is there a V1 and a V2?</a></li>
+      </ul>
+    </li>
+    <li><a href="#more-links">More Links</a></li>
+  </ul>
+</nav>
+    </div>
+    
+    <article>
+        <header>
+            <h1>PLUME: Unique Pseudonymity with Ethereum</h1>
+        </header>
+         
+<i data-feather="calendar"></i>
+<time datetime="2022-12-01">Dec 1, 2022</time>
+&nbsp;&nbsp;
+
+<i data-feather="tag"></i>
+ 
+<a class="btn btn-sm btn-outline-light tag-btn" href="https://blog.aayushg.com/tags/crypto" style="padding: 0.05rem 0.5rem 0.15rem 0.5rem; border-radius: 12px;">crypto</a>
+ 
+<a class="btn btn-sm btn-outline-light tag-btn" href="https://blog.aayushg.com/tags/zk" style="padding: 0.05rem 0.5rem 0.15rem 0.5rem; border-radius: 12px;">zk</a>
+ 
+
+        
+        <div class="table-of-contents mobile-toc">
+            <nav id="TableOfContents">
+  <ul>
+    <li><a href="#why-do-we-want-plumes">Why do we want PLUMEs?</a></li>
+    <li><a href="#one-address-one-nullifier">One address, one nullifier</a></li>
+    <li><a href="#some-possible-nullifier-schemes">Some possible nullifier schemes</a>
+      <ul>
+        <li><a href="#1-hashpublic-key">1. hash(public key)</a></li>
+        <li><a href="#2-hashsecret-key">2. hash(secret key)</a></li>
+        <li><a href="#3-hashmessage-secret-key">3. hash(message, secret key)</a></li>
+        <li><a href="#4-deterministic-ecdsa-signature">4. Deterministic ECDSA signature</a></li>
+        <li><a href="#5-verifiable-random-functionsunique-signatures">5. Verifiable random functions/unique signatures</a></li>
+      </ul>
+    </li>
+    <li><a href="#properties-of-a-good-nullifier">Properties of a good nullifier</a>
+      <ul>
+        <li><a href="#1-unique">1. Unique</a></li>
+        <li><a href="#2-deterministic">2. Deterministic</a></li>
+        <li><a href="#3-verifiable-with-only-the-public-key">3. Verifiable with only the public key</a></li>
+        <li><a href="#4-non-interactive">4. Non-interactive</a></li>
+      </ul>
+    </li>
+    <li><a href="#plume-a-promising-new-standard">PLUME: A promising new standard</a></li>
+    <li><a href="#new-use-cases-enabled">New use cases enabled</a>
+      <ul>
+        <li><a href="#why-is-zk-voting-even-interesting">Why is ZK voting even interesting?</a></li>
+        <li><a href="#how-exactly-would-one-use-plume-to-create-a-private-voting-system">How exactly would one use PLUME to create a private voting system?</a></li>
+      </ul>
+    </li>
+    <li><a href="#next-steps">Next steps</a></li>
+    <li><a href="#appendix">Appendix</a>
+      <ul>
+        <li><a href="#the-interactivity-quantum-secrecy-tradeoff">The interactivity-quantum secrecy tradeoff</a></li>
+        <li><a href="#why-use-secp256k1_xmdsha-256_sswu_ro_-for-hash-to-curve">Why Use secp256k1_XMD:SHA-256_SSWU_RO_ for Hash To Curve?</a></li>
+        <li><a href="#why-use-sha256-as-the-hash-function">Why use SHA256 as the hash function?</a></li>
+        <li><a href="#why-is-there-a-v1-and-a-v2">Why is there a V1 and a V2?</a></li>
+      </ul>
+    </li>
+    <li><a href="#more-links">More Links</a></li>
+  </ul>
+</nav>
+        </div>
+        
+        <section>
+            
+            <p>Thanks to Kobi Gurkan, Wei Jie Koh, Vivek Bhupatiraju, Remco, Wei Dai, Nalin, gubsheep, ludens, Blaine Bublitz, Prof. Kalai, Prof. Vaikuntanathan, Prof. Boneh, Richard Liu, Piotr Roslaniec, Lily Jordan, Oren Yomtov, and Riad Wahby [and probably tons of other folks I&rsquo;m missing, please dm me if I did!] for making this work possible :)</p>
+<p>View our progress, technical issues, and grant opportunities on <a href="https://github.com/plume-sig/zk-nullifier-sig">our Github</a>.</p>
+<h2 id="why-do-we-want-plumes">Why do we want PLUMEs?</h2>
+<p>The proliferation of advances in <a href="https://ethereum.org/en/zero-knowledge-proofs/">zkSNARK</a> applications has created a useful new <a href="https://vitalik.eth.limo/general/2022/06/15/using_snarks.html">privacy</a> primitive: a user can prove statements <em>about</em> their identity without revealing their full identity. If you can provide a zkSNARK demonstrating that you know the secret key for an account that is a leaf of the Merkle tree of Bored Ape owners, then you can prove that you own a Bored Ape without telling anyone who you are. Or you could prove that you&rsquo;re part of the group &ldquo;liquidity providers on Uniswap in the last 24 hours&rdquo;, or maybe even one day that you&rsquo;re part of the group &ldquo;people with a mutation in the XYZ gene&rdquo;.</p>
+<p>Why would you want to prove that you&rsquo;re part of a group? For one thing, you might want to talk with the rest of the group on a forum that&rsquo;s anonymous but also only open to verified members. One application, <a href="https://www.heyanon.xyz/">heyanon</a>, uses ZK verification to anonymously tweet on behalf of members of groups – for instance, victims of the DAO hack. You could expand this into a full-blown semi-anonymous message board, where a user verifies their eligibility by sending a valid zkSNARK with each message proving that they have a valid signature. But it&rsquo;s hard to moderate a forum without consistent identities: you&rsquo;d need some way of requiring each anonymous account to link all its actions together, so you could track its reputation or ban it if you had to. There are many other applications that require a single pseudonymous identity per user to prevent duplicate actions; for example, claiming an airdrop or voting.</p>
+<p>In short, PLUMEs unlock these applications that weren&rsquo;t possible before:</p>
+<ul>
+<li>Anonymous proof of solvency, so exchanges can&rsquo;t share accounts</li>
+<li>Moderation on anonymous message boards of Ethereum addresses</li>
+<li>ZK voting on groups of Ethereum addresses</li>
+<li>ZK airdrops to Ethereum accounts</li>
+</ul>
+<h2 id="one-address-one-nullifier">One address, one nullifier</h2>
+<p>Let&rsquo;s say we want to do an <a href="https://github.com/stealthdrop/stealthdrop">zero-knowledge airdrop</a>: I publish a set of addresses whose owners should be allowed to claim the airdrop, but I want to let those owners anonymously receive the airdrop from burner accounts. If you own one of those addresses, you make a new anonymous account and use it to send me a ZK proof that there&rsquo;s some address on the list whose secret key you control (for example, a proof that you can generate a valid signature with the secret key). But what if you then make <em>another</em> new account and send me a new proof to try and claim a second airdrop? I don&rsquo;t know which of the original addresses the proof corresponds to, because it&rsquo;s anonymous, so how do I stop you from claiming arbitrarily many airdrops?</p>
+<p>I&rsquo;d want to require you to submit some kind of public commitment that you&rsquo;re only using your claim once. This kind of unique public identifier is called a “nullifier” because after it&rsquo;s published, it nullifies an address’s ability to perform an action again. From a more general lens of identity, you can think of these as a pen-name, or your PLUME: a Pseudonymously Linked Unique Message Entity.</p>
+<p>There are many more uses for these &ldquo;PLUMEs&rdquo;. Anonymous message boards will need anonymous banning or &ldquo;upvotes&rdquo; to curate good content and a healthy community, which requires a consistent anonymous pen-name. <a href="https://vitalik.eth.limo/general/2022/11/19/proof_of_solvency.html">Proof of Solvency</a> <a href="https://github.com/summa-dev/circuits-circom">solutions</a> need an anonymous way to ensure that two exchanges cannot share addresses to fake solvency: there needs to be a way to uniquely attest to an address in a way that keeps it private, but no other exchange can also claim that address.</p>
+<h2 id="some-possible-nullifier-schemes">Some possible nullifier schemes</h2>
+<p>Let’s consider a few ways we could try to make a nullifier.</p>
+<h3 id="1-hashpublic-key">1. hash(public key)</h3>
+<p>What if you just post a hash of your public key? This looks promising: your account only has one public key, so you can&rsquo;t post again, and no two accounts have the same public key. But there are only so many on-chain addresses, so an adversary could brute-force compute all the hashes to link the nullifier back to you.</p>
+<h3 id="2-hashsecret-key">2. hash(secret key)</h3>
+<p>How about if you hash your secret key instead, then? That can&rsquo;t be brute-forced. But what if you want to join a semi-anonymous forum, and then later on you want to receive an anonymous airdrop of a DAO&rsquo;s governance token? You&rsquo;d be stuck with a single global nullifier, so you could only do one of these things.</p>
+<h3 id="3-hashmessage-secret-key">3. hash(message, secret key)</h3>
+<p>Let&rsquo;s add in a message: that way, each app can have one canonical message to identify it. This seems pretty good: there&rsquo;s no way to reverse-engineer the nullifier via the secret key; it&rsquo;s lightweight and computable in a hardware wallet, and it&rsquo;s unique for each account and application. But there&rsquo;s a problem: proving the validity of this nullifier would require access to the secret key, and sending a secret key anywhere outside of a secure enclave, like a hardware wallet, compromises security, especially if the user copy-pastes it as plaintext. It’s dangerous for the secret key to leave the enclave, but the elliptic curve pairing functions required for proving zkSNARKS are too complex to be computed in current hardware wallets, so we want the verifier to be able to verify the proof without even having to access the secret key. All computations that do require access to the secret key should be very lightweight so they can be run on a hardware wallet if necessary.</p>
+<h3 id="4-deterministic-ecdsa-signature">4. Deterministic ECDSA signature</h3>
+<p>What if you sign a message with your secret key, and the signature is your nullifier? That was the initial idea for <a href="https://github.com/stealthdrop/stealthdrop">stealthdrop nullifiers</a>. It&rsquo;s promising because you don&rsquo;t have to provide your secret key anywhere – you just generate the signature yourself. One catch is that this requires what&rsquo;s called a “deterministic signature scheme” &ndash; if you generate a signature that includes some nondeterministic randomness, then the nullifier wouldn&rsquo;t be unique, because you could have a different nullifier for each possible value of the random part. Fortunately, ECDSA, the signature scheme used by Ethereum, is deterministic: the randomness is deterministically derived from the secret key (like <code>hash[secret key]</code>, or <a href="https://github.com/ethereum/go-ethereum/blob/d8ff53dfb8a516f47db37dbc7fd7ad18a1e8a125/crypto/secp256k1/libsecp256k1/src/secp256k1.c#L308">in practice</a><code>hash[secret key, m]</code>). So if you can deterministically sign some app-specific message, you might guess that <code>hash[sign(message, sk)]</code> would be an effective nullifier. Unfortunately, this doesn&rsquo;t quite work: to <em>verify</em> the randomness, the zkSNARK would still need to access the secret key. And if we don&rsquo;t commit to a particular piece of randomness, an adversary could generate around $2^{256}$ valid ECDSA signatures (and thus nullifiers) per message. For that reason, normal Ethereum signatures don’t work as a unique anonymous identifier.</p>
+<h3 id="5-verifiable-random-functionsunique-signatures">5. Verifiable random functions/unique signatures</h3>
+<p>It turns out there’s some literature on verifiable random functions (VRFs) that have essentially the same properties that we want, but these constructions don’t work out of the box with ECDSA. Most of these functions use pairing-friendly curves, but ECDSA uses the secp256k1 elliptic curve. You could imagine a different world where Ethereum used pairing-friendly curves instead, but in that case, it would probably also be using a deterministic signature scheme like BLS, so we wouldn&rsquo;t need a VRF in the first place.</p>
+<h2 id="properties-of-a-good-nullifier">Properties of a good nullifier</h2>
+<p>Let&rsquo;s summarize the properties we&rsquo;ve determined we need from our nullifier. It should be:</p>
+<h3 id="1-unique">1. Unique</h3>
+<p>Users shouldn&rsquo;t be able to generate multiple nullifiers; otherwise, they could double-spend or double-claim.</p>
+<h3 id="2-deterministic">2. Deterministic</h3>
+<p>Signature schemes generally incorporate randomness; if the nullifier were computed using randomness generated in a nondeterministic way, then it would be impossible to generate a single uniquely valid nullifier.</p>
+<h3 id="3-verifiable-with-only-the-public-key">3. Verifiable with only the public key</h3>
+<p>The verifier should be able to verify the proof without having to access the secret key, to preserve the security of the secret key.</p>
+<p>At this point, you might ask: isn&rsquo;t this a solved problem? Don&rsquo;t <a href="https://z.cash">zcash</a> and <a href="https://github.com/tornadocash/tornado-core">tornado.cash</a> get along just fine without more complex nullifiers? Yes – but this is because they make another tradeoff: they allow interactivity. So as a user, you could just hash a secret random string when you first sign up, and then use that hash as a nullifier from then on (this is more or less what tornado.cash uses for withdrawal claims). But interactivity causes a few problems. First, it adds overhead: you need an extra signup phase where people commit to their secret to create a big enough anonymity set, before any anonymous actions happen. Second, the anonymity set is limited to the set of people who have already signed a message: for instance, on tornado.cash, the only people who would withdraw are those who have already deposited, so the first user can only withdraw once several others have deposited to preserve plausible deniability. In this case, anonymity is limited by shaky assumptions, like that other people have interacted with the platform between your deposits and your withdraws, which has already been used to <a href="https://www.tutela.xyz/">break anonymity</a>. And third, Tornado has to reveal your nullifier in plaintext in-browser in order to generate the proof that you know it, allowing Chrome and malicious extensions to access it. It would be better if only the owner of the secret key&rsquo;s wallet could access that information.</p>
+<p>Noninteractivity enables new use cases for ZK systems because it allows a large anonymity set from the start. If your ZK proof can verify set membership in the Merkle tree, the validity of the signed message, and the unique nullifier, then the anonymity set is always the full set of all eligible users, and no interaction is required. Compare this to an interactive nullifier such as Tornado’s, where the Merkle tree has to be updated whenever a user joins the anonymity set.</p>
+<p>So we&rsquo;ll add this as a fourth property to our list:</p>
+<h3 id="4-non-interactive">4. Non-interactive</h3>
+<p>The user shouldn&rsquo;t have to take any additional actions other than generating a single nullifier.</p>
+<h2 id="plume-a-promising-new-standard">PLUME: A promising new standard</h2>
+<p>With these criteria in mind, let’s try to combine the intuition around simple hash-based functions with our desire for unique signatures. What if a function like $\text{hash}[\text{message, }pk]^{sk}$, easy enough to calculate in a hardware wallet’s secure enclave, were possible to verify with only the public key? This is the key insight we can use to construct our nullifier, by deriving such a verification scheme and using this value as a signature.</p>
+<p>Consider a signature that has two parts: a deterministic part based on a message and secret key (like $\text{hash(message)}^{sk} \mod p$), and a non-deterministic part that allows this calculation to be verified. Then we could use the deterministic part as a nullifier and use both the deterministic and nondeterministic parts to verify that it is a valid signature using only the public key.</p>
+<p><img src="../../media/good_nullifier_6.png" alt="good_nullifier_6"></p>
+<p>Here’s an example of such an algorithm. Proposed by Kobi and 0xPARC, it’s known as a DDH-VRF (decisional Diffie–Hellman verifiable random function) &ndash; a combination of the <a href="https://crypto.stanford.edu/~eujin/papers/zkpsig/index.html">Goh-Jarecki</a> EDL signature scheme and <a href="https://link.springer.com/content/pdf/10.1007/3-540-48071-4_7.pdf">Chaum-Pederson</a> proofs of discrete log equality, inspired by BLS signatures. I’ve color-coded the equivalent numbers so you can check the math.</p>
+<p>Here, $\text{hash}$ is a function that hashes directly to the curve, outputting a pair $(x, y)$ instead of a scalar; $\text{hash2}$ is a traditional hash function like SHA-256 or Poseidon. This construction assumes the <a href="https://en.wikipedia.org/wiki/Discrete_logarithm">discrete log problem</a> is hard; this is known as the decisional Diffie-Hellman assumption (DDH), hence the name. I use exponential notation here so you can apply your usual intuitions about the discrete log, but these exponentiations are actually implemented as elliptic curve multiplications.</p>
+<p><img src="../../media/nullifier_math.png" alt="math"></p>
+<!-- Note that this LaTeX is pretty poorly formatted -->
+<!-- Private to everyone except the secure enclave chip:<br />
+$sk$<br />
+$r$<br /><br />
+Public to world, calculated inside secure enclave:<br />
+$hash[m, pk]^{sk}$ <-- public nullifier<br /><br />
+Private input in ZK-SNARK (private to world, public to wallet/user):<br />
+$c = hash2(g, pk, hash[m, pk], hash[m, pk]^{sk}, gr, hash[m, pk]^r)$<br />
+$pk = g^{sk}$<br />
+$s = r + sk * c$ <-- can be public<br />
+$g^r$ [optional output]<br />
+$hash[m, pk]^r$ [optional output]<br /><br />
+Verifier checks in SNARK (calculated locally, private to world):<br />
+$g^{[r + sk*c]} / (g^{sk})^c = g^r$<br />
+$hash[m, g^{sk}][r + sk * c] / (hash[m, pk]^{sk})^{c} = hash[m, pk]^r$<br />
+$c = hash2(g, g^{sk}, hash[m, g^{sk}], hash[m, pk]^{sk}, g^r, hash[m, pk]^r)$<br />
+the set inclusion check of the public key -->
+<p>Note that in practice, we omit the last two optional private signals and skip the first two verifier checks because the two optional outputs can be calculated from the rest and the hash output check will still pass and verify them all. Also, for wallets that separate the secure element with the secret key from the general computation chip, we usually do the hashing and calculations outside the secure element, and only use the secure element to call the function that multiplies our provided generator points by the secret key (again, the multiplication is represented by exponentiation here).</p>
+<p>Although you don&rsquo;t have to understand all of the math, I’ll attempt to explain the intuition. $c$ functions kind of like a <a href="https://en.wikipedia.org/wiki/Fiat%E2%80%93Shamir_heuristic">Fiat-Shamir hash</a> for proof of knowledge of the secret key. Since it is almost impossible to reverse-engineer a desired hash function output, we can “order” some of the calculations. If we are feeding numbers into the hash function and getting $c$ out, then we can be almost certain that the inputs to the hash function were calculated before $c$, which in turn must have been calculated before calculating any function with $c$ as an input. Thus, $c$ must have been calculated prior to $r + sk * c$. If $c$ was calculated first, we must have precommitted to a specific $g^r$ and thus $r$, since $g^r$ was an input to the hash function that gave us $c$. If we&rsquo;re committed to a particular $r$ by this ordering logic, and we&rsquo;ve given a zkSNARK proving that we computed $c$ correctly, then we must have known the secret key in order to have been able to calculate $r + sk * c$.</p>
+<p>Conveniently, the verification check doesn&rsquo;t require the secret key anywhere, just the public key $g^{sk}$. This makes it possible to do the proof in a wallet or an extension &ndash; you give your public key to the wallet or extension or whatever is generating the proof, but your secret key never has to leave its enclave.</p>
+<p>Importantly, the public nullifier looks like random noise to everyone else, and even knowing the full set of possible public keys leaves you with no way to figure out whether the nullifier came from any particular public key.</p>
+<p>Even if the wallet gets breached and all the private signals are leaked, only the public key gets revealed, not the secret key. So the leak would deanonymize the user but still wouldn&rsquo;t allow anyone to steal their funds. (We have a formal proof of this in <a href="https://aayushg.com/thesis.pdf">our paper</a>!) This is also promising because hardware wallet secure enclaves only need to to exponents of the secret key, and wallets in general only need to be able to compute hashes, not entire ZK proofs. Even if wallets had the compute power to generate ZK proofs, most ZK frameworks have yet to be formally verified, and state-of-the-art implementations are changing every year.</p>
+<p><strong>In summary, we achieve unique pseudonymity via PLUMEs, by deploying verifiably deterministic signatures on ECDSA within wallets. Users can then derive unlinked application-specific nullifiers. Users can also anonymously prove set membership in any set of Ethereum or Bitcoin wallets, via ZK proofs that can be verified efficiently.</strong></p>
+<h2 id="new-use-cases-enabled">New use cases enabled</h2>
+<p>Let&rsquo;s say we&rsquo;ve implemented this PLUME system: what can we do now with unique but anonymous identities?</p>
+<p>ZK airdrops become easy: we just check that you&rsquo;re in the Merkle tree of allowed users in ZK, and then require that you submit a nullifier to prevent you from claiming the airdrop a second time.</p>
+<p>Message boards can have persistent anonymous identity, meaning you can post under the same nullifier three times, and everyone will know that all your posts came from the same person, and that the author of the posts is a member of the group eligible to post to the forum, but no one will know that the author is you. Another huge unlock is moderation &ndash; anonymous accounts can get banned, and anonymous accounts can accrue persistent reputation.</p>
+<p>We can build anonymous sybil-resistant apps like voting, where we need to ensure people haven’t double-voted (ideally, we&rsquo;d also use <a href="https://privacy-scaling-explorations.github.io/maci/">MACI</a> to prevent bribery by making receipts impossible). This can be done with the nullifier scheme we&rsquo;ve just walked through, where the airdropper publishes a list of eligible addresses, and then if you own one of those addresses, you make a burner account to vote from, proving anonymously that you control an eligible address that hasn&rsquo;t already voted. (One wrinkle is that for on-chain applications that require gas, including some voting systems, the burner account won&rsquo;t necessarily have funds with which to pay the gas yet; in these cases, we can maintain anonymity by having users send their proofs to relayers, who front the gas to post the proof on-chain and then get paid off by the election contract.)</p>
+<p>I think that wallets that adopt this standard will enable their users to interact with the next generation of ZK applications first. I’m bullish on a future where this is a standard as commonplace as ECDSA signing within every secure enclave.</p>
+<h3 id="why-is-zk-voting-even-interesting">Why is ZK voting even interesting?</h3>
+<p>ZK voting is interesting since it enables fine-grained accountability. Voting is another interesting place where pseudonymity unlocks new functionality, and is intricately linked to both blockchains and zero knowledge (i.e. via semaphore or PLUME). In the current partisan system, representatives who don&rsquo;t vote along party lines are ostracized and booted from their own role in the community. A strategy of honesty is often self-defeating, and we see this tribalism play out in the highest levels of the government. On the other extreme, a completely anonymous system with no accountability means that people can selfishly vote for the option that personally benefits them the most, and the lack of accountability introduces a whole host of unwanted tragedies of the commons.</p>
+<p>I claim there&rsquo;s a middle ground. Imagine a voting system in the senate in which senators could prove that they were one of the say 10 senators from their region, and they voted a specific way. Or if they can prove that they are a Republican, and voted a specific way. Forcing only partial identity reveals keeps partial accountability (voters can know which general set of people to replace), but allows them to vote against party lines or state lines when needed (i.e. republicans who wanted to impeach Trump could express that without targeted retribution). You could even express arbitrarily complex votes like, &ldquo;I vote no except in the case that 1/2 of other Democrats say yes, in which case I vote yes&rdquo;. I haven&rsquo;t seen this sort of voting experimented with in practice, and would be curious to see such systems in low-stakes tests (videogames, local orgs) to see if this actually improves governance outcomes.</p>
+<p>In order to test such systems with good anonymity, some of the best organizations to start with are Ethereum native: autonomous worlds and DAOs both run on Ethereum accounts, and being able to bootstrap private voting directly from their existing accounts is a really interesting primitive. PLUMEs let you ensure someone isn&rsquo;t voting twice. In addition, it&rsquo;s agnostic to proof systems: a zk proof of their vote itself can allow time-locked voting if you add a VDF, or encrypted voting where a centralized attester sees and collects all votes, or an even more complex system if desired.</p>
+<h3 id="how-exactly-would-one-use-plume-to-create-a-private-voting-system">How exactly would one use PLUME to create a private voting system?</h3>
+<p>The key difference between PLUME and Semaphore lies in the &ldquo;set&rdquo; of people one is anonymous in. In Semaphore, the &ldquo;set&rdquo; of people is those who sign up. For each new group you want to define, anonymous signaling requires everyone to opt into the system.</p>
+<p>However, in PLUME, the &ldquo;set&rdquo; of people is anyone who can prove any predicate about account activity on Ethereum. For instance, a PLUME proof can be paired with an axiom proof of having traded 10 ETH on Uniswap, or that you have the NFT of all NFT holders, or even all people who have ever transacted on Ethereum (if you so desired a 400M person anonymity set). This means that even if none of those people have ever opted in or heard of this system, the full anonymity of all people in that set is ensured. This feature of PLUME eliminates the need for any special Semaphore key management apart from Ethereum&rsquo;s wallet, and also means any individual can bootstrap an anonymity set over people that have never heard of PLUME before, nor signed up for anything. This seems like a subtle difference, but actually makes the difference between being able to bootstrap meaningful, novel anonymity systems, and not.</p>
+<p>Another benefit is that it stays up to date with the chain. If you make a Semaphore set of NFT holders and someone sells, that set is now out of date. But with PLUME, you can define something like, must have had a Bored Ape on block x and the current block current. So if the anonymity set changes with time, PLUME changes with it, but Semaphore does not because Semaphore forces you to hardcode the group.</p>
+<p>With Semaphore, there would be an additional trust assumption on the person making the Merkle tree of valid people in the set and uploading that Merkle root correctly. It can be easily audited on chain, but if that trusted party say, purposefully excluded someone, it&rsquo;s easy to miss that amongst the constant set updates happening as people enter and leave the set.</p>
+<p>You can easily pair a PLUME proof with a Semaphore proof, but it&rsquo;s just that you can use Ethereum keys in the Merkle tree instead of Semaphore keys. So there&rsquo;s no real point in using Semaphore with PLUME &ndash; you&rsquo;d get the worst of both worlds of slow proving of PLUME (for now, until Halo2 is done!) and small Semaphore anonymity sets.</p>
+<p>Axiom and PLUME are particularly powerful together. There are two ways to do such a proof: one proof of two proofs. With two proofs, we gain the additional property that the PLUME circuit and verifier don&rsquo;t need to change at all for each new use case!</p>
+<p>In the one proof setting, in the circuit, you calculate both proofs, and constrain the now-hidden public key is equal for both proofs. This has the advantage of having a single on-chain verifier.</p>
+<p>In the two proof setting, you simply have two different circuits being computed in parallel &ndash; one Axiom, and one PLUME. Both circuits take the same private randomness r, and output both the hash(public key, r), and hash(r) &ndash; these values, on-chain, are then constrained to be equal, thus implying that the hidden public key must be the same. This has the advantage of having faster proof calculation, smaller zkey downloads, and the ability to use the &ldquo;canonical&rdquo; PLUME circuits, zkey, and verifier contract unchanged &ndash; making the two systems composable by someone with no ZK knowledge. This has the disadvantage of either requiring two proofs on chain, or requiring a recursive aggregation step before posting on-chain.</p>
+<h2 id="next-steps">Next steps</h2>
+<p>So far, we have the <a href="https://aayushg.com/thesis.pdf">Gupta-Gurkan nullifier paper proving all the security proofs</a>; a <a href="https://github.com/zk-nullifier-sig/zk-nullifier-sig/">repository</a> with the deterministic signature calculation in Rust and Typescript, finished Circom circuits including <a href="https://github.com/geometryresearch/secp256k1_hash_to_curve/">hashing to elliptic curves</a>, and a <a href="https://ethglobal.com/showcase/zk-nullifier-snap-6a9sq">Metamask snap</a> to compute nullifiers. We have had one audit on the codebase, and have open PRs open to Taho Wallet and Metamask, and one almost finished for Ledger.</p>
+<p>The spec is formalized in ERC-7524, and hope it can be used for private voting apps. We have already had one audit on the codebase. We are actively working on integrations into Taho Wallet, Aztec Noir, and Ledger to start gaining traction. We have an open PR into Metamask (<a href="https://github.com/MetaMask/eth-json-rpc-middleware/pull/198">1</a>, <a href="https://github.com/MetaMask/api-specs/pull/120">2</a>, <a href="https://github.com/MetaMask/metamask-extension/pull/17482">3</a>), and plan to push the nullifier calculation into <a href="https://github.com/austintgriffith/burner-wallet">burner wallets</a>, <a href="https://github.com/LedgerHQ/app-ethereum">Ledger core</a>, and <a href="https://github.com/MetaMask/metamask-extension">Metamask core</a>. We also want to try benchmarking the proof in different languages like Halo2 or Nova that might be faster (for instance, by using lookups for SHA-256). If you’re interested in helping out or using the scheme for your project, reach out to <a href="https://twitter.com/yush_g/">@yush_g</a> on Twitter for a grant! Thank you to Kobi for coming up with the scheme and coauthoring the paper with me, 0xPARC for brainstorming the scheme with me, Vivek for writing the proofs with me and making helpful suggestions for this post, Richard for contributing a ton of JS code for wallet integrations, Blake and Weijie for doing the circom ZK circuits, Lily Jordan for editing this post, PSE and Andy for helping to arrange an audit this scheme, and all of the teams who looked at and used this for the Nouns private voting contest!</p>
+<h2 id="appendix">Appendix</h2>
+<h3 id="the-interactivity-quantum-secrecy-tradeoff">The interactivity-quantum secrecy tradeoff</h3>
+<p>In the far future, once quantum computers can break ECDSA keypair security, most Ethereum keypairs will be broken. This doesn&rsquo;t mean quantum will necessarily cause everyone to lose their funds: we can migrate to a more quantum-resistant signature scheme (or even just a higher-bit version of ECDSA) in advance by having everyone sign messages committing to new keypairs under the new scheme and forking the canonical chain to make those new keypairs valid. zkSNARKs become forgeable, but secret data in past proofs remains secret. In the best case, the chain should be able to continue without a hitch.</p>
+<p>However, the anonymity guarantee of deterministic nullifiers <em>will</em> break: an adversary can derive the secret keys for the whole anonymity set and thus derive all the nullifiers. This problem will exist for any deterministic nullifier algorithm on ECDSA, since revealing the secret key reveals the only source of hidden information that guarantees anonymity in a deterministic protocol.</p>
+<p><img src="../../media/plume_tradeoff.png" alt="quantum_tradeoff"></p>
+<p>If you want post-quantum anonymity, you have to give up at least one of our properties: uniqueness, determinism, verifiability, or non-interactivity. If you give up uniqueness, determinism, or verifiability, you defeat the point of having a nullifier in the first place, so the only real option is non-interactivity, in the style of Tornado or zCash. For example, for the zero-knowledge airdrop, each account in the anonymity set publicly signs a commitment to a new <a href="https://semaphore.appliedzkp.org/docs/introduction">semaphore ID commitment</a>: if your public key is <code>pk</code>, you publish <code>hash[randomness | external nullifier | pk]</code>. Then to claim the airdrop, you reveal your external nullifier and give a ZK proof that it came from one of the semaphore IDs in the anonymity set. But this considerably shrinks the anonymity set to everyone who opted in to a semaphore commitment before you claimed.</p>
+<p>As a result, a semaphore system needs a separate signup phase where people commit to semaphore identities (which are then used as their nullifiers) in order to enter the anonymity set. This opt-in interactivity requirement makes many applications with large anonymity sets much harder. However, since hashes (as far as we currently know) are still hard with quantum computers, it’s unlikely that an adversary will be able to ever de-anonymize you.</p>
+<p>There is an <a href="https://zkresear.ch/t/how-quantum-computers-affect-zk-and-blockchains-how-to-quantum-proof-ethereum/59/2">alternative</a>, but it will only work for accounts that don&rsquo;t have transactions yet, and requires users to start keeping their public keys secret. Even if nullifiers are used post-quantum, you can avoid being identified by your nullifier as long as your public key is not revealed; you can instead reveal only your address, which is <code>hash(public_key)[0:40]</code>. Normally, you would reveal your public key when you sign transactions or messages. An alternative that would keep public keys concealed is an account abstraction system where users send Ethereum transactions such that all transactions are &ldquo;signed&rdquo; with ZK proofs of signature corresponding to the publicly known address, and all messages are &ldquo;signed&rdquo; with ZK proofs of knowledge of signature corresponding to some address. Then users could keep their public keys private as well, and thus keep both their funds and their anonymity safe even with the advent of quantum computers, for the same reason that <a href="https://en.wikipedia.org/wiki/Unspent_transaction_output">UTXOs</a> on Bitcoin and accounts with no transactions or signatures on Ethereum are usually quantum-safe. We would have to rework some nomenclature so people didn&rsquo;t reveal their &ldquo;public keys&rdquo;, but eventually we will have to do this anyway to deal with quantum computers.</p>
+<p>To get a better estimate of how long quantum computers might actually take to break the anonymity of nullifiers, a <a href="https://eprint.iacr.org/">recent approximation</a> of $9n$ signal qubits needed to solve discrete log on quantum computers shows that we are likely several decades till discrete log is even theoretically in reach, primarily because the noise problem has not been corrected for yet. (For a more complete model of how quantum affects blockchains, check out my overview post <a href="https://zkresear.ch/t/how-quantum-computers-affect-zk-and-blockchains-how-to-quantum-proof-ethereum/59">here</a>).</p>
+<p>If you want to use nullifiers, this knowledge should inform the point you choose on the interactivity-quantum secrecy tradeoff curve, but ultimately, it also depends on your use case. People who care more about large anonymity sets in the short term, like DAO voters or young people making confessions that won&rsquo;t matter when they’re older, might prefer the nullifier construction outlined in this post, but people who need secrecy in the long term, like whistleblowers or journalists, might want to consider a semaphore construction like Tornado&rsquo;s instead.</p>
+<h3 id="why-use-secp256k1_xmdsha-256_sswu_ro_-for-hash-to-curve">Why Use secp256k1_XMD:SHA-256_SSWU_RO_ for Hash To Curve?</h3>
+<p>This hash to curve function is about half a million constraints. Why not use a cheaper function like a zk-friendly hashing function directly, which seems like it would save a bunch of constraints? The main reason is the domain and range of the hash function. The whole difficulty of hashing to a curve is that only some of the points between 1 and p are even on the curve. So when you hash the input, there&rsquo;s some probability p that you produced a point on the curve. If you didn&rsquo;t, then you have to hash again. If p was like 99%, we would be OK. Unfortunately, p is about 50% &ndash; here&rsquo;s why. The prime field that secp256k1 is on has $p = 2^256−2^32−977$ points. The order of the curve (number of points on the curve) is $n = 115792089237316195423570985008687907852837564279074904382605163141518161494337$. The problem is that this includes y positive and negative (as well as 0, hence n is odd), so the number of unique x coordinates on this curve is half that. So the proportion of points on the curve is about $\frac{\frac{n + 1}{2}}{p}$, which is about 50%.</p>
+<p>Thus, in expectation, let&rsquo;s say you want to be able to support anonymity sets up to the size of the world. Then, the expected value of the number of times someone might have to hash would be about $\log_2{10^10}$, or 33. If we want a say 99.9% guarantee that our protocol is secure, we need need $maxf$ flips of the hash function in the zk circuit such that P(# of flips till head &lt; maxf for $10^10$ trials) &gt; $99.9%$. To calculate this, we calculate the probability that every trial avoids the failure case of flipping tails for all $maxf$ flips, which is basically that, for $t = 10^10$, we need to calculate the smallest $maxf$ so that $(1 - 0.5 ^ {maxf}) ^ t &gt; 0.999$. $maxf$ ends up being 44 for the 99.9% probability, and 50 for 99.999% probability. With Poseidon at <a href="https://zkrepl.dev">300 constraints</a>, this winds up being only 15,000 constraints for the hashing alone.</p>
+<p>However, we would also need to prove that all the runs until the chosen nonce, are all not on the curve. Thus, would have to prove that the calculated hash value (after a cube and addition) is not a quadratic residue mod the field prime. To calculate that, we would <a href="https://en.wikipedia.org/wiki/Legendre_symbol#Definition">need to</a> exponentiate the value to $((p - 1) / 2)$, which would take 7 repeated squarings (potentially a little less with speedups like Pippengers algorithm). This is in the wrong field for groth16, and such exponentiations are extremely expensive (far more than the 500K needed for regular hash to curve). Due to this overhead, iterative hashing is not practical as a replacement for hash to curve. However, if we could use any native field in a different proving system like Spartan, this approach may work.</p>
+<p>In addition, just using the direct output of Poseidon for hashing m and pk could lead to a vulnerability in ECDSA. Because we would know the pre-image of the final curve exponentiation, we would be able to generate a fake normal ECDSA signature for an arbitrary message. Basically, using the <a href="https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm#Signature_generation_algorithm">terminology of ECDSA Wikipedia</a>, we would know a valid k corresponding to some r (r in this case would be hash(m, pk)), for which we would receive back a PLUME signature that we could use as the last term in the ECDSA signature, add any message hash(m) to, then multiply by $k^{-1}$, hence creating an arbitrary ECDSA signing oracle from just one PLUME signature &ndash; this would be quite bad. Thus, we must use a hash function for which the final step is not a curve exponentiation &ndash; Poseidon is particularly bad here but other hash functions may be OK.</p>
+<p>Note that if you have a map_to_curve after the hash, it will not have this problem. For instance, we used simplified SWU because it works on secp256k1 <a href="https://geometry.xyz/notebook/Hashing-to-the-secp256k1-Elliptic-Curve#the-hashtocurve-algorithm">as Geometry explains</a> to prove map-to-curve faster than normal map to curve algorithms within a ZK proof, and Mina has a prototype of an <a href="https://github.com/o1-labs/snarky/blob/78e0d952518f75b5382f6d735adb24eef7a0fa90/group_map/group_map.ml">unsimplified map-to-curve</a> from the original paper SvdW06. While we expect this to be secure, it isn&rsquo;t optimized speed-wise for client-side proving yet.</p>
+<p>Our default implementation defaults to SHA256 over newer ZK friendly hash functions primarily due to hardware wallet speed, verification cost, and lindiness. We recommend against zk-friendly hash functions like Poseidon because on hardware like Ledger, Poseidon would likely be about ~30x slower (~15s) than Keccak/SHA256 (~400ms), and a massive UI barrier for users on this limited execution environment. If you ever want to verify on an L1 where execution gas is a concern, the V2 of the PLUME signature needs to run the hash function for c on-chain, so the SHA256 precompile makes that much faster. In addition, SHA256 is more lindy (has had 20 years to be broken) vs Poseidon (closer to 5 years in production) &ndash; depending on your need for speed, this is a risk-reward trade-off that protocols are free to make themselves.</p>
+<h3 id="why-use-sha256-as-the-hash-function">Why use SHA256 as the hash function?</h3>
+<p>We had considered a number of hash functions here, including Poseidon, SHA512, and SHA256. We selected SHA256 because the V2 of the prover-optimized PLUME spec moves that hash into the on-chain part of verification, and the SHA256 precompile makes that specific hash much more efficient.</p>
+<p>In addition, Poseidon is much harder to optimize within the Ledger environment than already built-in and optimized functions like SHA256.</p>
+<h3 id="why-is-there-a-v1-and-a-v2">Why is there a V1 and a V2?</h3>
+<p>The main difference is that the V1 has the sha256 hash verified within the ZK proof. The v2 has it verified on-chain as part of the verifier instead.</p>
+<p>V1 is useful on chains without sha precompiles or future proving systems with fast proofs i.e. hypernova based systems where prover cost is negligible.</p>
+<p>V2 is useful on chains with sha precompiles where proving speed matters (i.e. in browser applications with 2023 proving tech).</p>
+<p>It turns out that we probably can edit the V1 spec to include the minimized V2 nullifier calculation, but we need to think about that.</p>
+<h2 id="more-links">More Links</h2>
+<p>Learn more from Blake&rsquo;s post on <a href="https://mirror.xyz/privacy-scaling-explorations.eth/djxf2g9VzUcss1e-gWIL2DSRD4stWggtTOcgsv1RlxY">ZK-ECDSA with PLUME nullifiers</a>.</p>
+<p>Check out a concrete proposal for a ZK voting scheme with PLUME at <a href="https://linktr.ee/zksnap">the ZKSnap whitepaper</a>.</p>
+
+            
+        </section>
+    </article>
+    
+
+
+
+
+
+</div>
+<br /><br />
+</div>
+          </div>
+          <div class="subscribe-section">
+              <p class="subscribe-label">Subscribe for new posts</p>
+              <form id="subscribe-form"
+                    action="https://docs.google.com/forms/d/e/1FAIpQLSeIgM1SOXC8f_Y6-44A2zFYJw6fF8MeNWdESHZAVkE_qJtGZw/formResponse"
+                    method="POST" target="subscribe-iframe">
+                  <input type="email" name="emailAddress" placeholder="your@email.com" required>
+                  <input type="text" name="entry.1258567013" class="subscribe-feedback" placeholder="Questions / feedback (optional)">
+                  <button type="submit">Subscribe</button>
+              </form>
+              
+              <iframe name="subscribe-iframe" id="subscribe-iframe" style="display:none"></iframe>
+              <p class="subscribe-success" id="subscribe-success" style="display:none">Thanks for subscribing!</p>
+          </div>
+          <div class="mainPage"><div class="footer">
+    <p class="text-center">Aayush Gupta :)</p>
+    <div class="social-links text-center">
+        <a href="https://twitter.com/yush_g" target="_blank" aria-label="Twitter">
+            <i data-feather="twitter"></i>
+        </a>
+        <a href="https://github.com/Divide-By-0" target="_blank" aria-label="GitHub">
+            <i data-feather="github"></i>
+        </a>
+        <a href="mailto:aayushg@mit.edu" aria-label="Email">
+            <i data-feather="mail"></i>
+        </a>
+    </div>
+</div></div>
+        </main>
+      </div>
+    </div>
+    <script>
+      document.addEventListener('DOMContentLoaded', (event) => {
+        document.querySelectorAll('.spoiler').forEach(function(spoiler) {
+          spoiler.addEventListener('click', function() {
+            spoiler.classList.toggle('active');
+          });
+        });
+
+        var subForm = document.getElementById('subscribe-form');
+        if (subForm) {
+          subForm.addEventListener('submit', function() {
+            
+            
+            
+            setTimeout(function() {
+              subForm.style.display = 'none';
+              document.getElementById('subscribe-success').style.display = 'block';
+            }, 500);
+          });
+        }
+      });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
+    <script>
+      feather.replace({
+        'width': 14,   
+        'height': 14   
+      });
+    </script>
+  </body>
+</html>

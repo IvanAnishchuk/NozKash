@@ -9,6 +9,17 @@ site_dir = "_site"
 repo_url = "https://github.com/IvanAnishchuk/nozkash"
 repo_name = "IvanAnishchuk/nozkash"
 
+[project.plugins.mkdocstrings.handlers.python]
+paths = ["../nozk_py"]
+
+[project.plugins.mkdocstrings.handlers.python.options]
+docstring_style = "google"
+show_source = true
+show_root_heading = true
+members_order = "source"
+
+[project.plugins.mkdocs-typer2]
+
 [project.theme]
 language = "en"
 

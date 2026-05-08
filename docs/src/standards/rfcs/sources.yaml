@@ -274,3 +274,70 @@ documents:
       repo: https://github.com/cfrg/draft-irtf-cfrg-pairing-friendly-curves
       source_md: https://raw.githubusercontent.com/cfrg/draft-irtf-cfrg-pairing-friendly-curves/master/draft-irtf-cfrg-pairing-friendly-curves.md
     notes: Draft version -08 stored locally
+
+  # === Privacy Pass RFCs (forward-citation survey) ===
+
+  - id: rfc9474
+    title: "RSA Blind Signatures"
+    year: 2023
+    relevance: IETF standard for RSA blind sigs; Privacy Pass building block
+    provenance: forward-citation
+    local_files:
+      - rfc9474.txt
+    formats:
+      txt: https://www.rfc-editor.org/rfc/rfc9474.txt
+      html: https://www.rfc-editor.org/rfc/rfc9474.html
+    bibtex: https://datatracker.ietf.org/doc/rfc9474/bibtex/
+    datatracker: https://datatracker.ietf.org/doc/rfc9474/
+
+  - id: rfc9497
+    title: "Oblivious Pseudorandom Functions (OPRFs) Using Prime-Order Groups"
+    year: 2023
+    relevance: OPRF standard; Privacy Pass token issuance primitive
+    provenance: forward-citation
+    local_files:
+      - rfc9497.txt
+    formats:
+      txt: https://www.rfc-editor.org/rfc/rfc9497.txt
+      html: https://www.rfc-editor.org/rfc/rfc9497.html
+    bibtex: https://datatracker.ietf.org/doc/rfc9497/bibtex/
+    datatracker: https://datatracker.ietf.org/doc/rfc9497/
+
+  - id: rfc9576
+    title: "Privacy Pass Architecture"
+    year: 2024
+    relevance: Architectural framework for anonymous token protocols
+    provenance: forward-citation
+    local_files:
+      - rfc9576.txt
+    formats:
+      txt: https://www.rfc-editor.org/rfc/rfc9576.txt
+      html: https://www.rfc-editor.org/rfc/rfc9576.html
+    bibtex: https://datatracker.ietf.org/doc/rfc9576/bibtex/
+    datatracker: https://datatracker.ietf.org/doc/rfc9576/
+
+  - id: rfc9577
+    title: "Privacy Pass HTTP Authentication"
+    year: 2024
+    relevance: HTTP integration for Privacy Pass tokens
+    provenance: forward-citation
+    local_files:
+      - rfc9577.txt
+    formats:
+      txt: https://www.rfc-editor.org/rfc/rfc9577.txt
+      html: https://www.rfc-editor.org/rfc/rfc9577.html
+    bibtex: https://datatracker.ietf.org/doc/rfc9577/bibtex/
+    datatracker: https://datatracker.ietf.org/doc/rfc9577/
+
+  - id: rfc9578
+    title: "Privacy Pass Issuance Protocols"
+    year: 2024
+    relevance: Token issuance protocol (blind RSA + VOPRF modes)
+    provenance: forward-citation
+    local_files:
+      - rfc9578.txt
+    formats:
+      txt: https://www.rfc-editor.org/rfc/rfc9578.txt
+      html: https://www.rfc-editor.org/rfc/rfc9578.html
+    bibtex: https://datatracker.ietf.org/doc/rfc9578/bibtex/
+    datatracker: https://datatracker.ietf.org/doc/rfc9578/

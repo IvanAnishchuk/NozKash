@@ -4,8 +4,12 @@ Low-level BLS12-381 curve primitives for the Nozk protocol.
 Standard BLS scheme: PK in G1, Signature in G2.
 
 Uses two libraries:
-  - chia_rs (blst-based): standard BLS sign/verify/aggregate (spend signatures)
+  - chia_rs (blst-based): standard BLS sign/verify/aggregate, hash-to-G2
   - py_ecc: low-level curve operations (scalar mul, pairing) for blind signature protocol
+
+Hash-to-G2 uses chia_rs (blst), which implements the same RFC 9380 algorithm
+as the EIP-2537 MAP_FP2_TO_G2 precompile. Verified: chia_rs g2_from_message
+produces byte-identical results to the precompile for the same inputs.
 
 EIP-2537 precompile addresses (final Pectra spec):
   0x0b  G1ADD          0x0d  G2ADD          0x0f  PAIRING_CHECK
@@ -17,8 +21,8 @@ from __future__ import annotations
 
 from typing import NewType
 
-from chia_rs import AugSchemeMPL, G1Element, G2Element, PrivateKey
-from eth_utils import keccak
+from chia_rs import AugSchemeMPL, G1Element, G2Element, PrivateKey  # noqa: F401 — re-exported
+from py_ecc.bls.g2_primitives import signature_to_G2
 from py_ecc.optimized_bls12_381 import (
     FQ,
     FQ2,
@@ -54,12 +58,6 @@ Scalar = NewType("Scalar", int)
 
 CURVE_ORDER = curve_order
 FIELD_MODULUS = field_modulus
-
-G1_COFACTOR = 0x396C8C005555E1568C00AAAB0000AAAB
-
-# fmt: off
-_G2_COFACTOR = 0x5D543A95414E7F1091D50792876A202CD91DE4547085ABAA68A205B2E5A7DDFA628F1CB4D9E82EF21537E293A6691AE1616EC6E786F0C70CF1C38E31C7238E5  # noqa: E501
-# fmt: on
 
 G1_GEN = G1Point(PY_G1_GEN)
 G2_GEN = G2Point(PY_G2_GEN)
@@ -206,11 +204,6 @@ def abi_encode_g1(point: G1Point) -> bytes:
     return b"".join(c.to_bytes(32, "big") for c in coords)
 
 
-def abi_encode_g1_chia(point: G1Element) -> bytes:
-    """ABI-encode a chia_rs G1 point as its 48-byte compressed form, zero-padded to 64 bytes."""
-    return point.to_bytes().rjust(64, b"\x00")
-
-
 # ==============================================================================
 # PY_ECC CURVE OPERATIONS (for blind signature protocol)
 # ==============================================================================
@@ -263,137 +256,37 @@ def aggregate_g2(points: list[G2Point]) -> G2Point:
 
 
 # ==============================================================================
-# HASH-TO-CURVE (py_ecc, for blind signature protocol)
+# HASH-TO-CURVE (chia_rs/blst, RFC 9380 compliant)
 # ==============================================================================
 #
-# NOTE: py_ecc's SWU map does NOT match the EIP-2537 MAP_FP_TO_G1 precompile.
-# For on-chain parity, the hash-to-curve approach must be reconciled.
-# Options under investigation:
-#   1. Implement the full RFC 9380 hash_to_curve on-chain (2x MAP_FP_TO_G1 + G1ADD)
-#   2. Use try-and-increment (deterministic, easy cross-language parity)
-#   3. Find/fix the py_ecc SWU to match blst
+# Hash-to-G2 uses chia_rs AugSchemeMPL.g2_from_message() which wraps blst — the
+# reference implementation used by Ethereum clients and EIP-2537 precompiles.
+# The on-chain implementation uses SHA-256 expand_message_xmd + MAP_FP2_TO_G2 (0x11).
 #
-# For now, we use try-and-increment which is simple and verifiable.
-
-
-def hash_to_g1(message: bytes) -> G1Point:
-    """
-    Hash arbitrary bytes to a BLS12-381 G1 point via try-and-increment.
-
-    Uses keccak256(message || counter_be32) as the x-candidate source,
-    checks if x^3 + 4 has a square root in Fp, and clears the cofactor.
-
-    This matches the on-chain implementation which can use MODEXP(0x05)
-    for the same field arithmetic.
-    """
-    p = FIELD_MODULUS
-    counter = 0
-    while True:
-        h = keccak(message + counter.to_bytes(4, "big"))
-        x = int.from_bytes(h, "big") % p
-        # BLS12-381 G1: y^2 = x^3 + 4
-        rhs = (pow(x, 3, p) + 4) % p
-        # Euler criterion: rhs^((p-1)/2) == 1 means QR
-        if pow(rhs, (p - 1) // 2, p) == 1:
-            y = pow(rhs, (p + 1) // 4, p)
-            # Construct point and clear cofactor
-            point = G1Point((FQ(x), FQ(y), FQ(1)))
-            return g1_scalar_mul(point, Scalar(G1_COFACTOR))
-        counter += 1
+# DST: "BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_AUG_" (AugSchemeMPL standard).
 
 
 def hash_to_g2(message: bytes) -> G2Point:
     """
-    Hash arbitrary bytes to a BLS12-381 G2 point via try-and-increment on Fp2.
+    Hash arbitrary bytes to a BLS12-381 G2 point via RFC 9380 (chia_rs/blst).
 
-    Uses keccak256("c0" || message || counter) and keccak256("c1" || message || counter)
-    to produce Fp2 x-candidates. Checks if the RHS of y^2 = x^3 + B2 has a square root.
-    Then clears the G2 cofactor.
+    Uses AugSchemeMPL.g2_from_message() which implements the full RFC 9380
+    hash-to-curve pipeline: expand_message_xmd (SHA-256) + hash_to_field +
+    map_to_curve (Simplified SWU) + 3-isogeny + cofactor clearing.
+
+    The on-chain equivalent uses:
+      SHA-256 precompile (0x02) + MODEXP (0x05) + MAP_FP2_TO_G2 (0x11) + G2ADD (0x0d)
+
+    Returns a py_ecc G2Point for use in scalar multiplication and pairing.
     """
-    p = FIELD_MODULUS
-    # B2 for BLS12-381 G2: 4*(1+i) in Fp2, i.e. coeffs [4, 4]
-    b2_c0 = 4
-    b2_c1 = 4
-    counter = 0
-    while True:
-        h0 = keccak(b"c0" + message + counter.to_bytes(4, "big"))
-        h1 = keccak(b"c1" + message + counter.to_bytes(4, "big"))
-        x_c0 = int.from_bytes(h0, "big") % p
-        x_c1 = int.from_bytes(h1, "big") % p
-        x = FQ2([x_c0, x_c1])
-        # y^2 = x^3 + B2
-        rhs = x**3 + FQ2([b2_c0, b2_c1])
-        # Check if rhs is a quadratic residue in Fp2
-        # Use Euler criterion: rhs^((p^2-1)/2) == 1
-        # For Fp2, we compute rhs^((p^2-1)/2) and check == FQ2.one()
-        exp = (p * p - 1) // 2
-        test = rhs**exp
-        if test == FQ2.one():
-            # Compute sqrt via rhs^((p^2+1)/4) — works when p^2 ≡ 3 mod 4
-            # p ≡ 3 mod 4 → p^2 ≡ 1 mod 4. Need different sqrt for Fp2.
-            # Use Tonelli-Shanks or repeated squaring. For simplicity, use py_ecc.
-            # Actually, (p^2+1)/4 doesn't work here. Use a different approach.
-            # Skip complex Fp2 sqrt — use a helper.
-            y = _fp2_sqrt(rhs)
-            if y is not None:
-                point = G2Point((x, y, FQ2([1, 0])))
-                # Clear G2 cofactor
-                g2_cofactor = _G2_COFACTOR
-                return g2_scalar_mul(point, Scalar(g2_cofactor))
-        counter += 1
-
-
-def _fp2_sqrt(a: FQ2) -> FQ2 | None:
-    """Compute square root in Fp2 if it exists, using the Cipolla/complex method."""
-    p = FIELD_MODULUS
-    # For Fp2 = Fp[u]/(u^2+1), sqrt can be computed via the Frobenius endomorphism
-    # a^((p+1)/2) gives sqrt when it exists (since Fp2 has order p^2-1)
-    # But this only works for certain cases. Let's use brute force:
-    # sqrt(a) = a^((p^2+7)/16) when p ≡ 3 mod 4 and some conditions hold
-    # Actually the standard approach for BLS12-381 Fp2:
-    # Use Algorithm 9 from draft-irtf-cfrg-hash-to-curve
-
-    # Simpler: just try a^((p+1)/4) in the field extension
-    # Since FQ2 supports ** (power), this works
-    candidate = a ** ((p + 1) // 4)  # This may not be correct for Fp2
-    if candidate * candidate == a:
-        return candidate
-
-    # Try another exponent
-    candidate = a ** ((p * p + 7) // 16)
-    if candidate * candidate == a:
-        return candidate
-
-    return None
+    g2_elem = AugSchemeMPL.g2_from_message(message)
+    return G2Point(signature_to_G2(g2_elem.to_bytes()))
 
 
 # ==============================================================================
 # PAIRING VERIFICATION (py_ecc)
 # ==============================================================================
 
-
-def verify_pairing_g1_g2(sigma_g1: G1Point, msg_g2: G2Point, pk_g1: G1Point) -> bool:
-    """
-    Standard BLS pairing check (PK=G1, Sig=G2 scheme):
-      e(PK, msg_G2) == e(G1_gen, sigma)
-    Equivalently: e(PK, msg_G2) * e(-G1_gen, sigma) == 1
-
-    For blind signature verification:
-      e(PK_mint, H_G2(nullifier)) == e(G1_gen, S)
-    """
-    lhs = pairing(msg_g2, pk_g1)  # pairing(G2, G1) in py_ecc
-    rhs = pairing(sigma_g1, G1_GEN)  # pairing(Sig_G2, G1_gen) — wait this is wrong
-
-    # py_ecc pairing signature: pairing(G2_point, G1_point)
-    # We want: e(pk_g1, msg_g2) == e(G1_gen, sigma_g2)
-    # But sigma is G1 here in the old scheme...
-
-    # WAIT — in the new standard scheme, sigma is in G2.
-    # This function name is confusing. Let me think:
-    # verify_pairing(pk_G1, msg_G2, sig_G2):
-    #   check e(pk, msg) == e(G1_gen, sig)
-    # py_ecc: pairing(G2, G1) returns e(G1, G2) as the Ate pairing
-    return lhs == rhs
 
 
 def verify_mint_pairing(sig_g2: G2Point, msg_g2: G2Point, pk_g1: G1Point) -> bool:

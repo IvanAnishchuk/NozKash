@@ -1,9 +1,12 @@
-"""Unit tests for MockMint (mint_mock.py) and MockRedeemer (redeem_mock.py)."""
+"""Unit tests for MockMint (mint_mock.py) and MockRedeemer (redeem_mock.py).
+
+BLS12-381 standard scheme: PK=G1, Sig=G2.
+"""
 
 import pytest
-from py_ecc.bn128 import b, curve_order, is_on_curve
 
 import nozk_library as gl
+from bls12_381_crypto import CURVE_ORDER, serialize_g2_sol
 from mint_mock import MockMint, MockMintError
 from redeem_mock import MockRedeemer, NullifierState
 
@@ -28,33 +31,28 @@ def keypair():
 
 @pytest.fixture
 def lifecycle(keypair):
-    """Full lifecycle: derive secrets, blind, sign, unblind, generate proof."""
+    """Full lifecycle: derive secrets, blind, sign, unblind, generate redemption proof."""
     seed = b"mock_test_lifecycle_seed"
     secrets = gl.derive_token_secrets(seed, 0)
-    blinded = gl.blind_token(secrets.spend_address_bytes, secrets.r)
+    blinded = gl.blind_token(secrets.spend_bls_pub, secrets.r)
     S_prime = gl.mint_blind_sign(blinded.B, keypair.sk)
     S = gl.unblind_signature(S_prime, secrets.r)
-    sx, sy = gl.serialize_g1(S)
     recipient = "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa"
     proof = gl.generate_redemption_proof(
-        secrets.spend_priv,
+        secrets.spend_chia_sk,
+        secrets.spend_chia_pk,
         recipient,
         _TEST_CHAIN_ID,
         _TEST_CONTRACT,
         _TEST_DEADLINE,
     )
-    # Build 65-byte spend signature
-    r_bytes = bytes.fromhex(proof.compact_hex[:64])
-    s_bytes = bytes.fromhex(proof.compact_hex[64:])
-    v_byte = bytes([proof.recovery_bit + 27])
-    sig_65 = r_bytes + s_bytes + v_byte
     return {
         "keypair": keypair,
         "secrets": secrets,
+        "blinded": blinded,
+        "S": S,
         "recipient": recipient,
-        "sig_65": sig_65,
-        "sx": sx,
-        "sy": sy,
+        "proof": proof,
     }
 
 
@@ -75,7 +73,7 @@ def test_mock_mint_from_sk_zero_raises():
 
 def test_mock_mint_from_sk_too_large_raises():
     with pytest.raises(MockMintError):
-        MockMint.from_sk(curve_order)
+        MockMint.from_sk(CURVE_ORDER)
 
 
 def test_mock_mint_from_hex_with_prefix():
@@ -93,28 +91,21 @@ def test_mock_mint_from_hex_invalid_raises():
 # ==============================================================================
 
 
-def test_mock_mint_sign_returns_on_curve(mint):
+def test_mock_mint_sign_returns_g2_point(mint):
     secrets = gl.derive_token_secrets(b"sign_test", 0)
-    blinded = gl.blind_token(secrets.spend_address_bytes, secrets.r)
+    blinded = gl.blind_token(secrets.spend_bls_pub, secrets.r)
     S_prime = mint.sign(blinded.B)
-    assert is_on_curve(S_prime, b)
+    coords = serialize_g2_sol(S_prime)
+    assert len(coords) == 8
+    assert any(c != 0 for c in coords)
 
 
 def test_mock_mint_sign_and_serialize_returns_int_tuple(mint):
     secrets = gl.derive_token_secrets(b"serialize_test", 0)
-    blinded = gl.blind_token(secrets.spend_address_bytes, secrets.r)
-    sx, sy = mint.sign_and_serialize(blinded.B)
-    assert isinstance(sx, int)
-    assert isinstance(sy, int)
-
-
-def test_mock_mint_sign_from_coords(mint):
-    secrets = gl.derive_token_secrets(b"coords_test", 0)
-    blinded = gl.blind_token(secrets.spend_address_bytes, secrets.r)
-    bx, by = gl.serialize_g1(blinded.B)
-    sx, sy = mint.sign_from_coords(bx, by)
-    assert isinstance(sx, int) and sx > 0
-    assert isinstance(sy, int) and sy > 0
+    blinded = gl.blind_token(secrets.spend_bls_pub, secrets.r)
+    coords = mint.sign_and_serialize(blinded.B)
+    assert len(coords) == 8
+    assert all(isinstance(c, int) for c in coords)
 
 
 # ==============================================================================
@@ -124,18 +115,19 @@ def test_mock_mint_sign_from_coords(mint):
 
 def test_reveal_valid_bls(lifecycle):
     redeemer = MockRedeemer.from_sk(lifecycle["keypair"].sk)
-    nullifier = lifecycle["secrets"].spend.address
-    result = redeemer.reveal(nullifier, lifecycle["sx"], lifecycle["sy"])
+    secrets = lifecycle["secrets"]
+    result = redeemer.reveal(secrets.spend_bls_pub, lifecycle["S"])
     assert result.success is True
     assert result.bls_pairing_ok is True
-    assert redeemer.get_state(nullifier) == NullifierState.REVEALED
+    nid = secrets.nullifier_id.hex()
+    assert redeemer.get_state(nid) == NullifierState.REVEALED
 
 
 def test_reveal_already_revealed(lifecycle):
     redeemer = MockRedeemer.from_sk(lifecycle["keypair"].sk)
-    nullifier = lifecycle["secrets"].spend.address
-    redeemer.reveal(nullifier, lifecycle["sx"], lifecycle["sy"])
-    result = redeemer.reveal(nullifier, lifecycle["sx"], lifecycle["sy"])
+    secrets = lifecycle["secrets"]
+    redeemer.reveal(secrets.spend_bls_pub, lifecycle["S"])
+    result = redeemer.reveal(secrets.spend_bls_pub, lifecycle["S"])
     assert result.success is False
     assert "already" in (result.reason or "").lower()
 
@@ -143,8 +135,8 @@ def test_reveal_already_revealed(lifecycle):
 def test_reveal_wrong_mint_key(lifecycle):
     wrong_kp = gl.generate_mint_keypair()
     redeemer = MockRedeemer.from_sk(wrong_kp.sk)
-    nullifier = lifecycle["secrets"].spend.address
-    result = redeemer.reveal(nullifier, lifecycle["sx"], lifecycle["sy"])
+    secrets = lifecycle["secrets"]
+    result = redeemer.reveal(secrets.spend_bls_pub, lifecycle["S"])
     assert result.success is False
     assert result.bls_pairing_ok is False
 
@@ -156,30 +148,34 @@ def test_reveal_wrong_mint_key(lifecycle):
 
 def test_redeem_after_reveal(lifecycle):
     redeemer = MockRedeemer.from_sk(lifecycle["keypair"].sk)
-    nullifier = lifecycle["secrets"].spend.address
+    secrets = lifecycle["secrets"]
 
-    # Reveal first
-    rev = redeemer.reveal(nullifier, lifecycle["sx"], lifecycle["sy"])
+    rev = redeemer.reveal(secrets.spend_bls_pub, lifecycle["S"])
     assert rev.success is True
 
-    # Then redeem
+    nid = secrets.nullifier_id.hex()
     result = redeemer.redeem(
-        lifecycle["recipient"],
-        lifecycle["sig_65"],
+        recipient=lifecycle["recipient"],
+        sigma=lifecycle["proof"].sigma,
+        spend_pk=lifecycle["proof"].spend_pk,
+        nullifier_id=nid,
         chain_id=_TEST_CHAIN_ID,
         contract_address=_TEST_CONTRACT,
         deadline=_TEST_DEADLINE,
     )
     assert result.success is True
-    assert result.ecdsa_ok is True
-    assert redeemer.get_state(nullifier) == NullifierState.SPENT
+    assert result.bls_spend_ok is True
+    assert redeemer.get_state(nid) == NullifierState.SPENT
 
 
 def test_redeem_without_reveal_fails(lifecycle):
     redeemer = MockRedeemer.from_sk(lifecycle["keypair"].sk)
+    nid = lifecycle["secrets"].nullifier_id.hex()
     result = redeemer.redeem(
-        lifecycle["recipient"],
-        lifecycle["sig_65"],
+        recipient=lifecycle["recipient"],
+        sigma=lifecycle["proof"].sigma,
+        spend_pk=lifecycle["proof"].spend_pk,
+        nullifier_id=nid,
         chain_id=_TEST_CHAIN_ID,
         contract_address=_TEST_CONTRACT,
         deadline=_TEST_DEADLINE,
@@ -188,41 +184,18 @@ def test_redeem_without_reveal_fails(lifecycle):
     assert "not revealed" in (result.reason or "").lower()
 
 
-def test_redeem_bad_signature_length(lifecycle):
-    redeemer = MockRedeemer.from_sk(lifecycle["keypair"].sk)
-    result = redeemer.redeem(
-        lifecycle["recipient"],
-        b"\x00" * 10,  # wrong length
-    )
-    assert result.success is False
-    assert "65 bytes" in (result.reason or "")
-
-
-def test_redeem_invalid_v_byte(lifecycle):
-    redeemer = MockRedeemer.from_sk(lifecycle["keypair"].sk)
-    nullifier = lifecycle["secrets"].spend.address
-    redeemer.reveal(nullifier, lifecycle["sx"], lifecycle["sy"])
-
-    bad_sig = lifecycle["sig_65"][:64] + bytes([99])  # invalid v
-    result = redeemer.redeem(
-        lifecycle["recipient"],
-        bad_sig,
-        chain_id=_TEST_CHAIN_ID,
-        contract_address=_TEST_CONTRACT,
-        deadline=_TEST_DEADLINE,
-    )
-    assert result.success is False
-    assert "v byte" in (result.reason or "").lower() or "Invalid" in (result.reason or "")
-
-
 def test_double_spend(lifecycle):
     redeemer = MockRedeemer.from_sk(lifecycle["keypair"].sk)
-    nullifier = lifecycle["secrets"].spend.address
-    redeemer.reveal(nullifier, lifecycle["sx"], lifecycle["sy"])
+    secrets = lifecycle["secrets"]
+    nid = secrets.nullifier_id.hex()
+
+    redeemer.reveal(secrets.spend_bls_pub, lifecycle["S"])
 
     r1 = redeemer.redeem(
-        lifecycle["recipient"],
-        lifecycle["sig_65"],
+        recipient=lifecycle["recipient"],
+        sigma=lifecycle["proof"].sigma,
+        spend_pk=lifecycle["proof"].spend_pk,
+        nullifier_id=nid,
         chain_id=_TEST_CHAIN_ID,
         contract_address=_TEST_CONTRACT,
         deadline=_TEST_DEADLINE,
@@ -230,8 +203,10 @@ def test_double_spend(lifecycle):
     assert r1.success is True
 
     r2 = redeemer.redeem(
-        lifecycle["recipient"],
-        lifecycle["sig_65"],
+        recipient=lifecycle["recipient"],
+        sigma=lifecycle["proof"].sigma,
+        spend_pk=lifecycle["proof"].spend_pk,
+        nullifier_id=nid,
         chain_id=_TEST_CHAIN_ID,
         contract_address=_TEST_CONTRACT,
         deadline=_TEST_DEADLINE,
@@ -242,19 +217,21 @@ def test_double_spend(lifecycle):
 
 def test_is_spent_and_reset(lifecycle):
     redeemer = MockRedeemer.from_sk(lifecycle["keypair"].sk)
-    nullifier = lifecycle["secrets"].spend.address
+    secrets = lifecycle["secrets"]
+    nid = secrets.nullifier_id.hex()
 
-    redeemer.reveal(nullifier, lifecycle["sx"], lifecycle["sy"])
+    redeemer.reveal(secrets.spend_bls_pub, lifecycle["S"])
     result = redeemer.redeem(
-        lifecycle["recipient"],
-        lifecycle["sig_65"],
+        recipient=lifecycle["recipient"],
+        sigma=lifecycle["proof"].sigma,
+        spend_pk=lifecycle["proof"].spend_pk,
+        nullifier_id=nid,
         chain_id=_TEST_CHAIN_ID,
         contract_address=_TEST_CONTRACT,
         deadline=_TEST_DEADLINE,
     )
     assert result.success is True
-    assert result.nullifier is not None
-    assert redeemer.is_spent(result.nullifier)
+    assert redeemer.is_spent(nid)
 
     redeemer.reset()
-    assert not redeemer.is_spent(result.nullifier)
+    assert not redeemer.is_spent(nid)

@@ -8,7 +8,7 @@ dependencies = [
     "eth-hash[pycryptodome]>=0.7.1",
     "eth-keys>=0.7.0",
     "eth-utils>=5.3.1",
-    "py-ecc>=8.0.0",
+    "py-ecc>=7.0",
     "pycryptodome>=3.23.0",
     "pytest>=9.0.3",
     "python-dotenv>=1.2.2",
@@ -17,6 +17,7 @@ dependencies = [
     "fastapi>=0.115.0",
     "uvicorn>=0.34.0",
     "httpx>=0.28.0",
+    "chia-rs>=0.42.1",
 ]
 
 [dependency-groups]

@@ -1,20 +1,8 @@
 """
-Nozk Protocol: Test Vector Generator (BLS12-381)
-
-Generates cryptographic test vectors covering the full protocol lifecycle
-for multiple (mint keypair, token index) combinations. Each vector file is
-a self-contained JSON snapshot of every intermediate value produced during
-one run of the protocol, suitable for cross-language parity testing.
-
-Output layout (writes to repo-root ``test_vectors/`` by default):
-    test_vectors/
-        manifest.json                          — lists keypair dirs + indices
-        <seed_prefix>_<sk_prefix>/
-            token_<index>.json                 — one file per token index tested
-            aggregation.json                   — multi-token aggregation vectors
+Nozk Protocol: Test Vector Generator (BLS12-381, standard scheme: PK=G1, Sig=G2)
 
 Usage:
-    uv run generate_vectors.py                   # default: 3 keypairs × 6 indices
+    uv run generate_vectors.py
     uv run generate_vectors.py --keypairs 5 --indices 0 1 2 100 255 256 1000
 """
 
@@ -26,90 +14,63 @@ from pathlib import Path
 import nozk_library as gl
 from bls12_381_crypto import (
     CURVE_ORDER,
-    G2_GEN,
+    G1_GEN,
     Scalar,
-    g2_scalar_mul,
-    serialize_g1,
-    serialize_g2,
+    g1_scalar_mul,
+    serialize_g1_sol,
+    serialize_g2_sol,
 )
 
 VECTORS_DIR = Path(__file__).resolve().parent.parent / "test_vectors"
 
-# Fixed EIP-712 test parameters
 TEST_RECIPIENT = "0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7"
-TEST_CHAIN_ID = 11155111  # Ethereum Sepolia
+TEST_CHAIN_ID = 11155111
 TEST_CONTRACT = "0x00000000000000000000000000000000DeaDBeef"
 TEST_DEADLINE = 2**256 - 1
 
 
 def _g1_to_dict(coords: tuple[int, int, int, int]) -> dict:
-    """Serialize G1 coords to hex dict (4 uint256 in EIP-2537 encoding)."""
-    return {
-        "x_hi": hex(coords[0]),
-        "x_lo": hex(coords[1]),
-        "y_hi": hex(coords[2]),
-        "y_lo": hex(coords[3]),
-    }
+    return {"x_hi": hex(coords[0]), "x_lo": hex(coords[1]), "y_hi": hex(coords[2]), "y_lo": hex(coords[3])}
 
 
 def _g2_to_dict(coords: tuple[int, int, int, int, int, int, int, int]) -> dict:
-    """Serialize G2 coords to hex dict (8 uint256 in EIP-2537 encoding)."""
     return {
-        "x_c0_hi": hex(coords[0]),
-        "x_c0_lo": hex(coords[1]),
-        "x_c1_hi": hex(coords[2]),
-        "x_c1_lo": hex(coords[3]),
-        "y_c0_hi": hex(coords[4]),
-        "y_c0_lo": hex(coords[5]),
-        "y_c1_hi": hex(coords[6]),
-        "y_c1_lo": hex(coords[7]),
+        "x_c0_hi": hex(coords[0]), "x_c0_lo": hex(coords[1]),
+        "x_c1_hi": hex(coords[2]), "x_c1_lo": hex(coords[3]),
+        "y_c0_hi": hex(coords[4]), "y_c0_lo": hex(coords[5]),
+        "y_c1_hi": hex(coords[6]), "y_c1_lo": hex(coords[7]),
     }
 
 
 def compute_vector(master_seed_hex: str, sk_int: int, token_index: int) -> dict:
-    """
-    Runs the full protocol for one (seed, keypair, token_index) combination
-    and returns a dict containing every intermediate value.
-    """
     master_seed_bytes = master_seed_hex.encode("utf-8")
-
-    # --- Mint public key ---
     sk = Scalar(sk_int)
-    pk_g2 = g2_scalar_mul(G2_GEN, sk)
+    pk_g1 = g1_scalar_mul(G1_GEN, sk)
 
-    # --- Client secrets ---
     secrets = gl.derive_token_secrets(master_seed_bytes, token_index)
-
-    # --- BLS protocol ---
     blinded = gl.blind_token(secrets.spend_bls_pub, secrets.r)
     S_prime = gl.mint_blind_sign(blinded.B, sk)
     S = gl.unblind_signature(S_prime, secrets.r)
 
-    # --- BLS spend signature (replaces ECDSA) ---
     proof = gl.generate_redemption_proof(
-        secrets.spend_bls_priv,
-        secrets.spend_bls_pub,
-        TEST_RECIPIENT,
-        TEST_CHAIN_ID,
-        TEST_CONTRACT,
-        TEST_DEADLINE,
+        secrets.spend_chia_sk, secrets.spend_chia_pk,
+        TEST_RECIPIENT, TEST_CHAIN_ID, TEST_CONTRACT, TEST_DEADLINE,
     )
 
     return {
-        # ── Inputs ────────────────────────────────────────────────────────────
         "MASTER_SEED": master_seed_hex,
         "TOKEN_INDEX": token_index,
         "MINT_BLS_PRIVKEY": hex(sk_int),
         "RECIPIENT": TEST_RECIPIENT,
-        # ── Mint public key (G2, BLS12-381, 8 uint256) ───────────────────────
-        "PK_MINT": _g2_to_dict(serialize_g2(pk_g2)),
-        # ── Spend BLS key (nullifier identity) ───────────────────────────────
+        # Mint PK is now G1 (4 uint256)
+        "PK_MINT": _g1_to_dict(serialize_g1_sol(pk_g1)),
+        # Spend key: G1 pubkey (nullifier) + chia compressed
         "SPEND_BLS": {
             "priv": hex(secrets.spend_bls_priv),
-            "pub_G2": _g2_to_dict(serialize_g2(secrets.spend_bls_pub)),
+            "pub_G1": _g1_to_dict(serialize_g1_sol(secrets.spend_bls_pub)),
+            "pub_compressed": secrets.spend_chia_pk.to_bytes().hex(),
             "nullifier_id": secrets.nullifier_id.hex(),
         },
-        # ── Blind keypair (deposit ID + blinding factor) ─────────────────────
         "BLIND_KEYPAIR": {
             "priv": secrets.deposit_blind_keypair.priv.to_bytes().hex(),
             "pub": secrets.deposit_blind_keypair.pub_hex,
@@ -117,12 +78,11 @@ def compute_vector(master_seed_hex: str, sk_int: int, token_index: int) -> dict:
             "r": hex(secrets.r),
         },
         "DEPOSIT_ID": secrets.deposit_id,
-        # ── BLS protocol intermediates (G1 points, 4 uint256 each) ───────────
-        "Y_HASH_TO_CURVE": _g1_to_dict(serialize_g1(blinded.Y)),
-        "B_BLINDED": _g1_to_dict(serialize_g1(blinded.B)),
-        "S_PRIME": _g1_to_dict(serialize_g1(S_prime)),
-        "S_UNBLINDED": _g1_to_dict(serialize_g1(S)),
-        # ── EIP-712 domain parameters (fixed for deterministic vectors) ──────
+        # Protocol intermediates: Y and B are G2 (8 uint256), S' and S are G2
+        "Y_HASH_TO_CURVE": _g2_to_dict(serialize_g2_sol(blinded.Y)),
+        "B_BLINDED": _g2_to_dict(serialize_g2_sol(blinded.B)),
+        "S_PRIME": _g2_to_dict(serialize_g2_sol(S_prime)),
+        "S_UNBLINDED": _g2_to_dict(serialize_g2_sol(S)),
         "EIP712": {
             "domain_name": "NozkVault",
             "domain_version": "1",
@@ -130,35 +90,31 @@ def compute_vector(master_seed_hex: str, sk_int: int, token_index: int) -> dict:
             "contract_address": TEST_CONTRACT,
             "deadline": hex(TEST_DEADLINE),
         },
-        # ── Redemption transaction ───────────────────────────────────────────
+        # Spend signature is chia_rs G2 (compressed 96 bytes)
         "REDEEM_TX": {
             "recipient": TEST_RECIPIENT,
             "deadline": hex(TEST_DEADLINE),
             "msg_hash": proof.msg_hash.hex(),
-            "sigma_G1": _g1_to_dict(serialize_g1(proof.sigma)),
-            "spend_pub_G2": _g2_to_dict(serialize_g2(proof.spend_pub)),
+            "sigma_compressed": proof.sigma.to_bytes().hex(),
+            "spend_pub_compressed": proof.spend_pk.to_bytes().hex(),
         },
-        # ── Reveal transaction ───────────────────────────────────────────────
         "REVEAL_TX": {
-            "spend_pub_G2": _g2_to_dict(serialize_g2(secrets.spend_bls_pub)),
-            "S_G1": _g1_to_dict(serialize_g1(S)),
+            "spend_pub_G1": _g1_to_dict(serialize_g1_sol(secrets.spend_bls_pub)),
+            "S_G2": _g2_to_dict(serialize_g2_sol(S)),
             "nullifier_id": secrets.nullifier_id.hex(),
         },
     }
 
 
 def compute_aggregation_vectors(master_seed_hex: str, sk_int: int, indices: list[int]) -> dict:
-    """
-    Generate aggregation test vectors: aggregate reveal + aggregate redeem
-    for multiple tokens signed by the same mint key.
-    """
     master_seed_bytes = master_seed_hex.encode("utf-8")
     sk = Scalar(sk_int)
 
     unblinded_sigs = []
-    spend_pubs = []
+    spend_pubs_g1 = []
     nullifier_ids = []
-    spend_sigs = []
+    spend_sigs_chia = []
+    spend_pks_chia = []
 
     msg_hash = gl.eip712_redemption_hash(TEST_RECIPIENT, TEST_DEADLINE, TEST_CHAIN_ID, TEST_CONTRACT)
 
@@ -168,34 +124,30 @@ def compute_aggregation_vectors(master_seed_hex: str, sk_int: int, indices: list
         s_prime = gl.mint_blind_sign(blinded.B, sk)
         s = gl.unblind_signature(s_prime, secrets.r)
         unblinded_sigs.append(s)
-        spend_pubs.append(secrets.spend_bls_pub)
+        spend_pubs_g1.append(secrets.spend_bls_pub)
         nullifier_ids.append(secrets.nullifier_id.hex())
 
-        # BLS spend signature for redeem aggregation
         proof = gl.generate_redemption_proof(
-            secrets.spend_bls_priv,
-            secrets.spend_bls_pub,
-            TEST_RECIPIENT,
-            TEST_CHAIN_ID,
-            TEST_CONTRACT,
-            TEST_DEADLINE,
+            secrets.spend_chia_sk, secrets.spend_chia_pk,
+            TEST_RECIPIENT, TEST_CHAIN_ID, TEST_CONTRACT, TEST_DEADLINE,
         )
-        spend_sigs.append(proof.sigma)
+        spend_sigs_chia.append(proof.sigma)
+        spend_pks_chia.append(secrets.spend_chia_pk)
 
     reveal_sigma = gl.aggregate_reveal_sigma(unblinded_sigs)
-    redeem_sigma = gl.aggregate_redeem_sigma(spend_sigs)
+    redeem_sigma = gl.aggregate_redeem_sigma(spend_sigs_chia)
 
     return {
         "token_indices": indices,
         "AGGREGATED_REVEAL": {
-            "sigma_G1": _g1_to_dict(serialize_g1(reveal_sigma)),
+            "sigma_G2": _g2_to_dict(serialize_g2_sol(reveal_sigma)),
             "nullifier_ids": nullifier_ids,
-            "spend_pubs_G2": [_g2_to_dict(serialize_g2(p)) for p in spend_pubs],
+            "spend_pubs_G1": [_g1_to_dict(serialize_g1_sol(p)) for p in spend_pubs_g1],
         },
         "AGGREGATED_REDEEM": {
-            "sigma_G1": _g1_to_dict(serialize_g1(redeem_sigma)),
+            "sigma_compressed": redeem_sigma.to_bytes().hex(),
             "nullifier_ids": nullifier_ids,
-            "spend_pubs_G2": [_g2_to_dict(serialize_g2(p)) for p in spend_pubs],
+            "spend_pubs_compressed": [pk.to_bytes().hex() for pk in spend_pks_chia],
             "msg_hash": msg_hash.hex(),
             "recipient": TEST_RECIPIENT,
             "deadline": hex(TEST_DEADLINE),
@@ -204,7 +156,6 @@ def compute_aggregation_vectors(master_seed_hex: str, sk_int: int, indices: list
 
 
 def generate_keypair() -> tuple[str, int]:
-    """Returns (master_seed_hex, sk_int) as fresh random material."""
     master_seed_hex = os.urandom(32).hex()
     sk_int = int.from_bytes(os.urandom(32), "big") % CURVE_ORDER
     return master_seed_hex, sk_int
@@ -218,38 +169,22 @@ def write_vector(vector: dict, output_dir: Path) -> Path:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate Nozk protocol test vectors (BLS12-381)")
-    parser.add_argument(
-        "--keypairs",
-        type=int,
-        default=3,
-        help="Number of random (seed, mint keypair) combinations to generate (default: 3)",
-    )
-    parser.add_argument(
-        "--indices",
-        type=int,
-        nargs="+",
-        default=[0, 1, 42, 255, 256, 1000],
-        help="Token indices to generate per keypair (default: 0 1 42 255 256 1000)",
-    )
-    parser.add_argument("--out", type=Path, default=VECTORS_DIR, help=f"Output directory (default: {VECTORS_DIR})")
+    parser = argparse.ArgumentParser(description="Generate Nozk test vectors (BLS12-381)")
+    parser.add_argument("--keypairs", type=int, default=3)
+    parser.add_argument("--indices", type=int, nargs="+", default=[0, 1, 42, 255, 256, 1000])
+    parser.add_argument("--out", type=Path, default=VECTORS_DIR)
     args = parser.parse_args()
 
     indices = sorted(set(args.indices))
     out_dir = args.out
 
-    # Clean stale keypair directories
     if out_dir.exists():
         for child in list(out_dir.iterdir()):
             if child.is_dir():
                 import shutil
-
                 shutil.rmtree(child)
 
-    print(
-        f"Generating {args.keypairs} keypair(s) × {len(indices)} index/indices "
-        f"= {args.keypairs * len(indices)} vector files\n"
-    )
+    print(f"Generating {args.keypairs} keypair(s) × {len(indices)} indices = {args.keypairs * len(indices)} vectors\n")
 
     keypair_dirs: list[str] = []
     total = 0
@@ -269,16 +204,15 @@ def main():
             print(f"    token_{idx:>5}  →  {path}")
             total += 1
 
-        # Aggregation vectors (use first 3 indices)
         agg_indices = indices[:3] if len(indices) >= 3 else indices
-        agg_vectors = compute_aggregation_vectors(master_seed_hex, sk_int, agg_indices)
+        agg = compute_aggregation_vectors(master_seed_hex, sk_int, agg_indices)
         agg_path = kp_dir / "aggregation.json"
-        agg_path.write_text(json.dumps(agg_vectors, indent=2))
+        agg_path.write_text(json.dumps(agg, indent=2))
         print(f"    aggregation  →  {agg_path}")
 
-    # Write manifest
     manifest = {
         "curve": "BLS12-381",
+        "scheme": "standard (PK=G1, Sig=G2)",
         "eip712_domain_name": "NozkVault",
         "eip712_domain_version": "1",
         "chain_id": TEST_CHAIN_ID,
@@ -288,11 +222,8 @@ def main():
         "keypairs": keypair_dirs,
         "indices": indices,
     }
-    manifest_path = out_dir / "manifest.json"
-    manifest_path.write_text(json.dumps(manifest, indent=2))
-
-    print(f"\n✅ {total} vector files + {len(keypair_dirs)} aggregation files written to {out_dir}/")
-    print(f"   manifest: {manifest_path}")
+    (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2))
+    print(f"\n✅ {total} vectors written to {out_dir}/")
 
 
 if __name__ == "__main__":

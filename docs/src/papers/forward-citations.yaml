@@ -1,0 +1,927 @@
+# Forward Citation Triage
+# Sources citing our collection or independently relevant to NozKash.
+# Triaged from docs/src/forward-citations.md
+#
+# disposition: INCLUDE | SKIP (with reason)
+# source: iacr | arxiv | rfc | acm | springer | ssrn | web
+# url: canonical download URL (PDF or landing page)
+#
+# Last updated: 2026-05-08
+
+# === Tier 1: Directly Applicable ===
+
+- id: karantaidou-2024-blind-multisig
+  title: "Blind Multisignatures for Anonymous Tokens with Decentralized Issuance"
+  authors: [Karantaidou, Renawi, Baldimtsi, Kamarinakis, Katz, Loss]
+  year: 2024
+  venue: "ACM CCS 2024"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2024/1406
+  notes: BLS blind multisig verified on-chain ~232K gas; closest to NozKash architecture
+
+- id: karantaidou-2025-non-transferable
+  title: "Non-Transferable Anonymous Tokens With Decentralized Issuance by Blind Multisignatures"
+  authors: [Karantaidou, Renawi, Baldimtsi, Kamarinakis, Katz, Loss]
+  year: 2025
+  venue: "IEEE"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2024/1406
+  notes: Extended version with non-transferability; compliance-oriented
+
+- id: jarecki-2025-adaptive-threshold-blind-bls
+  title: "Adaptively Secure Threshold Blind BLS Signatures and Threshold Oblivious PRF"
+  authors: [Jarecki, Nazarian]
+  year: 2025
+  venue: "ASIACRYPT 2025"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2025/483
+  notes: First adaptively secure threshold blind BLS; key for decentralizing mint
+
+- id: lehmann-2025-stronger-threshold-blind
+  title: "Stronger Security for Threshold Blind Signatures"
+  authors: [Lehmann, Nazarian, Ozbay]
+  year: 2025
+  venue: "EUROCRYPT 2025"
+  disposition: INCLUDE
+  source: springer
+  url: https://link.springer.com/chapter/10.1007/978-3-031-91124-8_12
+  notes: Advances security definitions for threshold blind sigs
+
+- id: das-2024-adaptive-bls-threshold
+  title: "Adaptively Secure BLS Threshold Signatures from DDH and co-CDH"
+  authors: [Das, Ren]
+  year: 2024
+  venue: "CRYPTO 2024"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2023/1553
+  notes: Standard-assumption adaptive security for BLS threshold
+
+- id: bacho-2022-adaptive-threshold-bls
+  title: "On the Adaptive Security of the Threshold BLS Signature Scheme"
+  authors: [Bacho, Loss]
+  year: 2022
+  venue: "ACM CCS 2022"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2022/534
+  notes: First proof of adaptive security for Boldyreva's threshold BLS
+
+- id: reichle-2025-threshold-blind-cdh
+  title: "Threshold Blind Signatures from CDH"
+  authors: [Reichle, Reinke]
+  year: 2025
+  venue: "ePrint"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2025/1798
+  notes: Minimal-assumption threshold blind sigs
+
+- id: tang-2026-rainblind
+  title: "Rainblind: Fully Adaptive Threshold Blind Signature Without AGM"
+  authors: [Tang, Jiang, Guo, Susilo, Zhu]
+  year: 2026
+  venue: "ePrint"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2026/740
+  notes: First TBS with adaptive security without AGM
+
+- id: hansen-2024-ocash
+  title: "OCash: Fully Anonymous Payments between Blockchain Light Clients"
+  authors: [Hansen, Nielsen, Simkin]
+  year: 2024
+  venue: "PKC 2025"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2024/246
+  notes: Most architecturally similar to NozKash
+
+- id: maire-2025-blind-ecdsa
+  title: "Blind ECDSA from the ECDSA Assumption"
+  authors: [Maire, Pulval-Dady]
+  year: 2025
+  venue: "ePrint"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2025/1827
+  notes: Blind ECDSA producing standard sigs; ecash without pairing precompiles
+
+- id: dufka-2024-trust-minimizing-mint
+  title: "Trust-minimizing BDHKE-based e-cash mint using secure hardware and distributed computation"
+  authors: [Dufka et al.]
+  year: 2024
+  venue: "ARES 2024 / ACM"
+  disposition: INCLUDE
+  source: acm
+  url: https://dl.acm.org/doi/10.1145/3664476.3670889
+  notes: Multi-party BDHKE mint; addresses NozKash trusted-mint limitation
+
+- id: baldimtsi-2024-sok-privacy-tx
+  title: "SoK: Privacy-Preserving Transactions in Blockchains"
+  authors: [Baldimtsi, Chalkias, Madathil, Roy]
+  year: 2024
+  venue: "ePrint"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2024/1959
+  notes: Definitive SoK for positioning NozKash in privacy taxonomy
+
+- id: mariani-2025-sok-mixers
+  title: "SoK: A Survey of Mixing Techniques and Mixers for Cryptocurrencies"
+  authors: [Mariani, Homoliak]
+  year: 2025
+  venue: "arXiv"
+  disposition: INCLUDE
+  source: arxiv
+  url: https://arxiv.org/abs/2504.20296
+  notes: Mixer/privacy pool taxonomy
+
+- id: herranz-2025-intro-blind-sigs
+  title: "A Gentle Introduction to Blind Signatures: From RSA to Lattice-based Cryptography"
+  authors: [Herranz, Sola]
+  year: 2025
+  venue: "arXiv"
+  disposition: INCLUDE
+  source: arxiv
+  url: https://arxiv.org/abs/2509.02189
+  notes: Full blind signature landscape survey
+
+- id: drand-2025-eip2537
+  title: "Verifying the Quicknet Beacons on Ethereum"
+  authors: [drand project]
+  year: 2025
+  venue: "blog"
+  disposition: INCLUDE
+  source: web
+  url: null
+  notes: First deployed EIP-2537 use; blog URL not found yet
+
+- id: kasheparov-2025-bls12381-precompiles
+  title: "Will BLS12-381 Precompiles Change Everything?"
+  authors: [Kasheparov]
+  year: 2025
+  venue: "blog (Medium/Distributed Lab)"
+  disposition: INCLUDE
+  source: web
+  url: https://medium.com/distributed-lab/will-bls12-381-precompiles-change-everything-74336c751a9f
+  notes: Gas cost analysis BN254 vs BLS12-381 post-Pectra
+
+# === Tier 2: Security Analysis & Attacks ===
+
+- id: fuchsbauer-2020-blind-schnorr-agm
+  title: "Blind Schnorr Signatures in the Algebraic Group Model"
+  authors: [Fuchsbauer, Plouviez, Seurin]
+  year: 2020
+  venue: "EUROCRYPT 2020"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2019/877
+  notes: AGM+ROM security for blind Schnorr; references BLS blind sig as baseline
+
+- id: tessaro-2022-pairing-free-blind
+  title: "Short Pairing-Free Blind Signatures with Exponential Security"
+  authors: [Tessaro, Zhu]
+  year: 2022
+  venue: "EUROCRYPT 2022"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2022/047
+  notes: First practical pairing-free concurrent blind sigs
+
+- id: chairattana-2024-pairing-free-cdh
+  title: "Pairing-Free Blind Signatures from CDH Assumptions"
+  authors: [Chairattana-Apirom, Tessaro, Zhu]
+  year: 2024
+  venue: "CRYPTO 2024"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2023/1780
+  notes: Concurrently-secure without AGM
+
+- id: crites-2023-snowblind
+  title: "Snowblind: Threshold Blind Signature in Pairing-Free Groups"
+  authors: [Crites, Komlo, Maller, Tessaro, Zhu]
+  year: 2023
+  venue: "CRYPTO 2023"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2023/1228
+  notes: First threshold blind sigs without pairings
+
+- id: brandt-2025-tight-pairing-free
+  title: "Tightly-Secure Blind Signatures in Pairing-Free Groups"
+  authors: [Brandt, Hofheinz, Kloss, Reichle]
+  year: 2025
+  venue: "ASIACRYPT 2025"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2024/2075
+  notes: Tight security reductions
+
+- id: hanzlik-2025-blindness-note
+  title: "A Note on the Blindness of the Scheme from ePrint 2025/397"
+  authors: [Hanzlik]
+  year: 2025
+  venue: "ePrint"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2025/425
+  notes: Blindness failure in a proposed scheme; cautionary
+
+- id: eprint-2023-491-multi-signer
+  title: "On the Security of Blind Signatures in the Multi-Signer Setting"
+  authors: []
+  year: 2023
+  venue: "ePrint"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2023/491
+  notes: Multi-signer unforgeability with reduction loss
+
+- id: eprint-2026-789-vebs
+  title: "Foundations of Verifiably Encrypted (Blind) Signatures"
+  authors: []
+  year: 2026
+  venue: "ePrint"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2026/789
+  notes: New VEBS primitive
+
+- id: hohenberger-2025-aggregate-no-rom
+  title: "Pairing-Based Aggregate Signatures without Random Oracles"
+  authors: [Hohenberger, Waters, Wu]
+  year: 2025
+  venue: "ASIACRYPT 2025"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2025/1548
+  notes: Removes ROM from BGLS aggregation
+
+- id: chaliasos-2025-tornado-clustering
+  title: "Clustering Deposit and Withdrawal Activity in Tornado Cash: A Cross-Chain Analysis"
+  authors: [Chaliasos et al.]
+  year: 2025
+  venue: "arXiv"
+  disposition: INCLUDE
+  source: arxiv
+  url: https://arxiv.org/abs/2510.09433
+  notes: Links $2.3B via address-reuse and FIFO heuristics
+
+- id: ferretti-2025-tornado-fingerprints
+  title: "Attacking Anonymity Set in Tornado Cash via Wallet Fingerprints"
+  authors: [Soleti, Gangwal, Conti]
+  year: 2025
+  venue: "ACM SAC 2025"
+  disposition: INCLUDE
+  source: acm
+  url: https://dl.acm.org/doi/pdf/10.1145/3672608.3707896
+  notes: Wallet fingerprints to deanonymize Tornado Cash users
+
+- id: chaliasos-2025-sanctions-impact
+  title: "The Impact of Sanctions on Decentralised Privacy Tools"
+  authors: [Chaliasos et al.]
+  year: 2025
+  venue: "arXiv"
+  disposition: INCLUDE
+  source: arxiv
+  url: https://arxiv.org/abs/2510.09443
+  notes: ">90% volume decline post-OFAC sanctions"
+
+- id: beres-2024-umbra-anonymity
+  title: "Anonymity Analysis of the Umbra Stealth Address Scheme on Ethereum"
+  authors: [Beres et al.]
+  year: 2024
+  venue: "ACM Web Conf. 2024"
+  disposition: INCLUDE
+  source: arxiv
+  url: https://arxiv.org/abs/2308.01703
+  notes: Majority of Umbra payments deanonymizable
+
+- id: guillevic-2020-tnfs-resistant
+  title: "A Short-List of Pairing-Friendly Curves Resistant to Special TNFS at the 128-Bit Security Level"
+  authors: [Guillevic]
+  year: 2020
+  venue: "PKC 2020"
+  disposition: INCLUDE
+  source: springer
+  url: https://link.springer.com/chapter/10.1007/978-3-030-45388-6_19
+  notes: Reassesses curve families post-TNFS
+
+- id: ncc-2022-pairing-bit-security
+  title: "Estimating the Bit Security of Pairing-Friendly Curves"
+  authors: [NCC Group]
+  year: 2022
+  venue: "report"
+  disposition: INCLUDE
+  source: web
+  url: https://research.nccgroup.com/2022/03/02/estimating-the-bit-security-of-pairing-friendly-curves/
+  notes: BLS12-381 at 117-120 bits; BN254 at ~100 bits
+
+- id: kumar-2022-bn256-security
+  title: "Pairing-Friendly Elliptic Curves: Revisited Taxonomy, Attacks and Security Concern"
+  authors: [Kumar, Chand]
+  year: 2022
+  venue: "arXiv"
+  disposition: INCLUDE
+  source: arxiv
+  url: https://arxiv.org/abs/2212.01855
+  notes: BN256 at only 99.92 bits after TNFS
+
+# === Tier 3: Privacy Protocols & Compliance ===
+
+- id: chaudhary-2024-sede
+  title: "SeDe: Balancing Blockchain Privacy and Regulatory Compliance by Selective De-Anonymization"
+  authors: [Chaudhary et al.]
+  year: 2024
+  venue: "arXiv"
+  disposition: INCLUDE
+  source: arxiv
+  url: https://arxiv.org/abs/2311.08167
+  notes: Threshold-encryption selective deanonymization
+
+- id: chaudhary-2025-zkfi
+  title: "zkFi: Privacy-Preserving and Regulation Compliant Transactions"
+  authors: [Chaudhary et al.]
+  year: 2025
+  venue: "arXiv"
+  disposition: INCLUDE
+  source: arxiv
+  url: https://arxiv.org/abs/2307.00521
+  notes: Multi-chain ZKP compliance middleware
+
+- id: popov-2024-blockchain-privacy-compliance
+  title: "Blockchain Privacy and Self-regulatory Compliance"
+  authors: [Popov et al.]
+  year: 2024
+  venue: "SSRN"
+  disposition: INCLUDE
+  source: ssrn
+  url: https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4787693
+  notes: Survey of privacy-preserving compliance measures
+
+- id: bis-2023-tourbillon
+  title: "Project Tourbillon"
+  authors: [BIS Innovation Hub]
+  year: 2023
+  venue: "BIS"
+  disposition: INCLUDE
+  source: web
+  url: https://www.bis.org/publ/othp80.pdf
+  notes: eCash 2.0 prototype for CBDC; blind signatures at scale
+
+- id: chaum-2024-cbdc
+  title: "How to Issue a Central Bank Digital Currency"
+  authors: [Chaum, Grothoff, Moser]
+  year: 2024
+  venue: "arXiv"
+  disposition: INCLUDE
+  source: arxiv
+  url: https://arxiv.org/abs/2103.00254
+  notes: GNU Taler CBDC with blind RSA
+
+- id: eprint-2024-1746-cbdc-offline
+  title: "Secure CBDC Offline Payments using a Secure Element"
+  authors: []
+  year: 2024
+  venue: "ePrint"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2024/1746
+  notes: Pointcheval-Sanders blind sigs for offline CBDC
+
+- id: wahrstatter-2024-basesap
+  title: "BaseSAP: Modular Stealth Address Protocol for Programmable Blockchains"
+  authors: [Wahrstatter et al.]
+  year: 2024
+  venue: "IEEE TIFS 2024"
+  disposition: INCLUDE
+  source: arxiv
+  url: https://arxiv.org/abs/2306.14272
+  notes: Formal modular protocol on EIP-5564; includes Buterin as coauthor
+
+- id: fan-2024-stealth-key-derivable
+  title: "Key derivable signature and its application in blockchain stealth address"
+  authors: [Fan et al.]
+  year: 2024
+  venue: "Cybersecurity (Springer)"
+  disposition: INCLUDE
+  source: springer
+  url: https://link.springer.com/content/pdf/10.1186/s42400-024-00231-x.pdf
+  notes: Compact single-key-pair stealth address; open access Springer
+
+- id: gupta-plume-nullifier
+  title: "PLUME: Unique Pseudonymity with Ethereum / ERC-7524"
+  authors: [Gupta]
+  year: 2023
+  venue: "blog + ERC"
+  disposition: INCLUDE
+  source: web
+  url: https://blog.aayushg.com/nullifier/
+  notes: Deterministic ECDSA nullifiers for Ethereum
+
+# === Tier 4: Post-Quantum ===
+
+- id: google-2026-quantum-crypto
+  title: "Safeguarding cryptocurrency by disclosing quantum vulnerabilities responsibly"
+  authors: [Google Quantum AI et al.]
+  year: 2026
+  venue: "Google Research blog"
+  disposition: INCLUDE
+  source: web
+  url: https://research.google/blog/safeguarding-cryptocurrency-by-disclosing-quantum-vulnerabilities-responsibly/
+  notes: ECDLP-256 breakable with <500K physical qubits
+
+- id: valsorda-2026-quantum-timelines
+  title: "A Cryptography Engineer's Perspective on Quantum Computing Timelines"
+  authors: [Valsorda]
+  year: 2026
+  venue: "blog"
+  disposition: INCLUDE
+  source: web
+  url: https://words.filippo.io/crqc-timeline/
+  notes: Practitioner timeline analysis; RWPQC 2026 context
+
+- id: arxiv-2512-13333-quantum-blockchain
+  title: "Quantum Disruption: SoK of How Post-Quantum Attackers Reshape Blockchain Security"
+  authors: []
+  year: 2024
+  venue: "arXiv"
+  disposition: INCLUDE
+  source: arxiv
+  url: https://arxiv.org/abs/2512.13333
+  notes: Systematic review of quantum attacks on blockchain crypto
+
+- id: jeudy-2024-lattice-blind
+  title: "Improved Lattice Blind Signatures from Recycled Entropy"
+  authors: [Jeudy et al.]
+  year: 2024
+  venue: "ASIACRYPT 2025"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2024/1289
+  notes: "~36 KB sigs, ~500ms issuance; most practical lattice blind sig"
+
+- id: delpino-2023-lattice-blind-round-optimal
+  title: "Lattice-Based Blind Signatures: Short, Efficient, and Round-Optimal"
+  authors: [del Pino et al.]
+  year: 2023
+  venue: "CCS 2023"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2023/077
+  notes: First truly practical round-optimal lattice blind sig
+
+- id: baldimtsi-2025-batched-lattice-blind
+  title: "Batched & Non-interactive Blind Signatures from Lattices"
+  authors: [Baldimtsi, Goyal, Yadav]
+  year: 2025
+  venue: "PKC 2026"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2025/1771
+  notes: Non-interactive with batch issuance
+
+- id: faller-2025-lattice-threshold-blind
+  title: "Lattice-based Threshold Blind Signatures"
+  authors: [Faller, Niot et al.]
+  year: 2025
+  venue: "ePrint"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2025/1566
+  notes: Threshold signing in 1.5s distributed; PQ mint
+
+- id: baldimtsi-2026-nibs-threshold
+  title: "Non-interactive Blind Signatures with Threshold Issuance"
+  authors: [Baldimtsi et al.]
+  year: 2026
+  venue: "ePrint"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2026/400
+  notes: Extends NIBS to threshold setting
+
+- id: katsumata-2023-csi-otter
+  title: "CSI-Otter: Isogeny-Based (Partially) Blind Signatures from the Class Group Action with a Twist"
+  authors: [Katsumata, Lai, LeGrow, Qin]
+  year: 2023
+  venue: "CRYPTO 2023"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2023/1239
+  notes: 128 B pubkey, 8 KB sig; smallest PQ blind sig
+
+- id: hanzlik-2025-tanuki
+  title: "Tanuki: Blind Signatures from Post-Quantum Group Actions"
+  authors: [Hanzlik et al.]
+  year: 2025
+  venue: "ASIACRYPT 2025"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2025/1100
+  notes: 4.5 KB isogeny-based blind sigs
+
+- id: feneuil-2025-blinding-post-quantum
+  title: "Blinding Post-Quantum Hash-and-Sign Signatures"
+  authors: [Feneuil, Rivain]
+  year: 2025
+  venue: "ePrint"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2025/895
+  notes: Generic framework to blind Falcon/UOV/MAYO
+
+- id: herranz-2025-hash-blind
+  title: "Hash-Based Blind Signatures: First Steps"
+  authors: [Herranz, Louiso]
+  year: 2025
+  venue: "ePrint"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2025/2097
+  notes: Security from hash functions only; most conservative
+
+- id: lai-2025-leaf
+  title: "LEAF: Compact Code-Based Blind Signatures"
+  authors: [Lai, Persichetti]
+  year: 2025
+  venue: "ePrint"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2025/1585
+  notes: Code-based alternative
+
+- id: eprint-2025-274-mebs
+  title: "Post-Quantum Blind Signatures from Matrix Code Equivalence"
+  authors: []
+  year: 2025
+  venue: "ePrint"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2025/274
+  notes: MEBS scheme
+
+- id: aardal-2024-falcon-labrador
+  title: "Aggregating Falcon Signatures with LaBRADOR"
+  authors: [Aardal et al.]
+  year: 2024
+  venue: "CRYPTO 2024"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2024/311
+  notes: Lattice-SNARK-based Falcon aggregation
+
+- id: feneuil-2025-capss
+  title: "CAPSS: SNARK-Friendly Post-Quantum Signatures"
+  authors: [Feneuil, Rivain]
+  year: 2025
+  venue: "ePrint"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2025/061
+  notes: 9.5-15.5 KB sigs, sub-KB amortized
+
+- id: coratger-2025-hash-multisig-eth
+  title: "Hash-Based Multi-Signatures for Post-Quantum Ethereum"
+  authors: [Coratger et al.]
+  year: 2025
+  venue: "ePrint"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2025/055
+  notes: Targets Ethereum validator sig aggregation
+
+- id: delpino-2025-compact-lattice-threshold
+  title: "Finally! A Compact Lattice-Based Threshold Signature"
+  authors: [del Pino et al.]
+  year: 2025
+  venue: "ePrint"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2025/872
+  notes: Compact threshold sigs for T<=8
+
+- id: eprint-2025-091-poqeth
+  title: "poqeth: Efficient post-quantum signature verification on Ethereum"
+  authors: []
+  year: 2025
+  venue: "ePrint"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2025/091
+  notes: On-chain PQ signature verification
+
+- id: cloudflare-2025-pq-anon-creds
+  title: "Post-quantum anonymous credentials for everyone"
+  authors: [Cloudflare]
+  year: 2025
+  venue: "blog + code"
+  disposition: SKIP
+  notes: Blog post; underlying paper covered by policharla-2023
+
+- id: policharla-2023-pq-privacy-pass
+  title: "Post-Quantum Privacy Pass via Post-Quantum Anonymous Credentials"
+  authors: [Policharla et al.]
+  year: 2023
+  venue: "ePrint"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2023/414
+  notes: Foundational PQ Privacy Pass
+
+- id: argo-2024-pq-sigs-privacy
+  title: "Practical Post-Quantum Signatures for Privacy"
+  authors: [Argo et al.]
+  year: 2024
+  venue: "CCS 2024"
+  disposition: INCLUDE
+  source: acm
+  url: https://dl.acm.org/doi/10.1145/3658644.3670297
+  notes: "~700 KB anonymous credential presentations"
+
+- id: lyubashevsky-2024-lazer
+  title: "The LaZer Library: Lattice-Based Zero Knowledge and Succinct Proofs for Quantum-Safe Privacy"
+  authors: [Lyubashevsky, Seiler, Steuer]
+  year: 2024
+  venue: "CCS 2024"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2024/1846
+  notes: Open-source lattice ZK proofs for PQ privacy
+
+- id: elhousni-2023-exotic-sigs-survey
+  title: "A Survey on Exotic Signatures for Post-quantum Blockchain"
+  authors: [El Housni, Music, Music]
+  year: 2023
+  venue: "ACM Computing Surveys"
+  disposition: INCLUDE
+  source: acm
+  url: https://dl.acm.org/doi/10.1145/3572771
+  notes: Comprehensive PQ blind/aggregate/ring/threshold survey
+
+- id: kaur-2025-pq-stealth
+  title: "Post-Quantum Stealth Address Protocols"
+  authors: [Kaur et al.]
+  year: 2025
+  venue: "ePrint / arXiv"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2025/112
+  url_alt: https://arxiv.org/abs/2501.13733
+  notes: LWE/Ring-LWE/Module-LWE based stealth addresses
+
+# === Tier 5: Privacy Pass RFCs ===
+
+- id: rfc9576
+  title: "Privacy Pass Architecture"
+  authors: [IETF]
+  year: 2024
+  venue: "RFC"
+  disposition: INCLUDE
+  source: rfc
+  url: https://www.rfc-editor.org/rfc/rfc9576
+
+- id: rfc9577
+  title: "Privacy Pass HTTP Authentication"
+  authors: [IETF]
+  year: 2024
+  venue: "RFC"
+  disposition: INCLUDE
+  source: rfc
+  url: https://www.rfc-editor.org/rfc/rfc9577
+
+- id: rfc9578
+  title: "Privacy Pass Issuance Protocols"
+  authors: [IETF]
+  year: 2024
+  venue: "RFC"
+  disposition: INCLUDE
+  source: rfc
+  url: https://www.rfc-editor.org/rfc/rfc9578
+
+- id: rfc9474
+  title: "RSA Blind Signatures"
+  authors: [IETF]
+  year: 2023
+  venue: "RFC"
+  disposition: INCLUDE
+  source: rfc
+  url: https://www.rfc-editor.org/rfc/rfc9474
+
+- id: rfc9497
+  title: "OPRFs Using Prime-Order Groups"
+  authors: [IETF]
+  year: 2023
+  venue: "RFC"
+  disposition: INCLUDE
+  source: rfc
+  url: https://www.rfc-editor.org/rfc/rfc9497
+
+- id: kreuter-2025-anon-tokens-metadata
+  title: "Non-interactive Anonymous Tokens with Private Metadata Bit"
+  authors: [Kreuter, Lepoint et al.]
+  year: 2025
+  venue: "ePrint"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2025/430
+
+- id: chairattana-2025-everlasting-tokens
+  title: "Everlasting Anonymous Rate-Limited Tokens"
+  authors: [Chairattana-Apirom et al.]
+  year: 2025
+  venue: "ASIACRYPT 2025"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2025/1030
+
+- id: eprint-2025-1847-private-privacy-pass
+  title: "Security Analysis of Privately Verifiable Privacy Pass"
+  authors: []
+  year: 2025
+  venue: "CCS 2025"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2025/1847
+
+- id: eprint-2025-659-group-vrf-pp
+  title: "Scalable Privacy Pass from Group VRFs"
+  authors: []
+  year: 2025
+  venue: "ePrint"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2025/659
+
+- id: baldimtsi-2025-auth-theory-practice
+  title: "Privacy-Preserving Authentication: Theory vs. Practice"
+  authors: [Baldimtsi et al.]
+  year: 2025
+  venue: "EUROCRYPT 2025"
+  disposition: INCLUDE
+  source: arxiv
+  url: https://arxiv.org/abs/2501.07209
+
+# === Tier 6: Cashu / Fedimint / Modern eCash ===
+
+- id: conduition-2025-cashu-vuln
+  title: "Vulnerabilities in the Cashu ECash Protocol"
+  authors: [Conduition]
+  year: 2025
+  venue: "blog"
+  disposition: INCLUDE
+  source: web
+  url: https://conduition.io/code/cashu-disclosure/
+  notes: NUT-13 keyset ID collision attack
+
+- id: cashu-2024-zk
+  title: "Bringing Zero Knowledge Proofs to Cashu"
+  authors: [Calle / Cashu]
+  year: 2024
+  venue: "blog"
+  disposition: INCLUDE
+  source: web
+  url: https://blog.cashu.space/bringing-zero-knowledge-proofs-to-cashu/
+  notes: ZK programmable spending conditions
+
+- id: somsen-2020-bdhke
+  title: "Blind-DH-ecash.md"
+  authors: [Somsen]
+  year: 2020
+  venue: "gist"
+  disposition: INCLUDE
+  source: web
+  url: https://gist.github.com/RubenSomsen/be7a4760dd4596d06963d67baf140406
+  notes: BDHKE construction origin for Cashu
+
+- id: lollerfirst-2024-cashu-kvac
+  title: "cashu-kvac"
+  authors: [lollerfirst]
+  year: 2024
+  venue: "GitHub"
+  disposition: SKIP
+  notes: Implementation repo, no paper
+
+- id: sonnino-2019-coconut
+  title: "Coconut: Threshold Issuance Selective Disclosure Credentials"
+  authors: [Sonnino et al.]
+  year: 2019
+  venue: "NDSS"
+  disposition: INCLUDE
+  source: arxiv
+  url: https://arxiv.org/abs/1802.07344
+  notes: Threshold blind sig credentials with on-chain verification
+
+- id: geometry-2023-bls-evm
+  title: "Optimized BLS multisignatures on EVM"
+  authors: [Geometry Research]
+  year: 2023
+  venue: "notebook"
+  disposition: INCLUDE
+  source: web
+  url: https://geometry.xyz/notebook/Optimized-BLS-multisignatures-on-EVM
+  notes: Gas optimization for on-chain BLS
+
+# === Tier 7: Hash-to-Curve Improvements ===
+
+- id: koshelev-2021-hash-faster
+  title: "Some Remarks on How to Hash Faster onto Elliptic Curves"
+  authors: [Koshelev]
+  year: 2021
+  venue: "ePrint"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2021/1082
+
+- id: koshelev-2023-cipolla
+  title: "Hashing to Elliptic Curves through Cipolla-Lehmer-Muller"
+  authors: [Koshelev]
+  year: 2023
+  venue: "Journal of Cryptology 2024"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2023/390
+
+- id: koshelev-2025-hashing-friendly
+  title: "Hashing-Friendly Elliptic Curves"
+  authors: [Koshelev]
+  year: 2025
+  venue: "ePrint"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2025/1926
+
+- id: koshelev-2024-simple-universal
+  title: "Simultaneously Simple Universal and Indifferentiable Hashing"
+  authors: [Koshelev]
+  year: 2024
+  venue: "ePrint"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2024/085
+
+# === Tier 8: Ethereum Privacy Roadmap ===
+
+- id: buterin-2025-l1-privacy-roadmap
+  title: "A maximally simple L1 privacy roadmap"
+  authors: [Buterin]
+  year: 2025
+  venue: "Ethereum Magicians"
+  disposition: INCLUDE
+  source: web
+  url: https://ethereum-magicians.org/t/a-maximally-simple-l1-privacy-roadmap/23459
+  notes: Nine-step roadmap including Privacy Pools, stealth addresses
+
+- id: benarroch-2024-programmable-privacy
+  title: "SoK: Programmable Privacy in Distributed Systems"
+  authors: [Benarroch et al.]
+  year: 2024
+  venue: "ePrint"
+  disposition: INCLUDE
+  source: iacr
+  url: https://eprint.iacr.org/2024/982
+
+- id: survey-2024-eth-pseudonymity
+  title: "A Survey on Ethereum Pseudonymity"
+  authors: []
+  year: 2024
+  venue: "Computer Networks"
+  disposition: SKIP
+  notes: Behind Elsevier paywall, no preprint found
+
+- id: survey-2024-identity-tx-privacy
+  title: "On Identity, Transaction, and Smart Contract Privacy: A Comprehensive Survey"
+  authors: []
+  year: 2024
+  venue: "ACM Computing Surveys"
+  disposition: INCLUDE
+  source: acm
+  url: https://dl.acm.org/doi/10.1145/3676164
+
+# === NIST PQ Standards (reference only) ===
+
+- id: fips-204-ml-dsa
+  title: "FIPS 204: ML-DSA"
+  authors: [NIST]
+  year: 2024
+  venue: "FIPS"
+  disposition: SKIP
+  notes: Reference only; no native blind/aggregate support
+
+- id: fips-205-slh-dsa
+  title: "FIPS 205: SLH-DSA"
+  authors: [NIST]
+  year: 2024
+  venue: "FIPS"
+  disposition: SKIP
+  notes: Reference only; hash-based, no blind support
+
+# === Summary ===
+# Total entries: 102
+# INCLUDE: ~85
+# SKIP: ~17 (blog posts without papers, paywalled, implementation repos, NIST ref-only)

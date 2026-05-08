@@ -22,9 +22,7 @@ import pytest
 from web3 import Web3
 
 from bls12_381_crypto import (
-    CURVE_ORDER,
     Scalar,
-    abi_encode_g1,
     serialize_g1_sol,
     serialize_g2_sol,
 )
@@ -109,7 +107,7 @@ def deployed_contract(w3):
     # Get bytecode from forge artifact
     artifact_path = SOL_DIR / "out" / "NozkVaultV2.sol" / "NozkVaultV2.json"
     if not artifact_path.exists():
-        pytest.fail(f"Forge artifact not found — run `cd sol && forge build`")
+        pytest.fail("Forge artifact not found — run `cd sol && forge build`")
     bytecode = json.loads(artifact_path.read_text())["bytecode"]["object"]
 
     deployer = w3.eth.account.from_key(DEPLOYER_KEY)
@@ -267,7 +265,7 @@ def test_full_lifecycle(deployed_contract, w3):
     assert recipient_balance_after - recipient_balance_before == DENOMINATION
 
     print(f"\n  Deposit gas:  {receipt['gasUsed']:,}")
-    print(f"  Reveal gas:   (see above)")
+    print("  Reveal gas:   (see above)")
     print(f"  Redeem gas:   {receipt['gasUsed']:,}")
     print(f"  Recipient received: {Web3.from_wei(DENOMINATION, 'ether')} ETH")
 
@@ -298,7 +296,8 @@ def test_double_spend_reverts(deployed_contract, w3):
 
     # Announce
     S_prime = mint_blind_sign(blinded.B, MINT_SCALAR)
-    tx = vault.functions.announce(Web3.to_checksum_address(secrets.deposit_id), list(serialize_g2_sol(S_prime))).build_transaction(
+    deposit_id_cs = Web3.to_checksum_address(secrets.deposit_id)
+    tx = vault.functions.announce(deposit_id_cs, list(serialize_g2_sol(S_prime))).build_transaction(
         {
             "from": deployer.address,
             "nonce": w3.eth.get_transaction_count(deployer.address),

@@ -581,5 +581,10 @@
     "type": "error",
     "name": "PrecompileFailed",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "PrecompileFailed",
+    "inputs": []
   }
 ]

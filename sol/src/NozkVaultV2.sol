@@ -1,5 +1,7 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: CC0-1.0
 pragma solidity ^0.8.28;
+
+import {BLS12HashToCurve} from "./BLS12HashToCurve.sol";
 
 /**
  * @title NozkVaultV2 — BLS12-381 standard scheme (PK=G1, Sig=G2) with aggregation
@@ -216,7 +218,7 @@ contract NozkVaultV2 {
         uint256[8] memory yAgg = _hashToG2(abi.encode(spendPubs[0]));
         for (uint256 i = 1; i < n; i++) {
             uint256[8] memory yi = _hashToG2(abi.encode(spendPubs[i]));
-            yAgg = _g2Add(yAgg, yi);
+            yAgg = BLS12HashToCurve.g2Add(yAgg, yi);
         }
 
         // Copy sigma from calldata to memory
@@ -319,7 +321,7 @@ contract NozkVaultV2 {
             uint256[4] memory pk = spendPubkeys[nIds[i]];
             pkAgg = _g1Add(pkAgg, pk);
             uint256[8] memory yi = _hashToG2(abi.encodePacked(_compressG1(pk), msgHash));
-            yAgg = _g2Add(yAgg, yi);
+            yAgg = BLS12HashToCurve.g2Add(yAgg, yi);
         }
 
         uint256[8] memory sigmaM = _calldataG2ToMemory(sigma);
@@ -364,157 +366,20 @@ contract NozkVaultV2 {
     }
 
     // =========================================================================
-    //  Internal: RFC 9380 hash-to-G2  (AugSchemeMPL DST)
+    //  Internal: RFC 9380 hash-to-G2 (delegates to BLS12HashToCurve library)
     // =========================================================================
 
     /// @dev AugSchemeMPL DST for BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_AUG_
-    ///      43 bytes (0x2b).
     bytes internal constant H2C_DST = "BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_AUG_";
 
     /// @dev Hash arbitrary message to BLS12-381 G2 via RFC 9380.
-    ///      1. expand_message_xmd(msg, DST, 256) -> 256 bytes uniform
-    ///      2. hash_to_field: 4 field elements mod p -> two Fp2 elements
-    ///      3. MAP_FP2_TO_G2 for each Fp2 element
-    ///      4. G2ADD the two resulting G2 points
     function _hashToG2(bytes memory message) internal view returns (uint256[8] memory) {
-        bytes memory uniform = _expandMessageXMD(message);
-
-        // hash_to_field: 4 x 64-byte chunks reduced mod p, grouped into two Fp2
-        // u0 = Fp2(reduce(uniform[0:64]), reduce(uniform[64:128]))
-        // u1 = Fp2(reduce(uniform[128:192]), reduce(uniform[192:256]))
-        uint256[4] memory u0 = _uniformToFp2(uniform, 0);
-        uint256[4] memory u1 = _uniformToFp2(uniform, 128);
-
-        // MAP_FP2_TO_G2 for each
-        uint256[8] memory Q0 = _mapFp2ToG2(u0);
-        uint256[8] memory Q1 = _mapFp2ToG2(u1);
-
-        // G2ADD(Q0, Q1)
-        return _g2Add(Q0, Q1);
-    }
-
-    /// @dev expand_message_xmd per RFC 9380 section 5.3.1, with len_in_bytes=256.
-    ///      Uses SHA-256 precompile at address(0x02).
-    function _expandMessageXMD(bytes memory msg_) internal view returns (bytes memory uniform) {
-        // DST_prime = DST || I2OSP(len(DST), 1) = DST || 0x2b (43 in hex)
-        bytes memory dstPrime = abi.encodePacked(H2C_DST, uint8(43));
-
-        // msg_prime = Z_pad(64) || msg || l_i_b_str(2) || 0x00 || DST_prime
-        bytes memory msgPrime = abi.encodePacked(
-            new bytes(64), // Z_pad = 64 zero bytes (SHA-256 block size)
-            msg_,
-            uint16(256), // l_i_b_str = I2OSP(256, 2) = 0x0100
-            uint8(0),
-            dstPrime
-        );
-
-        // b_0 = SHA-256(msg_prime)
-        bytes32 b0 = _sha256(msgPrime);
-
-        // b_1 = SHA-256(b_0 || 0x01 || DST_prime)
-        bytes32 bPrev = _sha256(abi.encodePacked(b0, uint8(1), dstPrime));
-
-        uniform = new bytes(256);
-        assembly {
-            mstore(add(uniform, 0x20), bPrev)
-        }
-
-        // b_i = SHA-256(strxor(b_0, b_{i-1}) || I2OSP(i,1) || DST_prime)  for i=2..8
-        for (uint256 i = 2; i <= 8; i++) {
-            bytes32 xored = b0 ^ bPrev;
-            bPrev = _sha256(abi.encodePacked(xored, uint8(i), dstPrime));
-            assembly {
-                // uniform[(i-1)*32 .. i*32-1]
-                let offset := mul(sub(i, 1), 32)
-                mstore(add(add(uniform, 0x20), offset), bPrev)
-            }
-        }
-    }
-
-    /// @dev SHA-256 via the precompile at address(0x02).
-    function _sha256(bytes memory data) internal view returns (bytes32 result) {
-        bool ok;
-        bytes memory ret;
-        (ok, ret) = PRECOMPILE_SHA256.staticcall(data);
-        if (!ok || ret.length < 32) revert PrecompileFailed();
-        assembly {
-            result := mload(add(ret, 0x20))
-        }
-    }
-
-    /// @dev Convert two consecutive 64-byte chunks from uniform bytes into an Fp2
-    ///      element in EIP-2537 format (4 x uint256 = 128 bytes).
-    ///      Each 64-byte chunk is reduced mod p via MODEXP, producing a 48-byte
-    ///      field element that is zero-padded to 64 bytes (2 x uint256).
-    function _uniformToFp2(bytes memory uniform, uint256 start) internal view returns (uint256[4] memory fp2) {
-        // First component: uniform[start..start+64] mod p
-        (fp2[0], fp2[1]) = _reduceModP(uniform, start);
-        // Second component: uniform[start+64..start+128] mod p
-        (fp2[2], fp2[3]) = _reduceModP(uniform, start + 64);
-    }
-
-    /// @dev Reduce a 64-byte big-endian integer mod BLS12-381 field modulus p
-    ///      using the MODEXP precompile (0x05).
-    ///      Returns the result as two uint256 in EIP-2537 Fp format:
-    ///        hi = zero-padded high 16 bytes (128-bit value in uint256)
-    ///        lo = low 32 bytes
-    function _reduceModP(bytes memory data, uint256 offset) internal view returns (uint256 hi, uint256 lo) {
-        bool ok;
-        assembly {
-            let ptr := mload(0x40)
-            // MODEXP header
-            mstore(ptr, 64) // base_length
-            mstore(add(ptr, 0x20), 1) // exp_length
-            mstore(add(ptr, 0x40), 48) // mod_length
-
-            // Base: copy 64 bytes from data
-            let src := add(add(data, 0x20), offset)
-            mstore(add(ptr, 0x60), mload(src))
-            mstore(add(ptr, 0x80), mload(add(src, 0x20)))
-
-            // Exponent: 1 (1 byte)
-            mstore8(add(ptr, 0xa0), 1)
-
-            // Modulus: BLS12-381 field modulus p (48 bytes)
-            // p = 0x1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab
-            // First 32 bytes of p:
-            mstore(add(ptr, 0xa1), 0x1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f624)
-            // Remaining 16 bytes of p (written as 32 bytes, only first 16 matter):
-            mstore(add(ptr, 0xc1), 0x1eabfffeb153ffffb9feffffffffaaab00000000000000000000000000000000)
-
-            // Total input size: 96 (header) + 64 (base) + 1 (exp) + 48 (mod) = 209 = 0xd1
-            // Output: 48 bytes
-            let out := add(ptr, 0x100)
-            ok := staticcall(gas(), 0x05, ptr, 0xd1, out, 48)
-
-            // Parse 48-byte result into EIP-2537 Fp format (64 bytes: 16 zero + 48 data)
-            // hi = first 16 bytes of the 48-byte result (as uint256)
-            // lo = last 32 bytes of the 48-byte result
-            // Load 32 bytes starting at `out`: gets bytes[0..31] of the 48-byte result
-            hi := shr(128, mload(out))
-            // Load 32 bytes starting at `out+16`: gets bytes[16..47]
-            lo := mload(add(out, 16))
-        }
-        if (!ok) revert PrecompileFailed();
+        return BLS12HashToCurve.hashToCurveG2(message, H2C_DST);
     }
 
     // =========================================================================
-    //  Internal: EIP-2537 precompile wrappers
+    //  Internal: EIP-2537 precompile wrappers (G1ADD, pairing, negation)
     // =========================================================================
-
-    /// @dev MAP_FP2_TO_G2 precompile (0x11): input 128 bytes (Fp2), output 256 bytes (G2).
-    function _mapFp2ToG2(uint256[4] memory fp2) internal view returns (uint256[8] memory result) {
-        bool success;
-        assembly ("memory-safe") {
-            let ptr := mload(0x40)
-            mstore(ptr, mload(fp2))
-            mstore(add(ptr, 0x20), mload(add(fp2, 0x20)))
-            mstore(add(ptr, 0x40), mload(add(fp2, 0x40)))
-            mstore(add(ptr, 0x60), mload(add(fp2, 0x60)))
-            success := staticcall(gas(), 0x11, ptr, 0x80, result, 0x100)
-        }
-        if (!success) revert PrecompileFailed();
-    }
 
     /// @dev BLS12-381 G1 point addition via precompile 0x0b.
     function _g1Add(uint256[4] memory a, uint256[4] memory b) internal view returns (uint256[4] memory result) {
@@ -530,32 +395,6 @@ contract NozkVaultV2 {
             mstore(add(ptr, 0xc0), mload(add(b, 0x40)))
             mstore(add(ptr, 0xe0), mload(add(b, 0x60)))
             success := staticcall(gas(), 0x0b, ptr, 0x100, result, 0x80)
-        }
-        if (!success) revert PrecompileFailed();
-    }
-
-    /// @dev BLS12-381 G2 point addition via precompile 0x0d.
-    function _g2Add(uint256[8] memory a, uint256[8] memory b) internal view returns (uint256[8] memory result) {
-        bool success;
-        assembly ("memory-safe") {
-            let ptr := mload(0x40)
-            mstore(ptr, mload(a))
-            mstore(add(ptr, 0x20), mload(add(a, 0x20)))
-            mstore(add(ptr, 0x40), mload(add(a, 0x40)))
-            mstore(add(ptr, 0x60), mload(add(a, 0x60)))
-            mstore(add(ptr, 0x80), mload(add(a, 0x80)))
-            mstore(add(ptr, 0xa0), mload(add(a, 0xa0)))
-            mstore(add(ptr, 0xc0), mload(add(a, 0xc0)))
-            mstore(add(ptr, 0xe0), mload(add(a, 0xe0)))
-            mstore(add(ptr, 0x100), mload(b))
-            mstore(add(ptr, 0x120), mload(add(b, 0x20)))
-            mstore(add(ptr, 0x140), mload(add(b, 0x40)))
-            mstore(add(ptr, 0x160), mload(add(b, 0x60)))
-            mstore(add(ptr, 0x180), mload(add(b, 0x80)))
-            mstore(add(ptr, 0x1a0), mload(add(b, 0xa0)))
-            mstore(add(ptr, 0x1c0), mload(add(b, 0xc0)))
-            mstore(add(ptr, 0x1e0), mload(add(b, 0xe0)))
-            success := staticcall(gas(), 0x0d, ptr, 0x200, result, 0x100)
         }
         if (!success) revert PrecompileFailed();
     }

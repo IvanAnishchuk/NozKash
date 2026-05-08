@@ -13,7 +13,6 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
 
 CONTRACTS = [
-    ("NozkVault.sol", "NozkVault", "nozk_vault_abi.json"),
     ("NozkVaultV2.sol", "NozkVaultV2", "nozk_vault_v2_abi.json"),
 ]
 

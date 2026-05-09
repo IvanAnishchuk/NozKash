@@ -203,7 +203,7 @@ The NozkVault contract (`sol/src/NozkVault.sol`) handles the complete token life
 |----------|-------------|
 | `deposit(address depositId, uint256[2] B)` | Lock 0.001 ETH with a blinded G1 point |
 | `announce(address depositId, uint256[2] S')` | Mint posts blind signature (authorized caller only) |
-| `redeem(address recipient, bytes sig, address nullifier, uint256[2] S)` | Verify BLS + ECDSA, transfer ETH |
+| `redeem(address recipient, bytes sig, uint256[2] S)` | Verify BLS + ECDSA, transfer ETH |
 
 On-chain verification:
 1. **ecrecover** — recover signer from ECDSA signature, verify against nullifier

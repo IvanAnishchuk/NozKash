@@ -722,7 +722,7 @@ Reassesses pairing-friendly curve families after TNFS attacks, identifying BLS12
 **Keywords:** `TNFS` · `pairing-friendly curves` · `128-bit security` · `BLS12-381` · `BLS24-315` · `curve selection`
 
 
-### [Estimating the Bit Security of Pairing-Friendly Curves](ncc-2022-pairing-bit-security.md)
+### Estimating the Bit Security of Pairing-Friendly Curves
 
 **NCC Group** (2022) — report
 
@@ -992,9 +992,9 @@ Compact blind signatures from code-based assumptions (syndrome decoding), divers
 
 Blind signatures from the matrix code equivalence problem — a relatively new PQ hardness assumption distinct from lattice and code-based problems.
 
-**NozKash relevance:** MEBS scheme adds another PQ assumption family to the blind sig toolkit. Broadens NozKash's PQ migration options.
+**NozKash relevance:** MEDS scheme adds another PQ assumption family to the blind sig toolkit. Broadens NozKash's PQ migration options.
 
-**Keywords:** `MEBS` · `matrix code equivalence` · `post-quantum` · `blind signatures` · `new assumption`
+**Keywords:** `MEDS` · `matrix code equivalence` · `post-quantum` · `blind signatures` · `new assumption`
 
 
 ### [Aggregating Falcon Signatures with LaBRADOR](aardal-2024-falcon-labrador.pdf)

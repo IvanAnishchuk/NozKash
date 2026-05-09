@@ -26,6 +26,11 @@ Files that were downloaded but contain the wrong content. Originals removed, nee
   - IACR page exists: https://eprint.iacr.org/2026/740
   - PDF not uploaded yet — retry later
 
+- **ncc-2022-pairing-bit-security** — "Estimating the Bit Security of Pairing-Friendly Curves"
+  - File contained NCC Group's generic research landing page, not the article
+  - https://research.nccgroup.com/2022/03/02/estimating-the-bit-security-of-pairing-friendly-curves/
+  - Need to save the actual article page from browser
+
 ## Browser-save needed (curl blocked)
 
 - **kasheparov-2025-bls12381-precompiles** — "Will BLS12-381 Precompiles Change Everything?"

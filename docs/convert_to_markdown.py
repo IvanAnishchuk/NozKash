@@ -186,17 +186,54 @@ def convert_rfc_txt(src: Path) -> str:
     out.append(f"# RFC {rfc_num}: {title}")
     out.append("")
 
+    in_toc = False  # Track when we're inside the Table of Contents
+
     i = 0
     while i < len(lines):
         line = lines[i]
         stripped = line.rstrip()
 
+        # Skip TOC content entirely (emit nothing until TOC ends)
+        if in_toc:
+            if not stripped:
+                # Blank line in TOC — check if the TOC is ending.
+                # TOC ends when we see a blank line followed by 2+ blank lines
+                # (the gap between TOC and first section body), or when the
+                # next non-blank line is NOT indented like a TOC entry.
+                j = i + 1
+                blank_count = 0
+                while j < len(lines) and not lines[j].strip():
+                    blank_count += 1
+                    j += 1
+                if blank_count >= 1 and j < len(lines):
+                    next_line = lines[j].rstrip()
+                    # Real sections start at column 0-3; TOC entries are
+                    # indented 3+ spaces AND followed by more TOC entries.
+                    # If next non-blank line is a section header AND is preceded
+                    # by 2+ blanks, the TOC is over.
+                    if blank_count >= 2 or (
+                        re.match(r"^\d+(?:\.\d+)*\.?\s{2,}\S", next_line)
+                        and not re.search(r"\.{2,}\d+\s*$", next_line)
+                    ):
+                        in_toc = False
+                        # Fall through to normal processing
+                    else:
+                        i += 1
+                        continue
+                else:
+                    i += 1
+                    continue
+            else:
+                i += 1
+                continue
+
         # Detect section headers: "N.  Title" or "N.N.  Title"
         section_match = re.match(
             r"^(\s{0,3})(\d+(?:\.\d+)*\.?)\s{2,}(\S.*)$", stripped
         )
-        if section_match:
+        if section_match and not in_code_block:
             _indent, num, heading = section_match.groups()
+
             depth = num.count(".")
             if num.endswith("."):
                 depth = max(1, depth)
@@ -223,6 +260,10 @@ def convert_rfc_txt(src: Path) -> str:
         )
         if standalone_match and not in_code_block:
             _, heading = standalone_match.groups()
+            if heading == "Table of Contents":
+                in_toc = True
+                i += 1
+                continue
             out.append("")
             out.append(f"## {heading}")
             out.append("")
@@ -230,12 +271,15 @@ def convert_rfc_txt(src: Path) -> str:
             continue
 
         # Code blocks: lines indented 6+ spaces with code-like content
+        # Also detect C/code source sections (#include, #define, etc.)
         if stripped and line.startswith("      ") and not section_match:
             if not in_code_block:
                 content = stripped
                 if re.search(r"[|+\-=>{}\[\]();/\\]", content) or re.match(
                     r"^(Step |PRK |OKM |IKM |Hash |if |for |0x|HMAC|SHA|"
-                    r"Input:|Output:|Procedure|struct |def |let |Type:)",
+                    r"Input:|Output:|Procedure|struct |def |let |Type:|"
+                    r"#include|#define|#ifndef|#endif|void |int |unsigned |"
+                    r"typedef |return |static |extern |const )",
                     content,
                 ):
                     out.append("")
@@ -285,6 +329,9 @@ def convert_mediawiki(src: Path) -> str:
 
     bip_match = re.search(r"BIP:\s*(\d+)", text)
     bip_num = bip_match.group(1) if bip_match else ""
+
+    # Fix cross-references: .mediawiki → .md
+    text = re.sub(r"\.mediawiki\b", ".md", text)
 
     frontmatter = (
         f"---\n"

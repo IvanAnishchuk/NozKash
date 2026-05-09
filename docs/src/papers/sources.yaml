@@ -1111,8 +1111,7 @@ documents:
     title: "Estimating the Bit Security of Pairing-Friendly Curves"
     authors: [NCC Group]
     year: 2022
-    local_file: ncc-2022-pairing-bit-security.html
-    generated_md: ncc-2022-pairing-bit-security.md
+    local_file: null  # REMOVED: contained NCC landing page, not the article; see FETCH_FAILURES.md
     venue: "report"
     url: https://research.nccgroup.com/2022/03/02/estimating-the-bit-security-of-pairing-friendly-curves/
     latex_source: false
@@ -1443,8 +1442,8 @@ documents:
     latex_source: false
     provenance: forward-citation
     abstract: "Blind signatures from the matrix code equivalence problem — a relatively new PQ hardness assumption distinct from lattice and code-based problems."
-    relevance: "MEBS scheme adds another PQ assumption family to the blind sig toolkit. Broadens NozKash's PQ migration options."
-    keywords: [MEBS, matrix code equivalence, post-quantum, blind signatures, new assumption]
+    relevance: "MEDS scheme adds another PQ assumption family to the blind sig toolkit. Broadens NozKash's PQ migration options."
+    keywords: [MEDS, matrix code equivalence, post-quantum, blind signatures, new assumption]
 
   # === PQ Signature Aggregation & On-Chain Verification ===
 

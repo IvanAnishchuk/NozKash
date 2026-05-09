@@ -20,6 +20,7 @@ from bls12_381_crypto import (
     serialize_g1_sol,
     serialize_g2_sol,
 )
+from py_ecc.bls.g2_primitives import signature_to_G2
 
 VECTORS_DIR = Path(__file__).resolve().parent.parent / "test_vectors"
 
@@ -103,12 +104,13 @@ def compute_vector(master_seed_hex: str, sk_int: int, token_index: int) -> dict:
             "contract_address": TEST_CONTRACT,
             "deadline": hex(TEST_DEADLINE),
         },
-        # Spend signature is chia_rs G2 (compressed 96 bytes)
+        # Spend signature: compressed + uncompressed G2 for Solidity
         "REDEEM_TX": {
             "recipient": TEST_RECIPIENT,
             "deadline": hex(TEST_DEADLINE),
             "msg_hash": proof.msg_hash.hex(),
             "sigma_compressed": proof.sigma.to_bytes().hex(),
+            "sigma_G2": _g2_to_dict(serialize_g2_sol(signature_to_G2(proof.sigma.to_bytes()))),
             "spend_pub_compressed": proof.spend_pk.to_bytes().hex(),
         },
         "REVEAL_TX": {
@@ -165,8 +167,10 @@ def compute_aggregation_vectors(master_seed_hex: str, sk_int: int, indices: list
         },
         "AGGREGATED_REDEEM": {
             "sigma_compressed": redeem_sigma.to_bytes().hex(),
+            "sigma_G2": _g2_to_dict(serialize_g2_sol(signature_to_G2(redeem_sigma.to_bytes()))),
             "nullifier_ids": nullifier_ids,
             "spend_pubs_compressed": [pk.to_bytes().hex() for pk in spend_pks_chia],
+            "spend_pubs_G1": [_g1_to_dict(serialize_g1_sol(p)) for p in spend_pubs_g1],
             "msg_hash": msg_hash.hex(),
             "recipient": TEST_RECIPIENT,
             "deadline": hex(TEST_DEADLINE),

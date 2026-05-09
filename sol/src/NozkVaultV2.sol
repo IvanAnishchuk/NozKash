@@ -19,7 +19,7 @@ import {BLS12HashToCurve} from "./BLS12HashToCurve.sol";
  *
  *         Aggregation:
  *           - revealAggregated: single pairing check for n tokens (same mint key)
- *           - redeemAggregated: single pairing check for n tokens (same msg, diff keys)
+ *           - redeemAggregated: (n+1)-pairing check for n tokens (diff keys, AugSchemeMPL)
  *
  *         EIP-2537 precompiles used:
  *           - 0x02: SHA-256
@@ -297,12 +297,11 @@ contract NozkVaultV2 {
         emit Redeemed(nId, recipient, amount);
     }
 
-    /// @notice Aggregated redeem: single pairing check for n tokens to same recipient.
+    /// @notice Aggregated redeem: multi-pairing check for n tokens to same recipient.
     /// @dev    For AugSchemeMPL, each token has a different aug_msg (because compressed
-    ///         PK differs). Aggregate: PK_agg = sum(PK_i), Y_agg = sum(Y_i),
-    ///         sigma = sum(sig_i). Verify: e(PK_agg, Y_agg) * e(-G1_gen, sigma) == 1.
-    ///         NOTE: This aggregation is only correct when token signatures are produced
-    ///         with their individual aug_msg and aggregated additively.
+    ///         PK differs per signer). Correct verification uses an (n+1)-pairing:
+    ///           e(PK_0, Y_0) * e(PK_1, Y_1) * ... * e(-G1_gen, sigma) == 1
+    ///         where Y_i = H_G2(compress(PK_i) || msgHash) and sigma = sum(sig_i).
     function redeemAggregated(address recipient, uint256[8] calldata sigma, bytes32[] calldata nIds, uint256 deadline)
         external
     {
@@ -312,20 +311,71 @@ contract NozkVaultV2 {
 
         bytes32 msgHash = redemptionMessageHash(recipient, deadline);
 
-        // Aggregate PK and Y across all tokens
-        uint256[4] memory spendPub0 = spendPubkeys[nIds[0]];
-        uint256[4] memory pkAgg = spendPub0;
-        uint256[8] memory yAgg = _hashToG2(abi.encodePacked(_compressG1(spendPub0), msgHash));
+        // Build (n+1)-pairing input: n pairs of (PK_i, Y_i) + 1 pair of (-G1_gen, sigma)
+        // Each pair: G1 (128 bytes) + G2 (256 bytes) = 384 bytes
+        uint256 totalPairs = n + 1;
+        bytes memory pairingInput = new bytes(totalPairs * 384);
 
-        for (uint256 i = 1; i < n; i++) {
+        for (uint256 i; i < n; i++) {
             uint256[4] memory pk = spendPubkeys[nIds[i]];
-            pkAgg = _g1Add(pkAgg, pk);
             uint256[8] memory yi = _hashToG2(abi.encodePacked(_compressG1(pk), msgHash));
-            yAgg = BLS12HashToCurve.g2Add(yAgg, yi);
+            uint256 offset = i * 384;
+
+            assembly ("memory-safe") {
+                let dst := add(add(pairingInput, 0x20), offset)
+                // G1 point PK_i (128 bytes)
+                mstore(dst, mload(pk))
+                mstore(add(dst, 0x20), mload(add(pk, 0x20)))
+                mstore(add(dst, 0x40), mload(add(pk, 0x40)))
+                mstore(add(dst, 0x60), mload(add(pk, 0x60)))
+                // G2 point Y_i (256 bytes)
+                mstore(add(dst, 0x80), mload(yi))
+                mstore(add(dst, 0xa0), mload(add(yi, 0x20)))
+                mstore(add(dst, 0xc0), mload(add(yi, 0x40)))
+                mstore(add(dst, 0xe0), mload(add(yi, 0x60)))
+                mstore(add(dst, 0x100), mload(add(yi, 0x80)))
+                mstore(add(dst, 0x120), mload(add(yi, 0xa0)))
+                mstore(add(dst, 0x140), mload(add(yi, 0xc0)))
+                mstore(add(dst, 0x160), mload(add(yi, 0xe0)))
+            }
         }
 
+        // Final pair: (-G1_gen, sigma)
+        uint256[4] memory negGen = _negateG1Gen();
         uint256[8] memory sigmaM = _calldataG2ToMemory(sigma);
-        if (!_verifyBLS12Pairing(pkAgg, yAgg, sigmaM)) revert InvalidBLS();
+        uint256 lastOffset = n * 384;
+
+        assembly ("memory-safe") {
+            let dst := add(add(pairingInput, 0x20), lastOffset)
+            // -G1_gen (128 bytes)
+            mstore(dst, mload(negGen))
+            mstore(add(dst, 0x20), mload(add(negGen, 0x20)))
+            mstore(add(dst, 0x40), mload(add(negGen, 0x40)))
+            mstore(add(dst, 0x60), mload(add(negGen, 0x60)))
+            // sigma (256 bytes)
+            mstore(add(dst, 0x80), mload(sigmaM))
+            mstore(add(dst, 0xa0), mload(add(sigmaM, 0x20)))
+            mstore(add(dst, 0xc0), mload(add(sigmaM, 0x40)))
+            mstore(add(dst, 0xe0), mload(add(sigmaM, 0x60)))
+            mstore(add(dst, 0x100), mload(add(sigmaM, 0x80)))
+            mstore(add(dst, 0x120), mload(add(sigmaM, 0xa0)))
+            mstore(add(dst, 0x140), mload(add(sigmaM, 0xc0)))
+            mstore(add(dst, 0x160), mload(add(sigmaM, 0xe0)))
+        }
+
+        // Call pairing precompile with (n+1) pairs
+        bool success;
+        bool pairingResult;
+        assembly ("memory-safe") {
+            let ptr := add(pairingInput, 0x20)
+            let len := mul(totalPairs, 384)
+            // Allocate 32 bytes for the result after the input
+            let resultPtr := add(ptr, len)
+            success := staticcall(gas(), 0x0f, ptr, len, resultPtr, 0x20)
+            pairingResult := eq(mload(resultPtr), 1)
+        }
+        if (!success) revert PrecompileFailed();
+        if (!pairingResult) revert InvalidBLS();
 
         // Mark all SPENT and transfer
         uint256 totalAmount = 0;

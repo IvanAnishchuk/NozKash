@@ -643,4 +643,56 @@ contract NozkVaultV2Test is Test {
         v.redeem(recipient, spendSig, nId, deadline);
         assertEq(address(v).balance, 0);
     }
+
+    // =========================================================================
+    //  Constructor validation
+    // =========================================================================
+
+    function test_constructor_revertsInvalidPkMint() public {
+        // Off-curve G1 point: valid encoding but not on BLS12-381 G1
+        uint256[4] memory badPk;
+        badPk[0] = 0;
+        badPk[1] = 1; // x = 1
+        badPk[2] = 0;
+        badPk[3] = 2; // y = 2 (not on curve)
+        vm.expectRevert(NozkVaultV2.InvalidBLS.selector);
+        new NozkVaultV2(badPk, mintAuth);
+    }
+
+    // =========================================================================
+    //  Batch/aggregation edge cases
+    // =========================================================================
+
+    function test_revealAggregated_revertsEmptyBatch() public {
+        string memory j = vm.readFile(_tokenFile(keypairDirs[0], tokenIndices[0]));
+        NozkVaultV2 v = _deployVault(j);
+
+        uint256[4][] memory emptyPubs = new uint256[4][](0);
+        uint256[8] memory emptySigma;
+        vm.expectRevert(NozkVaultV2.EmptyBatch.selector);
+        v.revealAggregated(emptyPubs, emptySigma);
+    }
+
+    function test_redeemAggregated_revertsEmptyBatch() public {
+        string memory j = vm.readFile(_tokenFile(keypairDirs[0], tokenIndices[0]));
+        NozkVaultV2 v = _deployVault(j);
+
+        bytes32[] memory emptyNIds = new bytes32[](0);
+        uint256[8] memory emptySigma;
+        address recipient = address(0x1234);
+        uint256 deadline = type(uint256).max;
+        vm.expectRevert(NozkVaultV2.EmptyBatch.selector);
+        v.redeemAggregated(recipient, emptySigma, emptyNIds, deadline);
+    }
+
+    function test_revealBatch_revertsBatchLengthMismatch() public {
+        string memory j = vm.readFile(_tokenFile(keypairDirs[0], tokenIndices[0]));
+        NozkVaultV2 v = _deployVault(j);
+
+        // 2 pubkeys but 1 signature
+        uint256[4][] memory pubs = new uint256[4][](2);
+        uint256[8][] memory sigs = new uint256[8][](1);
+        vm.expectRevert(NozkVaultV2.BatchLengthMismatch.selector);
+        v.revealBatch(pubs, sigs);
+    }
 }

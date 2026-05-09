@@ -481,6 +481,8 @@ def unblind_signature(S_prime: G2Point, r: int) -> G2Point:
     Returns:
         The unblinded signature ``S`` (G2 point).
     """
+    if not (0 < r < CURVE_ORDER):
+        raise DerivationError("blinding factor r must be in [1, CURVE_ORDER)")
     r_inv = pow(r, -1, CURVE_ORDER)
     return g2_scalar_mul(S_prime, Scalar(r_inv))
 

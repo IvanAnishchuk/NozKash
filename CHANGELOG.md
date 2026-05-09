@@ -36,6 +36,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Frontend scanner: NullifierRevealed event topic1 parsed as left-padded address instead of
   bytes32; added `topic1ToBytes32` parser and `nullifierIdToTopic` formatter
 - Python client: replaced undeclared `requests` dependency with `httpx` (already in pyproject.toml)
+- EIP-2537 precompile addresses updated to final Pectra spec
 
 ### Changed
 
@@ -57,7 +58,3 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Upgrade postcss 8.5.8 -> 8.5.14 in nozk_ts/ and app/ (fixes XSS via unescaped style in CSS stringify)
 - Upgrade Pygments 2.19.2 -> 2.20.0 in nozk_py/ (fixes ReDoS in GUID matching)
 - Upgrade brace-expansion 1.1.12 -> 1.1.14 in app/ (fixes ReDoS via zero-step sequences)
-
-### Fixed
-
-- EIP-2537 precompile addresses updated to final Pectra spec

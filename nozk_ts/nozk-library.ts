@@ -165,6 +165,9 @@ export function generateMintKeypair(): MintKeypair {
  * Throws DerivationError for invalid inputs.
  */
 export function deriveTokenSecrets(masterSeed: Uint8Array, tokenIndex: number): TokenSecrets {
+    if (masterSeed.length === 0) {
+        throw new DerivationError('masterSeed must be non-empty');
+    }
     if (!Number.isInteger(tokenIndex) || tokenIndex < 0 || tokenIndex > 0xffffffff) {
         throw new DerivationError(`tokenIndex must be a non-negative 32-bit integer, got ${tokenIndex}`);
     }
@@ -224,6 +227,9 @@ export function getNullifierIdHex(secrets: TokenSecrets): string {
  *   B = r · Y                              — blind on G2
  */
 export function blindToken(spendPub: G1Point, r: bigint): BlindedPoints {
+    if (r <= 0n || r >= CURVE_ORDER) {
+        throw new DerivationError(`blinding factor r must be in [1, CURVE_ORDER), got ${r}`);
+    }
     const Y = hashToG2(abiEncodeG1(spendPub));
     const B = g2ScalarMul(Y, r);
     return { Y, B };

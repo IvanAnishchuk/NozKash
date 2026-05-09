@@ -5,9 +5,9 @@ useDefault = true
 [allowlist]
 description = "Allow published standards and test vectors"
 paths = [
-    '''docs/standards/rfcs/.*''',
-    '''docs/standards/bips/.*''',
-    '''docs/standards/eips/.*''',
-    '''docs/papers/.*''',
+    '''docs/src/standards/rfcs/.*''',
+    '''docs/src/standards/bips/.*''',
+    '''docs/src/standards/eips/.*''',
+    '''docs/src/papers/.*''',
     '''test_vectors/.*''',
 ]

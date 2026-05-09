@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://abyssdomain.expert/@filippo" rel="me">
+    <link href="https://bsky.app/profile/filippo.abyssdomain.expert" rel="me">
+    <link rel="alternate" type="application/rss+xml" href="https://words.filippo.io/rss/">
+    <meta property="og:type" content="article">
+    <meta name="fediverse:creator" content="@filippo@abyssdomain.expert">
+    
+    <title>A Cryptography Engineer’s Perspective on Quantum Computing Timelines</title>
+    <meta name="description" content="The risk that cryptographically-relevant quantum computers materialize within the next few years is now high enough to be dispositive, unfortunately.">
+    <meta property="og:image" content="https://assets.buttondown.email/images/e29aa9d6-cb9e-40ee-9340-a2d128ddaabf.jpeg?w=960&amp;fit=max">
+    <meta property="article:published_time" content="2026-04-06T15:00:00Z">
+    <link rel="canonical" href="https://words.filippo.io/crqc-timeline/">
+
+    <style>
+        :root {
+            font-family: Avenir, Montserrat, Corbel, 'URW Gothic', source-sans-pro, sans-serif;
+            color-scheme: light dark;
+        }
+        p, li {
+            line-height: 1.8em;
+        }
+        sub, sup {
+            line-height: 0;
+        }
+        a {
+            color: inherit;
+        }
+        header {
+            margin: 4rem auto 0;
+            max-width: 350px;
+            padding: 0 10px;
+        }
+        main {
+            width: auto;
+            max-width: 700px;
+            padding: 0 15px;
+            margin: 5rem auto;
+        }
+        h1 {
+            text-transform: uppercase;
+            margin-top: 0.25em;
+            font-size: 2em;
+        }
+        h2, h3, h4, h5, h6 {
+            margin-top: 1.5em;
+        }
+        code, pre {
+            color: Canvas;
+            background-color: CanvasText;
+            font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+            -webkit-font-smoothing: antialiased;
+        }
+        :not(pre) > code {
+            font-size: 0.8em;
+            padding: 4px 5px;
+        }
+        pre {
+            padding: 1em;
+            overflow-x: auto;
+            line-height: 1.5em;
+            font-size: 0.8em;
+        }
+		img {
+			max-width: 100%;
+			height: auto;
+            margin: 0 auto;
+            display: block;
+		}
+        li + li {
+            margin-top: 0.5em;
+        }
+        .subscribe {
+            border: 1px solid;
+            padding: 0 1em;
+            margin: 1em 0;
+        }
+        .subscribe p {
+            text-align: center;
+        }
+        .subscribe form {
+            display: flex;
+            gap: 0.5em;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin: 1em 0;
+        }
+        .subscribe form input[type="email"] {
+            padding: 0.3em 0.5em;
+            font: inherit;
+            flex: 1;
+            min-width: 12em;
+            max-width: 20em;
+            border: 1px solid;
+        }
+        .subscribe form button {
+            padding: 0.3em 0.8em;
+            font: inherit;
+            cursor: pointer;
+            background-color: CanvasText;
+            color: Canvas;
+            border: 1px solid transparent;
+        }
+        .bsky-card {
+            border: 1px solid;
+            border-radius: 8px;
+            padding: 1em;
+            margin: 1em auto;
+            max-width: 400px;
+            font-size: 0.9em;
+        }
+        .bsky-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .bsky-profile {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            color: inherit;
+        }
+        .bsky-avatar {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+        }
+        .bsky-name {
+            font-weight: 600;
+        }
+        .bsky-handle {
+            color: gray;
+            font-size: 0.85em;
+        }
+        .bsky-logo {
+            color: #1185fe;
+        }
+        .bsky-text {
+            white-space: pre-line;
+            line-height: initial;
+        }
+        .bsky-link {
+            display: block;
+            border: 1px solid;
+            border-radius: 6px;
+            padding: 0.6em 0.8em;
+            text-decoration: none;
+            margin: 1em 0;
+        }
+        .bsky-link-title {
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+        .bsky-link-desc {
+            font-size: 0.85em;
+            color: gray;
+            margin-top: 2px;
+        }
+        .bsky-link-domain {
+            font-size: 0.8em;
+            color: gray;
+            margin-top: 4px;
+        }
+        .bsky-foot {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            font-size: 0.85em;
+            color: gray;
+        }
+        .bsky-foot a {
+            color: inherit;
+            text-decoration: none;
+        }
+    </style>
+
+    <script defer data-domain="blog.filippo.io" src="https://filippo.io/js/script.js"></script>
+    <script>
+        window.plausible = window.plausible || function () {
+            (window.plausible.q = window.plausible.q || []).push(arguments)
+        }
+
+        document.addEventListener("DOMContentLoaded", (event) => {
+            let trigger = document.createElement("div");
+            let footnotes = document.querySelector(".footnotes");
+            if (footnotes) {
+                footnotes.before(trigger);
+            } else {
+                document.querySelector("article").after(trigger);
+            }
+
+            new IntersectionObserver((entries, observer) => {
+                entries.forEach(entry => {
+                    if (!entry.isIntersecting) return;
+                    observer.disconnect();
+                    plausible("Finished");
+                })
+            }).observe(trigger);
+
+            new IntersectionObserver((entries, observer) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) return;
+                    observer.disconnect();
+                    plausible("Scrolled");
+                })
+            }).observe(document.querySelector("h1"));
+        });
+    </script>
+</head>
+<body>
+
+<header>
+    <a href="https://filippo.io"><picture>
+        <source srcset="https://assets.buttondown.email/images/72e03d2e-fcb2-4893-ab9c-8f561c0b07c7.png" media="(prefers-color-scheme: dark)">
+        <img src="https://assets.buttondown.email/images/1e8b4251-b3e2-4de1-9b95-9f5d0447644d.png" alt="Filippo Valsorda">
+    </picture></a>
+</header>
+
+<main>
+    <article>
+        <time datetime="2026-04-06">
+            6 Apr 2026</time>
+        <h1>A Cryptography Engineer’s Perspective on Quantum Computing Timelines</h1>
+        <section>
+            <!-- buttondown-editor-mode: plaintext -->
+<p>My position on the urgency of rolling out quantum-resistant cryptography has changed compared to just a few months ago. You might have heard this privately from me in the past weeks, but it’s time to signal and justify this change of mind publicly.</p>
+<p>There had been rumors for a while of expected and unexpected progress towards cryptographically-relevant quantum computers, but over the last week we got two public instances of it.</p>
+<p>First, <a href="https://research.google/blog/safeguarding-cryptocurrency-by-disclosing-quantum-vulnerabilities-responsibly/">Google published a paper revising down dramatically the estimated number of logical qubits and gates required to break 256-bit elliptic curves</a> like NIST P-256 and secp256k1, which makes the attack doable in minutes on fast-clock architectures like superconducting qubits. They weirdly<sup id="fnref:goofy"><a class="footnote-ref" href="#fn:goofy">1</a></sup> frame it around cryptocurrencies and mempools and salvaged goods or something, but the far more important implication are practical WebPKI MitM attacks.</p>
+<p>Shortly after, <a href="https://arxiv.org/abs/2603.28627">a different paper came out from Oratomic showing 256-bit elliptic curves can be broken in as few as 10,000 physical qubits if you have non-local connectivity</a>, like neutral atoms seem to offer, thanks to better error correction. This attack would be slower, but even a single broken key per month can be catastrophic.</p>
+<p>They have this excellent graph on page 2 (<em>Babbush et al.</em> is the Google paper, which they presumably had preview access to):</p>
+<p><img alt="graph of physical qubit cost over time" src="https://assets.buttondown.email/images/c768727d-01a9-4f44-919b-bab3c84cb81d.png?w=960&amp;fit=max" /></p>
+<p>Overall, it looks like everything is moving: the hardware is getting better, the algorithms are getting cheaper, the requirements for error correction are getting lower.</p>
+<p>I’ll be honest, I don’t actually know what all the physics in those papers means. That’s not my job and not my expertise. My job includes risk assessment on behalf of the users that entrusted me with their safety. What I know is what at least some actual experts are telling us.</p>
+<p>Heather Adkins and Sophie Schmieg <a href="https://blog.google/innovation-and-ai/technology/safety-security/cryptography-migration-timeline/">are telling us</a> that “quantum frontiers may be closer than they appear” and that <strong>2029</strong> is their deadline. That’s in 33 months, and no one had set such an aggressive timeline until this month.</p>
+<p>Scott Aaronson <a href="https://scottaaronson.blog/?p=9425">tells us</a> that the “clearest warning that [he] can offer in public right now about the urgency of migrating to post-quantum cryptosystems” is a vague parallel with how nuclear fission research stopped happening in public between 1939 and 1940.</p>
+<p>The timelines presented at RWPQC 2026, just a few weeks ago, were much tighter than a couple years ago, and are already partially obsolete. The joke used to be that quantum computers have been 10 years out for 30 years now. Well, not true anymore, the timelines have started progressing.</p>
+<p>If you are thinking “well, this could be bad, or it could be nothing!” I need you to recognize how <strong>immediately dispositive</strong> that is. The bet is not “are you 100% sure a CRQC will exist in 2030?”, the bet is “are you 100% sure a CRQC will NOT exist in 2030?” I simply don’t see how a non-expert can look at what the experts are saying, and decide “I know better, there is in fact &lt; 1% chance.” Remember that you are betting with your users’ lives.<sup id="fnref:audience"><a class="footnote-ref" href="#fn:audience">2</a></sup></p>
+<p>Put another way, even if the most likely outcome was no CRQC in our lifetimes, that would be completely irrelevant, because our users don’t want just better-than-even odds<sup id="fnref:odds"><a class="footnote-ref" href="#fn:odds">3</a></sup> of being secure.</p>
+<p>Sure, papers about an abacus and a dog are funny and can make you look smart and contrarian on forums. But that&rsquo;s not the job, and those arguments <a href="https://bas.westerbaan.name/notes/2026/04/02/factoring.html">betray a lack of expertise</a>. As Scott Aaronson <a href="https://scottaaronson.blog/?p=9665#comment-2029013">said</a>:</p>
+<blockquote>
+<p>Once you understand quantum fault-tolerance, asking “so when are you going to factor 35 with Shor’s algorithm?” becomes sort of like asking the Manhattan Project physicists in 1943, “so when are you going to produce at least a small nuclear explosion?”</p>
+</blockquote>
+<p>The job is not to be skeptical of things we’re not experts in, the job is to mitigate credible threats, and there are credible experts that are telling us about an imminent threat.</p>
+<p>In summary, it might be that in 10 years the predictions will turn out to be wrong, but at this point they might also be right soon, and that risk is now unacceptable.</p>
+<h2 id="now-what">Now what</h2>
+<p>Concretely, what does this mean? It means we need to ship.</p>
+<p>Regrettably, we’ve got to roll out what we have.<sup id="fnref:lattices"><a class="footnote-ref" href="#fn:lattices">4</a></sup> That means <strong>large ML-DSA signatures</strong> shoved in places designed for small ECDSA signatures, like X.509, with the exception of Merkle Tree Certificates for the WebPKI, which is thankfully <a href="https://security.googleblog.com/2026/02/cultivating-robust-and-efficient.html">far enough along</a>.</p>
+<p>This is <em>not</em> the article I wanted to write. I’ve had a pending draft for months now explaining we should ship PQ key exchange now, but take the time we still have to adapt protocols to larger signatures, because they were all designed with the assumption that signatures are cheap. That other article is now wrong, alas: we don’t have the time if we need to be finished by 2029 instead of 2035.</p>
+<p>For key exchange, the migration to ML-KEM is going well enough but:</p>
+<ol>
+<li>
+<p>Any <strong>non-PQ key exchange</strong> should now be considered a potential active compromise, worthy of warning the user <a href="https://www.openssh.org/pq.html">like OpenSSH does</a>, because it’s very hard to make sure all secrets transmitted over the connection or encrypted in the file have a shorter shelf life than three years.</p>
+</li>
+<li>
+<p>We need to forget about <strong>non-interactive key exchanges (NIKEs)</strong> for a while; we only have KEMs (which are only unidirectionally authenticated without interactivity) in the PQ toolkit.</p>
+</li>
+</ol>
+<p>It makes no more sense to deploy <strong>new schemes that are not post-quantum</strong>. I know, pairings were nice. I know, everything PQ is annoyingly large. I know, we had basically <em>just</em> figured out how to do ECDSA over P-256 safely. I know, there might not be practical PQ equivalents for threshold signatures or identity-based encryption. Trust me, I know it stings. But it is what it is.</p>
+<p><strong>Hybrid classic + post-quantum authentication makes no sense</strong> to me anymore and will only slow us down; we should go straight to pure ML-DSA-44.<sup id="fnref:44"><a class="footnote-ref" href="#fn:44">6</a></sup> Hybrid key exchange is reasonably easy, with ephemeral keys that don’t even need a type or wire format for the composite private key, and a couple years ago it made sense to take the hedge. Authentication is not like that, and even with <a href="https://www.ietf.org/archive/id/draft-ietf-lamps-pq-composite-sigs-15.html">draft-ietf-lamps-pq-composite-sigs-15</a> with its 18 composite key types nearing publication, we’d waste precious time collectively figuring out how to treat these composite keys and how to expose them to users. It’s also been two years since Kyber hybrids and we’ve gained significant confidence in the Module-Lattice schemes. Hybrid signatures cost time and complexity budget,<sup id="fnref:poor"><a class="footnote-ref" href="#fn:poor">5</a></sup> and the only benefit is protection if ML-DSA is classically broken <em>before the CRQCs come</em>, which looks like the wrong tradeoff at this point.</p>
+<p>In <strong>symmetric encryption</strong>, we don’t need to do anything, thankfully. There is a common misconception that protection from Grover requires 256-bit keys, but <a href="https://words.filippo.io/post-quantum-age/#128-bits-are-enough">that is based on an exceedingly simplified understanding of the algorithm</a>. A more accurate characterization is that with a circuit depth of 2⁶⁴ logical gates (the approximate number of gates that current classical computing architectures can perform serially in a decade) running Grover on a 128-bit key space would require a circuit size of 2¹⁰⁶. There’s been no progress on this that I am aware of, and indeed there are old proofs that <a href="https://arxiv.org/abs/quant-ph/9711070">Grover is optimal and its quantum speedup doesn’t parallelize</a>. Unnecessary 256-bit key requirements are harmful when bundled with the actually urgent PQ requirements, because they muddle the interoperability targets and they risk slowing down the rollout of asymmetric PQ cryptography.</p>
+<p>In my corner of the world, we’ll have to start thinking about what it means for half the <strong>cryptography packages in the Go standard library</strong> to be suddenly insecure, and how to balance the risk of downgrade attacks and backwards compatibility. It’s the first time in our careers we’ve faced anything like this: SHA-1 to SHA-256 was not nearly this disruptive,<sup id="fnref:sha1"><a class="footnote-ref" href="#fn:sha1">7</a></sup> and even that took forever with the occasional unexpected downgrade attack.</p>
+<p><strong>Trusted Execution Environments (TEEs)</strong> like Intel SGX and AMD SEV-SNP and in general hardware attestation are just f***d. All their keys and roots are not PQ and I heard of no progress in rolling out PQ ones, which at hardware speeds means we are forced to accept they might not make it, and can’t be relied upon. I had to reassess a whole project because of this, and I will probably downgrade them to barely &ldquo;defense in depth&rdquo; in my toolkit.</p>
+<p><strong>Ecosystems with cryptographic identities</strong> (like <a href="https://atproto.com">atproto</a> and, yes, cryptocurrencies) need to start migrating very soon, because if the CRQCs come before they are <em>done</em>, they will have to make extremely hard decisions, picking between letting users be compromised and bricking them.</p>
+<p>File encryption is especially vulnerable to store-now-decrypt-later attacks, so we’ll probably have to start warning and then erroring out on non-PQ <strong>age recipient types</strong> soon. It’s unfortunately only been a few months since we even added PQ recipients, in <a href="https://github.com/FiloSottile/age/releases/tag/v1.3.0">version 1.3.0</a>.<sup id="fnref:ietf"><a class="footnote-ref" href="#fn:ietf">8</a></sup></p>
+<p>Finally, this week I started <strong>teaching</strong> a PhD course in cryptography at the University of Bologna, and I&rsquo;m going to mention RSA, ECDSA, and ECDH only as legacy algorithms, because that’s how those students will encounter them in their careers. I know, it feels weird. But it is what it is.</p>
+<p>For more willing-or-not PQ migration, follow me on Bluesky at <a href="https://bsky.app/profile/filippo.abyssdomain.expert">@filippo.abyssdomain.expert</a> or on Mastodon at <a href="https://abyssdomain.expert/@filippo">@filippo@abyssdomain.expert</a>.</p>
+<h2 id="the-picture">The picture</h2>
+<p>Traveling back from an excellent <a href="https://atmosphereconf.org/">AtmosphereConf 2026</a>, I saw my first aurora, from the north-facing window of a Boeing 747.</p>
+<p><img alt="Aurora borealis seen from an airplane window, with green vertical columns and curtains of light above a cloud layer, stars visible in the dark sky above." src="https://assets.buttondown.email/images/e29aa9d6-cb9e-40ee-9340-a2d128ddaabf.jpeg?w=960&amp;fit=max" /></p>
+<p>My work is made possible by <a href="https://geomys.org">Geomys</a>, an organization of professional Go maintainers, which is funded by <a href="https://www.avalabs.org/">Ava Labs</a>, <a href="https://goteleport.com/">Teleport</a>, <a href="https://tailscale.com/">Tailscale</a>, and <a href="https://sentry.io/">Sentry</a>. Through our retainer contracts they ensure the sustainability and reliability of our open source maintenance work and get a direct line to my expertise and that of the other Geomys maintainers. (Learn more in the <a href="https://words.filippo.io/geomys">Geomys announcement</a>.)
+Here are a few words from some of them!</p>
+<p>Teleport — For the past five years, attacks and compromises have been shifting from traditional malware and security breaches to identifying and compromising valid user accounts and credentials with social engineering, credential theft, or phishing. <a href="https://goteleport.com/platform/identity/?utm=filippo">Teleport Identity</a> is designed to eliminate weak access patterns through access monitoring, minimize attack surface with access requests, and purge unused permissions via mandatory access reviews.</p>
+<p>Ava Labs — We at <a href="https://www.avalabs.org">Ava Labs</a>, maintainer of <a href="https://github.com/ava-labs/avalanchego">AvalancheGo</a> (the most widely used client for interacting with the <a href="https://www.avax.network">Avalanche Network</a>), believe the sustainable maintenance and development of open source cryptographic protocols is critical to the broad adoption of blockchain technology. We are proud to support this necessary and impactful work through our ongoing sponsorship of Filippo and his team.</p>
+<div class="footnote">
+<hr />
+<ol>
+<li id="fn:goofy">
+<p>The whole paper is a bit goofy: it has a zero-knowledge proof for a quantum circuit that will certainly be rederived and improved upon before the actual hardware to run it on will exist. They seem to believe this is about responsible disclosure, so I assume this is just physicists not being experts in our field in the same way we are not experts in theirs.&#160;<a class="footnote-backref" href="#fnref:goofy" title="Jump back to footnote 1 in the text">&#8617;</a></p>
+</li>
+<li id="fn:audience">
+<p>“You” is doing a lot of work in this sentence, but the audience for this post is a bit unusual for me: I’m addressing my colleagues and the decision-makers that gate action on deployment of post-quantum cryptography.&#160;<a class="footnote-backref" href="#fnref:audience" title="Jump back to footnote 2 in the text">&#8617;</a></p>
+</li>
+<li id="fn:odds">
+<p>I had a reviewer object to an attacker probability of success of 1/536,870,912 (0.0000002%, 2⁻²⁹) after 2⁶⁴ work, correctly so, because in cryptography we usually target 2⁻³².&#160;<a class="footnote-backref" href="#fnref:odds" title="Jump back to footnote 3 in the text">&#8617;</a></p>
+</li>
+<li id="fn:lattices">
+<p>Why trust the new stuff, though? There are two parts to it: the math and the implementation. The math is also not my job, so I again defer to experts like Sophie Schmieg, who <a href="https://keymaterial.net/2025/12/13/a-very-unscientific-guide-to-the-security-of-various-pqc-algorithms/">tells us that she is very confident in lattices</a>, and the NSA, who approved ML-KEM and ML-DSA at the Top Secret level for all national security purposes. It is also older than elliptic curve cryptography was when it first got deployed. (&ldquo;Doesn&rsquo;t the NSA lie to break our encryption?&rdquo; No, the NSA has never intentionally jeopardized US national security with a non-<a href="https://en.wikipedia.org/wiki/NOBUS">NOBUS</a> backdoor, and <a href="https://keymaterial.net/2025/11/27/ml-kem-mythbusting/">there is no way for ML-KEM and ML-DSA to hide a NOBUS backdoor</a>.) On the implementation side, I am actually very qualified to have an opinion, having made cryptography implementation and testing my niche. ML-KEM and ML-DSA are a lot easier to implement securely than their classical alternatives, and with the <a href="https://github.com/C2SP/wycheproof">better testing infrastructure</a> we have now I expect to see exceedingly few bugs in their implementations.&#160;<a class="footnote-backref" href="#fnref:lattices" title="Jump back to footnote 4 in the text">&#8617;</a></p>
+</li>
+<li id="fn:poor">
+<p>One small exception in that if you <em>already</em> have the ability to convey multiple signatures from multiple public keys in your protocol, it can make sense to to &ldquo;poor man&rsquo;s hybrid signatures&rdquo; by just requiring 2-of-2 signatures from one classical public key and one pure PQ key. Some of the tlog ecosystem might pick this route, but that&rsquo;s <em>only</em> because the cost is significantly lowered by the existing support for nested n-of-m signing groups.&#160;<a class="footnote-backref" href="#fnref:poor" title="Jump back to footnote 5 in the text">&#8617;</a></p>
+</li>
+<li id="fn:44">
+<p>Why ML-DSA-44 when we usually use ML-KEM-768 instead of ML-KEM-512? Because ML-KEM-512 is Level 1, while ML-DSA-44 is Level 2, so it already has a bit of margin against minor cryptanalytic improvements.&#160;<a class="footnote-backref" href="#fnref:44" title="Jump back to footnote 6 in the text">&#8617;</a></p>
+</li>
+<li id="fn:sha1">
+<p>Because SHA-256 is a better plug-in replacement for SHA-1, because SHA-1 was a much smaller surface than all of RSA and ECC, and because SHA-1 was not <em>that</em> broken: it still retained preimage resistance and could still be used in HMAC and HKDF.&#160;<a class="footnote-backref" href="#fnref:sha1" title="Jump back to footnote 7 in the text">&#8617;</a></p>
+</li>
+<li id="fn:ietf">
+<p>The delay was in large part due to my unfortunate decision of blocking on the availability of HPKE hybrid recipients, which blocked on the CFRG, which took <em>almost two years</em> to select a stable label string for X-Wing (January 2024) with ML-KEM (August 2024), despite making precisely no changes to the designs. The IETF should have an internal post-mortem on this, but I doubt we’ll see one.&#160;<a class="footnote-backref" href="#fnref:ietf" title="Jump back to footnote 8 in the text">&#8617;</a></p>
+</li>
+</ol>
+</div>
+        </section>
+    </article>
+    <aside class="subscribe">
+        <form action="https://buttondown.com/api/emails/embed-subscribe/cryptography-dispatches" method="post">
+            <input type="email" name="email" id="bd-email" placeholder="alice@example.com" autocomplete="email" required>
+            <input type="hidden" value="1" name="embed">
+            <button type="submit">Subscribe</button>
+        </form>
+        <p>
+            <a href="https://words.filippo.io/rss/">Feed</a>&nbsp;📡&ensp;|&ensp;<a href="https://bsky.app/profile/filippo.abyssdomain.expert" rel="me">Bluesky</a>&nbsp;🦋&ensp;|&ensp;<a href="https://abyssdomain.expert/@filippo" rel="me">Mastodon</a>&nbsp;🐘
+        </p>
+    </aside>
+    <aside class="bsky">
+        <div class="bsky-card">
+<div class="bsky-head">
+<a href="https://bsky.app/profile/filippo.abyssdomain.expert" class="bsky-profile">
+<img src="https://cdn.bsky.app/img/avatar/plain/did:plc:x2nsupeeo52oznrmplwapppl/bafkreifth4anopszp3maih7b3ople7tj77tirmpgmiu2vinou4pjhnewo4" class="bsky-avatar" alt="">
+<div><div class="bsky-name">Filippo Valsorda</div>
+<div class="bsky-handle">@filippo.abyssdomain.expert</div></div>
+</a>
+<a href="https://bsky.app/profile/did:plc:x2nsupeeo52oznrmplwapppl/post/3mitkixqo2s2c" aria-label="View on Bluesky" class="bsky-logo"><svg width="32" height="32" viewBox="0 0 16 16" fill="currentColor"><path d="M3.468 1.948C5.303 3.325 7.276 6.118 8 7.616c.725-1.498 2.698-4.29 4.532-5.668C13.855.955 16 .186 16 2.632c0 .489-.28 4.105-.444 4.692-.572 2.04-2.653 2.561-4.504 2.246 3.236.551 4.06 2.375 2.281 4.2-3.376 3.464-4.852-.87-5.23-1.98-.07-.204-.103-.3-.103-.218 0-.081-.033.014-.102.218-.379 1.11-1.855 5.444-5.231 1.98-1.778-1.825-.955-3.65 2.28-4.2-1.85.315-3.932-.205-4.503-2.246C.28 6.737 0 3.12 0 2.632 0 .186 2.145.955 3.468 1.948"/></svg></a>
+</div>
+<p class="bsky-text">Two papers came out last week that suggest classical asymmetric cryptography might indeed be broken by quantum computers in just a few years.
+
+That means we need to ship post-quantum crypto now, with the tools we have: ML-KEM and ML-DSA. I didn&#39;t think PQ auth was so urgent until recently.</p>
+<a href="https://words.filippo.io/crqc-timeline/" class="bsky-link">
+<div class="bsky-link-title">A Cryptography Engineer’s Perspective on Quantum Computing Timelines</div>
+<div class="bsky-link-desc">The risk that cryptographically-relevant quantum computers materialize within the next few years is now high enough to be dispositive, unfortunately.</div>
+<div class="bsky-link-domain">words.filippo.io</div>
+</a>
+<div class="bsky-foot">
+<a href="https://bsky.app/profile/did:plc:x2nsupeeo52oznrmplwapppl/post/3mitkixqo2s2c"><span>Apr 6, 2026 · 298 ❤️ · 123 🔁</span></a>
+<a href="https://bsky.app/profile/did:plc:x2nsupeeo52oznrmplwapppl/post/3mitkixqo2s2c">Read 10 replies on Bluesky →</a>
+</div>
+</div>
+
+    </aside>
+    <script>
+        const h2first = document.querySelector("article h2:first-of-type")
+        h2first.parentElement.insertBefore(document.getElementsByClassName("subscribe")[0].cloneNode(true), h2first)
+        const h2last = document.querySelector("h2#the-picture")
+        if (h2last) h2last.parentElement.insertBefore(document.getElementsByClassName("bsky")[0], h2last)
+        if (h2last && h2last != h2first) h2last.parentElement.insertBefore(document.getElementsByClassName("subscribe")[0].cloneNode(true), h2last)
+    </script>
+    

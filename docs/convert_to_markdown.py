@@ -68,8 +68,9 @@ def convert_rfc_xml(src: Path) -> str:
 
     text = result.stdout
 
-    # Strip all remaining HTML tags
-    text = re.sub(r"<[^>]+>", "", text)
+    # Strip xml2rfc boilerplate HTML tags (divs, spans, anchors with class="eref")
+    # but preserve angle-bracket content in code blocks and protocol examples
+    text = re.sub(r"</?(?:div|span|a)\b[^>]*>", "", text)
 
     # Remove the header table
     text = re.sub(
@@ -145,12 +146,25 @@ def convert_rfc_txt(src: Path) -> str:
     rfc_match = re.search(r"Request for Comments:\s*(\d+)", text)
     rfc_num = rfc_match.group(1) if rfc_match else ""
 
-    title_match = re.search(
-        r"^\s{6,}(\S.{10,})\s*$",
-        text[:2000],
-        re.MULTILINE,
+    # Find the title: it's the centered line(s) between the metadata header
+    # and "Abstract". We want the longest non-date centered line.
+    abstract_idx = text.find("\nAbstract\n")
+    header_region = text[:abstract_idx] if abstract_idx > 0 else text[:2000]
+    centered_lines = re.findall(
+        r"^\s{6,}(\S.{10,})\s*$", header_region, re.MULTILINE
     )
-    title = title_match.group(1).strip() if title_match else f"RFC {rfc_num}"
+    # Filter out lines that look like dates or author affiliations
+    title_candidates = [
+        line.strip()
+        for line in centered_lines
+        if not re.match(
+            r"^(?:January|February|March|April|May|June|July|August|"
+            r"September|October|November|December)\s+\d{4}$",
+            line.strip(),
+        )
+    ]
+    # Pick the longest candidate (titles tend to be longer than affiliations)
+    title = max(title_candidates, key=len) if title_candidates else f"RFC {rfc_num}"
 
     # Strip the RFC header block (everything before Abstract)
     abstract_pos = text.find("\nAbstract\n")
@@ -386,6 +400,11 @@ def has_xml2rfc() -> bool:
     return shutil.which("xml2rfc") is not None
 
 
+def has_pandoc() -> bool:
+    """Check if pandoc is available."""
+    return shutil.which("pandoc") is not None
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Convert reference documents to markdown."
@@ -399,6 +418,10 @@ def main() -> None:
         help="Show what would be converted without writing",
     )
     args = parser.parse_args()
+
+    if not has_pandoc():
+        print("Error: pandoc is required but not found in PATH.", file=sys.stderr)
+        sys.exit(1)
 
     xml2rfc_ok = has_xml2rfc()
     if not xml2rfc_ok:

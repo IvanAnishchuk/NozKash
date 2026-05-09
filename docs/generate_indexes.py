@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import argparse
 import sys
-import textwrap
 from pathlib import Path
 
 import yaml
@@ -38,6 +37,8 @@ GENERATED_HEADER = """\
 def load_yaml(path: Path) -> list[dict]:
     """Load documents list from a YAML sources file."""
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if data is None:
+        return []
     return data.get("documents", [])
 
 
@@ -107,11 +108,21 @@ def generate_papers_readme(docs: list[dict]) -> str:
         year = doc.get("year", "")
         author_str = ", ".join(authors) if authors else ""
 
-        lines.append(f"### [{title}]({link})\n")
-        if author_str:
-            lines.append(f"**{author_str}** ({year}) — {doc.get('venue', '')}\n")
+        if link:
+            lines.append(f"### [{title}]({link})\n")
         else:
-            lines.append(f"({year}) — {doc.get('venue', '')}\n")
+            lines.append(f"### {title}\n")
+
+        meta_parts = []
+        if author_str:
+            meta_parts.append(f"**{author_str}**")
+        if year:
+            meta_parts.append(f"({year})")
+        venue = doc.get("venue", "")
+        if venue:
+            meta_parts.append(f"— {venue}")
+        if meta_parts:
+            lines.append(" ".join(meta_parts) + "\n")
 
         abstract = doc.get("abstract", "").strip()
         if abstract:

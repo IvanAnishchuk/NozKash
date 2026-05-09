@@ -220,7 +220,7 @@ Comprehensive reassessment of pairing-based key sizes after the TNFS and exTNFS 
 
 ---
 
-### [Indifferentiable Hashing to Barreto-Naehrig Curves]()
+### Indifferentiable Hashing to Barreto-Naehrig Curves
 
 **Fouque, Tibouchi** (2012) — LATINCRYPT 2012
 

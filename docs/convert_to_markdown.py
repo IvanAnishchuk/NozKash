@@ -197,32 +197,23 @@ def convert_rfc_txt(src: Path) -> str:
         if in_toc:
             if not stripped:
                 # Blank line in TOC — check if the TOC is ending.
-                # TOC ends when we see a blank line followed by 2+ blank lines
-                # (the gap between TOC and first section body), or when the
-                # next non-blank line is NOT indented like a TOC entry.
+                # Find next non-blank line and check if it's a real section
+                # header (at column 0) vs a TOC entry (indented 3+ spaces).
                 j = i + 1
-                blank_count = 0
                 while j < len(lines) and not lines[j].strip():
-                    blank_count += 1
                     j += 1
-                if blank_count >= 1 and j < len(lines):
+                if j < len(lines):
                     next_line = lines[j].rstrip()
-                    # Real sections start at column 0-3; TOC entries are
-                    # indented 3+ spaces AND followed by more TOC entries.
-                    # If next non-blank line is a section header AND is preceded
-                    # by 2+ blanks, the TOC is over.
-                    if blank_count >= 2 or (
-                        re.match(r"^\d+(?:\.\d+)*\.?\s{2,}\S", next_line)
-                        and not re.search(r"\.{2,}\d+\s*$", next_line)
-                    ):
+                    # Real section headers start at column 0 with "N.  Title"
+                    # TOC entries are indented with 3+ leading spaces
+                    if re.match(r"^\d+(?:\.\d+)*\.?\s{2,}\S", next_line):
                         in_toc = False
                         # Fall through to normal processing
                     else:
                         i += 1
                         continue
                 else:
-                    i += 1
-                    continue
+                    in_toc = False
             else:
                 i += 1
                 continue

@@ -216,7 +216,10 @@ def generate_standards_readme(
             title = doc.get("title", "Untitled")
             eip_id = doc.get("id", "")
 
-            lines.append(f"### [{eip_id}: {title}]({link})\n")
+            if link:
+                lines.append(f"### [{eip_id}: {title}]({link})\n")
+            else:
+                lines.append(f"### {eip_id}: {title}\n")
 
             abstract = doc.get("abstract", "").strip()
             if abstract:
@@ -240,7 +243,10 @@ def generate_standards_readme(
             title = doc.get("title", "Untitled")
             bip_id = doc.get("id", "")
 
-            lines.append(f"### [{bip_id}: {title}]({link})\n")
+            if link:
+                lines.append(f"### [{bip_id}: {title}]({link})\n")
+            else:
+                lines.append(f"### {bip_id}: {title}\n")
 
             abstract = doc.get("abstract", "").strip()
             if abstract:

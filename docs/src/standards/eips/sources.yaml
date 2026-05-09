@@ -1,0 +1,132 @@
+# EIP Source Index
+# Ethereum Improvement Proposals referenced by the NozKash protocol.
+# Last updated: 2026-05-09
+
+documents:
+  - id: eip-155
+    title: "Simple Replay Attack Protection"
+    year: 2016
+    local_file: eip-155.md
+    abstract: "Introduces chain ID into Ethereum transaction signing to prevent cross-chain replay attacks."
+    relevance: "Chain ID is included in NozKash's EIP-712 domain separator for redemption proofs, preventing cross-chain replay of redemption signatures."
+    keywords: [chain ID, replay protection, transaction signing, cross-chain]
+
+  - id: eip-191
+    title: "Signed Data Standard"
+    year: 2016
+    local_file: eip-191.md
+    abstract: "Defines the \\x19 prefix for signed data, with version byte 0x01 for EIP-712 structured data."
+    relevance: "The \\x19\\x01 prefix is used in NozKash's EIP-712 redemption proof encoding before hashing and signing with ecrecover."
+    keywords: [signed data, \\x19 prefix, EIP-712, ecrecover, data encoding]
+
+  - id: eip-196
+    title: "Precompiled contracts for addition and scalar multiplication on the elliptic curve alt_bn128"
+    year: 2017
+    local_file: eip-196.md
+    abstract: "Adds ecAdd (0x06) and ecMul (0x07) precompiles for BN254 G1 point operations to the EVM."
+    relevance: "NozKash's smart contract uses ecAdd and ecMul to compute hash-to-curve on BN254 and manipulate blinded points on-chain."
+    keywords: [ecAdd, ecMul, BN254, alt_bn128, precompile, G1 operations]
+
+  - id: eip-197
+    title: "Precompiled contracts for optimal ate pairing check on the elliptic curve alt_bn128"
+    year: 2017
+    local_file: eip-197.md
+    abstract: "Adds ecPairing (0x08) precompile for BN254 optimal ate pairing verification to the EVM."
+    relevance: "Core precompile for NozKash's on-chain BLS signature verification. The pairing check e(S, G2) == e(H(nullifier), pkMint) is computed via ecPairing at ~120k gas."
+    keywords: [ecPairing, BN254, pairing check, BLS verification, precompile, 120k gas]
+
+  - id: eip-712
+    title: "Typed Structured Data Hashing and Signing"
+    year: 2017
+    local_file: eip-712.md
+    abstract: "Defines a standard for hashing and signing typed structured data, enabling human-readable signing prompts in wallets."
+    relevance: "NozKash's anti-MEV redemption proof uses EIP-712 with the NozkRedeem struct (recipient, deadline). The ECDSA signature binds the nullifier to a specific recipient, preventing front-running."
+    keywords: [EIP-712, typed data, structured hashing, anti-MEV, redemption proof, wallet signing]
+
+  - id: eip-1271
+    title: "Standard Signature Validation Method for Contracts"
+    year: 2018
+    local_file: eip-1271.md
+    abstract: "Defines isValidSignature() interface for smart contracts to validate signatures, enabling contract accounts to act as signers."
+    relevance: "Required by EIP-6538 stealth meta-address registry. If NozKash supports contract wallets, EIP-1271 signature validation is needed."
+    keywords: [contract signatures, isValidSignature, smart accounts, EIP-6538]
+
+  - id: eip-2333
+    title: "BLS12-381 Key Generation"
+    year: 2019
+    local_file: eip-2333.md
+    abstract: "Defines hierarchical deterministic BLS12-381 key derivation from a seed, using HKDF (RFC 5869) and I2OSP (RFC 3447)."
+    relevance: "Standard for BLS key derivation. NozKash's BLS12-381 migration uses this for mint key generation. The hierarchical derivation enables deriving per-purpose keys from a master seed."
+    keywords: [BLS12-381, key generation, HD derivation, HKDF, seed, hierarchical]
+
+  - id: eip-2334
+    title: "BLS12-381 Deterministic Account Hierarchy"
+    year: 2019
+    local_file: eip-2334.md
+    abstract: "Defines the derivation path structure for BLS12-381 keys: m/purpose/coin_type/account/use."
+    relevance: "Path structure for BLS key trees. If NozKash adopts EIP-2333 key generation, EIP-2334 paths determine how signing vs. withdrawal keys are organized."
+    keywords: [BLS key paths, account hierarchy, derivation path, purpose field, key organization]
+
+  - id: eip-2335
+    title: "BLS12-381 Keystore"
+    year: 2019
+    local_file: eip-2335.md
+    abstract: "Defines JSON format for encrypted BLS12-381 key storage, using scrypt/PBKDF2 for key derivation, AES-CTR for encryption, and SHA-256 for checksums."
+    relevance: "Standard format for storing encrypted BLS private keys. Relevant for NozKash's mint key management and backup."
+    keywords: [BLS keystore, JSON format, encrypted storage, scrypt, PBKDF2, AES-CTR, key management]
+
+  - id: eip-2494
+    title: "Baby Jubjub Elliptic Curve"
+    year: 2020
+    local_file: eip-2494.md
+    abstract: "Defines Baby Jubjub — a twisted Edwards curve embedded in BN254's scalar field, efficient for zk-SNARK circuits."
+    relevance: "The curve used inside Tornado Cash and RAILGUN's zk-SNARK circuits. NozKash avoids this by using BLS signatures instead of ZK proofs, but understanding Baby Jubjub helps explain the alternative approach."
+    keywords: [Baby Jubjub, twisted Edwards, zk-SNARK, BN254 embedding, Tornado Cash, in-circuit]
+
+  - id: eip-2537
+    title: "Precompile for BLS12-381 curve operations"
+    year: 2020
+    local_file: eip-2537.md
+    abstract: "Adds EVM precompiles (0x0b-0x11) for BLS12-381 operations: G1/G2 add, mul, multiexp, pairing, and map-to-curve."
+    relevance: "Target precompiles for NozKash's BLS12-381 migration (Pectra hard fork). Enables on-chain BLS12-381 pairing verification, replacing current BN254 ecPairing. Key for upgrading from ~100-bit to ~120-bit security."
+    keywords: [BLS12-381, EVM precompiles, Pectra, G1, G2, pairing, map-to-curve, migration]
+
+  - id: eip-2718
+    title: "Typed Transaction Envelope"
+    year: 2020
+    local_file: eip-2718.md
+    abstract: "Defines a framework for typed transaction envelopes, enabling future transaction format extensions without breaking backwards compatibility."
+    relevance: "Transaction type framework referenced by EIP-7591 BLS signed transactions. Provides the envelope format for potential future NozKash-optimized transaction types."
+    keywords: [typed transactions, envelope format, backwards compatibility, extensibility]
+
+  - id: eip-4337
+    title: "Account Abstraction Using Alt Mempool"
+    year: 2021
+    local_file: eip-4337.md
+    abstract: "Defines account abstraction via UserOperations processed by bundlers, enabling smart contract wallets with custom validation logic."
+    relevance: "Smart contract wallets with custom validation. Referenced by EIP-5564 stealth addresses and Kohaku's PQ account abstraction. Could enable NozKash integration with AA wallets."
+    keywords: [account abstraction, UserOperation, bundler, smart wallet, custom validation, ERC-4337]
+
+  - id: eip-5564
+    title: "Stealth Addresses"
+    year: 2023
+    local_file: eip-5564.md
+    abstract: "Defines stealth addresses for Ethereum — one-time recipient addresses generated from a stealth meta-address, providing receive-side privacy."
+    relevance: "Stealth addresses complement NozKash's spend privacy with receive privacy. A future NozKash receive flow could generate stealth addresses for redemption recipients, making the full deposit→redeem flow unlinkable."
+    keywords: [stealth addresses, receive privacy, one-time addresses, meta-address, EIP-5564]
+
+  - id: eip-6538
+    title: "Stealth Meta-Address Registry"
+    year: 2023
+    local_file: eip-6538.md
+    abstract: "On-chain registry for stealth meta-addresses, enabling senders to look up a recipient's stealth meta-address and generate one-time stealth addresses."
+    relevance: "Registry for stealth meta-addresses. If NozKash integrates stealth addresses for receive privacy, users would register their meta-addresses here."
+    keywords: [stealth meta-address, registry, on-chain lookup, receive privacy, EIP-5564 companion]
+
+  - id: eip-7591
+    title: "BLS Signed Transactions"
+    year: 2024
+    local_file: eip-7591.md
+    abstract: "Proposes BLS12-381 signed transactions for Ethereum, enabling signature aggregation across multiple transactions in a block."
+    relevance: "BLS signed transactions would enable NozKash redemption signatures to be aggregated with regular transaction signatures, reducing overall gas costs."
+    keywords: [BLS signed transactions, signature aggregation, BLS12-381, block aggregation, gas reduction]

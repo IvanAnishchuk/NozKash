@@ -22,23 +22,27 @@ import {
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { foundry } from 'viem/chains'
-// Import nozk crypto from compiled JS copies local to app/e2e/fixtures/.
-// These resolve @noble/curves from app/node_modules — avoids Playwright/vitest
-// type clash caused by nozk_ts/node_modules containing @vitest/expect.
+import { bls12_381 } from '@noble/curves/bls12-381.js'
+// Import nozk crypto from compiled nozk_ts dist (recompile with:
+//   cd nozk_ts && npx tsc --outDir dist --noEmit false --declaration false)
 import {
   G1_GEN,
   g1ScalarMul,
   serializeG1Sol,
   serializeG2Sol,
-} from './bls12-381-crypto.js'
+  // @ts-ignore -- compiled JS, no .d.ts
+} from '../../../nozk_ts/dist/bls12-381-crypto.js'
 import {
+  aggregateRedeemSigma,
+  aggregateRevealSigma,
   blindToken,
   deriveTokenSecrets,
   generateRedemptionProof,
   mintBlindSign,
   unblindSignature,
   verifyBlsPairing,
-} from './nozk-library.js'
+  // @ts-ignore -- compiled JS, no .d.ts
+} from '../../../nozk_ts/dist/nozk-library.js'
 
 // ==============================================================================
 // CONSTANTS
@@ -51,7 +55,8 @@ export const MINT_SK = 42n
 const MINT_PK = g1ScalarMul(G1_GEN, MINT_SK)
 
 // Anvil default accounts (well-known test keys, not real secrets)
-export { DEPLOYER_KEY, DEPOSITOR_KEY, RECIPIENT } from './test-constants.ts'
+import { DEPLOYER_KEY, DEPOSITOR_KEY, RECIPIENT } from './test-constants.ts'
+export { DEPLOYER_KEY, DEPOSITOR_KEY, RECIPIENT }
 
 const deployer = privateKeyToAccount(DEPLOYER_KEY)
 const depositor = privateKeyToAccount(DEPOSITOR_KEY)
@@ -82,20 +87,13 @@ export function getAbi(): Abi {
 /**
  * Decompress a 96-byte BLS G2 signature to 8 uint256 for Solidity.
  *
- * Self-contained: decompresses with the nozk_ts bls12_381 AND serializes
- * within the same module context, avoiding cross-instance point type issues.
+ * Inline serialization to avoid cross-module @noble/curves instanceof issues.
+ * Coordinate order must match serializeG2Sol: [x.c0, x.c1, y.c0, y.c1],
+ * each component split into (hi, lo) uint256 pair.
  */
 function decompressSigToCoords(
   sigma: Uint8Array,
 ): readonly [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint] {
-  // Use nozk_ts's serializeG2Sol which uses its own @noble/curves instance
-  // internally. We need the decompression to happen in the same module space.
-  // Import the bls12_381 from the nozk_ts re-export path:
-  //
-  // Since both app and nozk_ts have the same @noble/curves version (2.0.1),
-  // the compressed bytes → affine coords conversion is deterministic.
-  // We inline the serialization to avoid crossing module boundaries.
-  const { bls12_381 } = require('@noble/curves/bls12-381')
   const sigPoint = bls12_381.longSignatures.Signature.fromBytes(sigma)
   const aff = sigPoint.toAffine()
 
@@ -104,8 +102,8 @@ function decompressSigToCoords(
   const [xC1Hi, xC1Lo] = fpPair(aff.x.c1)
   const [yC0Hi, yC0Lo] = fpPair(aff.y.c0)
   const [yC1Hi, yC1Lo] = fpPair(aff.y.c1)
-  // EIP-2537 order: [x.c1, x.c0, y.c1, y.c0] — each split into (hi, lo)
-  return [xC1Hi, xC1Lo, xC0Hi, xC0Lo, yC1Hi, yC1Lo, yC0Hi, yC0Lo] as const
+  // Must match serializeG2Sol order: [x.c0, x.c1, y.c0, y.c1]
+  return [xC0Hi, xC0Lo, xC1Hi, xC1Lo, yC0Hi, yC0Lo, yC1Hi, yC1Lo] as const
 }
 
 async function writeVault(wallet: any, params: Record<string, any>): Promise<`0x${string}`> {
@@ -250,4 +248,121 @@ export async function getNullifierState(nullifierId: `0x${string}`): Promise<num
     functionName: 'nullifierState',
     args: [nullifierId],
   }) as Promise<number>
+}
+
+/**
+ * Get nullifier ID for a token.
+ */
+export async function getNullifierId(seed: Uint8Array, tokenIndex: number): Promise<`0x${string}`> {
+  const secrets = deriveTokenSecrets(seed, tokenIndex)
+  const spendPubCoords = [...serializeG1Sol(secrets.spendBlsPub)] as const
+  return publicClient.readContract({
+    address: vaultAddress,
+    abi,
+    functionName: 'nullifierId',
+    args: [spendPubCoords],
+  }) as Promise<`0x${string}`>
+}
+
+/**
+ * Deposit + announce multiple tokens. Returns array of { secrets, S } per token.
+ */
+export async function depositAndAnnounceMany(seed: Uint8Array, indices: number[]) {
+  const results = []
+  for (const idx of indices) {
+    const result = await depositAndAnnounce(seed, idx)
+    results.push({ index: idx, secrets: result.secrets, S: result.S, blinded: result.blinded })
+  }
+  return results
+}
+
+/**
+ * Batch reveal: individual pairing check per token (revealBatch).
+ */
+export async function revealBatch(
+  seed: Uint8Array,
+  tokens: { index: number; S: ReturnType<typeof unblindSignature> }[],
+) {
+  const spendPubs = tokens.map(t => {
+    const secrets = deriveTokenSecrets(seed, t.index)
+    return [...serializeG1Sol(secrets.spendBlsPub)] as const
+  })
+  const sigs = tokens.map(t => [...serializeG2Sol(t.S)] as const)
+
+  const hash = await writeVault(depositorWallet, {
+    functionName: 'revealBatch',
+    args: [spendPubs, sigs],
+  })
+  const receipt = await publicClient.waitForTransactionReceipt({ hash })
+  if (receipt.status !== 'success') throw new Error('revealBatch failed')
+  return receipt
+}
+
+/**
+ * Aggregated reveal: single pairing check for n tokens (revealAggregated).
+ */
+export async function revealAggregated(
+  seed: Uint8Array,
+  tokens: { index: number; S: ReturnType<typeof unblindSignature> }[],
+) {
+  const spendPubs = tokens.map(t => {
+    const secrets = deriveTokenSecrets(seed, t.index)
+    return [...serializeG1Sol(secrets.spendBlsPub)] as const
+  })
+  const sigma = aggregateRevealSigma(tokens.map(t => t.S))
+  const sigmaCoords = [...serializeG2Sol(sigma)] as const
+
+  const hash = await writeVault(depositorWallet, {
+    functionName: 'revealAggregated',
+    args: [spendPubs, sigmaCoords],
+  })
+  const receipt = await publicClient.waitForTransactionReceipt({ hash })
+  if (receipt.status !== 'success') throw new Error('revealAggregated failed')
+  return receipt
+}
+
+/**
+ * Aggregated redeem: single pairing check for n tokens to same recipient.
+ */
+export async function redeemAggregated(
+  seed: Uint8Array,
+  indices: number[],
+  recipient: Address,
+) {
+  const deadline = (1n << 256n) - 1n
+  const nIds: `0x${string}`[] = []
+  const sigs: Uint8Array[] = []
+
+  for (const idx of indices) {
+    const secrets = deriveTokenSecrets(seed, idx)
+    const spendPubCoords = [...serializeG1Sol(secrets.spendBlsPub)] as const
+    const nid = await publicClient.readContract({
+      address: vaultAddress,
+      abi,
+      functionName: 'nullifierId',
+      args: [spendPubCoords],
+    }) as `0x${string}`
+    nIds.push(nid)
+
+    const proof = generateRedemptionProof(
+      secrets.spendBlsPriv,
+      secrets.spendPubCompressed,
+      recipient,
+      CHAIN_ID,
+      vaultAddress,
+      deadline,
+    )
+    sigs.push(proof.sigma)
+  }
+
+  const aggSigma = aggregateRedeemSigma(sigs)
+  const sigmaCoords = [...decompressSigToCoords(aggSigma)] as const
+
+  const hash = await writeVault(depositorWallet, {
+    functionName: 'redeemAggregated',
+    args: [recipient, sigmaCoords, nIds, deadline],
+  })
+  const receipt = await publicClient.waitForTransactionReceipt({ hash })
+  if (receipt.status !== 'success') throw new Error('redeemAggregated failed')
+  return { receipt, nullifierIds: nIds }
 }

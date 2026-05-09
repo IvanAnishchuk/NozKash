@@ -12,7 +12,10 @@ documents:
   - id: rfc2898
     title: "PKCS#5: Password-Based Cryptography Specification Version 2.0 (PBKDF2)"
     year: 2000
-    relevance: Key derivation in EIP-2335 keystore
+    abstract: "Specifies PBKDF2 — a password-based key derivation function using HMAC with configurable iteration count for brute-force resistance."
+    relevance: "Key derivation in EIP-2335 BLS keystore format. PBKDF2 is the default KDF for deriving encryption keys from passwords protecting stored BLS private keys."
+    keywords: [PBKDF2, key derivation, password-based, HMAC, iteration count, keystore]
+    generated_md: rfc2898.md
     local_files:
       - rfc2898.txt
       - rfc2898.bib
@@ -34,7 +37,10 @@ documents:
   - id: rfc3447
     title: "PKCS#1: RSA Cryptography Specifications Version 2.1"
     year: 2003
-    relevance: RSA primitives reference
+    abstract: "Defines RSA key format, I2OSP/OS2IP integer-octet encoding, and signature primitives. I2OSP is used by EIP-2333 for BLS key generation."
+    relevance: "I2OSP/OS2IP integer-to-octet encoding referenced by EIP-2333 BLS key derivation."
+    keywords: [RSA, PKCS#1, I2OSP, OS2IP, encoding, key format]
+    generated_md: rfc3447.md
     local_files:
       - rfc3447.txt
       - rfc3447.bib
@@ -56,7 +62,10 @@ documents:
   - id: rfc3686
     title: "Using Advanced Encryption Standard (AES) Counter Mode with IPsec ESP"
     year: 2004
-    relevance: AES-CTR mode reference
+    abstract: "Defines AES in Counter (CTR) mode for IPsec, establishing AES-CTR as a standard stream cipher construction."
+    relevance: "AES-CTR cipher mode used in EIP-2335 keystore encryption."
+    keywords: [AES-CTR, counter mode, stream cipher, keystore encryption]
+    generated_md: rfc3686.md
     local_files:
       - rfc3686.txt
       - rfc3686.bib
@@ -73,7 +82,10 @@ documents:
   - id: rfc4122
     title: "A Universally Unique IDentifier (UUID) URN Namespace"
     year: 2005
-    relevance: UUID generation
+    abstract: "Defines UUID format and generation algorithms (v1-v5). Used in EIP-2335 keystore files for unique key identification."
+    relevance: "UUID v4 format used in EIP-2335 BLS keystore files."
+    keywords: [UUID, unique identifier, keystore, EIP-2335]
+    generated_md: rfc4122.md
     local_files:
       - rfc4122.txt
       - rfc4122.bib
@@ -95,7 +107,10 @@ documents:
   - id: rfc5869
     title: "HMAC-based Extract-and-Expand Key Derivation Function (HKDF)"
     year: 2010
-    relevance: Key derivation in EIP-2333 BLS key generation
+    abstract: "Specifies HKDF — an HMAC-based extract-and-expand key derivation function used as a building block in numerous protocols."
+    relevance: "Core KDF in EIP-2333 BLS key generation. HKDF-Expand is used to derive child BLS keys from a master seed, directly relevant to NozKash's seed-based token derivation."
+    keywords: [HKDF, key derivation, HMAC, extract-expand, EIP-2333, seed derivation]
+    generated_md: rfc5869.md
     local_files:
       - rfc5869.txt
       - rfc5869.bib
@@ -117,7 +132,10 @@ documents:
   - id: rfc6234
     title: "US Secure Hash Algorithms (SHA and SHA-based HMAC and HKDF)"
     year: 2011
-    relevance: SHA-256 specification
+    abstract: "Defines SHA-224, SHA-256, SHA-384, SHA-512 and their HMAC variants with reference C implementation."
+    relevance: "SHA-256 checksum in EIP-2335 keystore. Also underlies HKDF used in BLS key derivation."
+    keywords: [SHA-256, SHA-512, HMAC, hash function, checksum, keystore]
+    generated_md: rfc6234.md
     local_files:
       - rfc6234.txt
       - rfc6234.bib
@@ -139,7 +157,10 @@ documents:
   - id: rfc7748
     title: "Elliptic Curves for Security (X25519, X448)"
     year: 2016
-    relevance: Elliptic curve reference (Curve25519, Curve448)
+    abstract: "Defines X25519 and X448 Diffie-Hellman functions on Montgomery curves for key agreement."
+    relevance: "Elliptic curve reference. Curve25519 is used in EIP-2494 Baby Jubjub context. Also referenced by RFC 9380 hash-to-curve."
+    keywords: [X25519, X448, Curve25519, Montgomery curves, key agreement, ECDH]
+    generated_md: rfc7748.md
     local_files:
       - rfc7748.txt
       - rfc7748.bib
@@ -161,7 +182,10 @@ documents:
   - id: rfc7914
     title: "The scrypt Password-Based Key Derivation Function"
     year: 2016
-    relevance: Key derivation in EIP-2335 keystore
+    abstract: "Defines scrypt — a memory-hard KDF designed to resist hardware brute-force attacks by requiring large amounts of RAM."
+    relevance: "Alternative KDF option in EIP-2335 keystore. Scrypt offers stronger brute-force resistance than PBKDF2 at the cost of higher memory usage."
+    keywords: [scrypt, memory-hard, KDF, brute-force resistance, keystore, EIP-2335]
+    generated_md: rfc7914.md
     local_files:
       - rfc7914.txt
       - rfc7914.bib
@@ -183,7 +207,10 @@ documents:
   - id: rfc8032
     title: "Edwards-Curve Digital Signature Algorithm (EdDSA)"
     year: 2017
-    relevance: EdDSA reference for signature schemes
+    abstract: "Defines Ed25519 and Ed448 digital signature algorithms on twisted Edwards curves, providing high-performance signatures with deterministic nonces."
+    relevance: "EdDSA reference. Ed25519 is used in some stealth address schemes (EIP-2494). Understanding EdDSA helps compare with BLS signature performance and key sizes."
+    keywords: [EdDSA, Ed25519, Ed448, twisted Edwards, deterministic signatures, high performance]
+    generated_md: rfc8032.md
     local_files:
       - rfc8032.txt
       - rfc8032.bib
@@ -205,7 +232,10 @@ documents:
   - id: rfc9380
     title: "Hashing to Elliptic Curves"
     year: 2023
-    relevance: Hash-to-curve specification; NozKash uses try-and-increment variant
+    abstract: "Standardizes algorithms for hashing arbitrary strings to elliptic curve points, including simplified SWU maps for BN254 and BLS12-381. The definitive hash-to-curve specification."
+    relevance: "Core standard for NozKash's hash-to-curve. NozKash BN254 uses try-and-increment; BLS12-381 migration uses the simplified SWU map from Section 6. All implementations must match RFC 9380 test vectors."
+    keywords: [hash-to-curve, SWU map, BN254, BLS12-381, indifferentiable, RFC 9380, test vectors]
+    generated_md: rfc9380.md
     local_files:
       - rfc9380.txt
       - rfc9380.xml
@@ -232,7 +262,9 @@ documents:
   - id: draft-irtf-cfrg-bls-signature-05
     title: "BLS Signatures"
     year: 2022
-    relevance: Core BLS signature specification used by NozKash
+    abstract: "IETF draft standardizing BLS signatures with three schemes (BasicScheme, MessageAugmentation, ProofOfPossession), ciphersuites for BLS12-381, and serialization formats."
+    relevance: "Core BLS signature specification. NozKash's blind BLS signing produces signatures compatible with this draft's BasicScheme. The ciphersuite definitions and serialization formats are our interop target."
+    keywords: [BLS signatures, IETF draft, ciphersuites, BLS12-381, serialization, BasicScheme, ProofOfPossession]
     local_files:
       - draft-irtf-cfrg-bls-signature.txt
       - draft-irtf-cfrg-bls-signature.xml
@@ -257,7 +289,9 @@ documents:
   - id: draft-irtf-cfrg-pairing-friendly-curves-08
     title: "Pairing-Friendly Curves"
     year: 2020
-    relevance: BN254 and BLS12-381 curve parameter specifications
+    abstract: "IETF draft specifying parameters for pairing-friendly curves including BN254 and BLS12-381: field primes, group orders, generators, and cofactors."
+    relevance: "Definitive curve parameter reference. Both NozKash curves (BN254 current, BLS12-381 migration target) have their parameters specified here. Essential for ensuring all implementations use identical curve constants."
+    keywords: [pairing-friendly curves, BN254, BLS12-381, curve parameters, IETF draft, field primes, generators]
     local_files:
       - draft-irtf-cfrg-pairing-friendly-curves.txt
       - draft-irtf-cfrg-pairing-friendly-curves.xml
@@ -280,7 +314,10 @@ documents:
   - id: rfc9474
     title: "RSA Blind Signatures"
     year: 2023
-    relevance: IETF standard for RSA blind sigs; Privacy Pass building block
+    abstract: "IETF standard for RSA blind signatures using RSA-PSS. The blind signature is unforgeable and unlinkable, producing standard RSA-PSS signatures verifiable by any RSA verifier."
+    relevance: "IETF standard for RSA blind sigs — the Privacy Pass building block. NozKash uses BLS blind sigs instead, but this is the standardized alternative. Comparison: RSA blind sigs don't aggregate; BLS blind sigs do."
+    keywords: [RSA blind signatures, RSA-PSS, IETF standard, Privacy Pass, unlinkable]
+    generated_md: rfc9474.md
     provenance: forward-citation
     local_files:
       - rfc9474.txt
@@ -293,7 +330,10 @@ documents:
   - id: rfc9497
     title: "Oblivious Pseudorandom Functions (OPRFs) Using Prime-Order Groups"
     year: 2023
-    relevance: OPRF standard; Privacy Pass token issuance primitive
+    abstract: "Defines OPRFs and VOPRFs using prime-order elliptic curve groups. A client obtains F(k, x) without the server learning x, and without the client learning k."
+    relevance: "OPRF standard underlying Privacy Pass token issuance. NozKash's blind BLS signing is functionally equivalent to an OPRF evaluation — the mint computes sk·H(m) without learning m."
+    keywords: [OPRF, VOPRF, oblivious PRF, prime-order groups, Privacy Pass, blind evaluation]
+    generated_md: rfc9497.md
     provenance: forward-citation
     local_files:
       - rfc9497.txt
@@ -306,7 +346,10 @@ documents:
   - id: rfc9576
     title: "Privacy Pass Architecture"
     year: 2024
-    relevance: Architectural framework for anonymous token protocols
+    abstract: "Defines the architectural framework for Privacy Pass: roles (issuer, attester, origin), token types, and the separation between issuance and redemption."
+    relevance: "Architectural framework for anonymous token protocols. NozKash's mint/contract/client roles map to Privacy Pass's issuer/attester/origin roles."
+    keywords: [Privacy Pass, architecture, issuer, attester, origin, anonymous tokens, framework]
+    generated_md: rfc9576.md
     provenance: forward-citation
     local_files:
       - rfc9576.txt
@@ -319,7 +362,10 @@ documents:
   - id: rfc9577
     title: "Privacy Pass HTTP Authentication"
     year: 2024
-    relevance: HTTP integration for Privacy Pass tokens
+    abstract: "Defines HTTP authentication scheme for Privacy Pass tokens, enabling anonymous token-based access control in web requests."
+    relevance: "HTTP integration layer for Privacy Pass. Not directly used by NozKash (which uses smart contracts), but relevant if NozKash tokens are ever used for web authentication."
+    keywords: [Privacy Pass, HTTP authentication, web access, anonymous tokens, bearer tokens]
+    generated_md: rfc9577.md
     provenance: forward-citation
     local_files:
       - rfc9577.txt
@@ -332,7 +378,10 @@ documents:
   - id: rfc9578
     title: "Privacy Pass Issuance Protocols"
     year: 2024
-    relevance: Token issuance protocol (blind RSA + VOPRF modes)
+    abstract: "Specifies two token issuance protocols: blind RSA (from RFC 9474) and VOPRF-based (from RFC 9497), with different privacy and performance tradeoffs."
+    relevance: "Token issuance protocol — the closest IETF standard to NozKash's deposit→mint→unblind flow. Both blind RSA and VOPRF modes are analogous to NozKash's BLS blind signing."
+    keywords: [token issuance, blind RSA, VOPRF, Privacy Pass, issuance protocol, two modes]
+    generated_md: rfc9578.md
     provenance: forward-citation
     local_files:
       - rfc9578.txt

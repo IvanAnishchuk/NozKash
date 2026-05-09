@@ -2,6 +2,24 @@
 
 Papers that need manual download or retry. Review and save from browser.
 
+## Corrupt / wrong file (removed)
+
+Files that were downloaded but contain the wrong content. Originals removed, need re-download.
+
+- **fouque-tibouchi-2012-hashing-bn-curves** — "Indifferentiable Hashing to Barreto-Naehrig Curves"
+  - File contained "Resistance to Pirates 2.0" (Phan & Trinh) instead — completely wrong paper
+  - IACR/DBLP: https://dblp.org/rec/conf/latincrypt/FouqueT12
+  - DOI: 10.1007/978-3-642-33481-8_1
+
+- **lehmann-2025-stronger-threshold-blind** — "Stronger Security for Threshold Blind Signatures"
+  - File was HTML (download error page saved as .pdf) — not a valid PDF
+  - Springer: https://link.springer.com/chapter/10.1007/978-3-031-91124-8_12
+  - May require institutional access
+
+- **karantaidou-2025-non-transferable** — "Non-Transferable Anonymous Tokens With Decentralized Issuance by Blind Multisignatures"
+  - File was a duplicate of karantaidou-2024-blind-multisig.pdf (wrong version)
+  - IACR: https://eprint.iacr.org/2024/1406 (check for updated/extended version)
+
 ## PDF not yet available
 
 - **tang-2026-rainblind** — "Rainblind: Fully Adaptive Threshold Blind Signature Without AGM"

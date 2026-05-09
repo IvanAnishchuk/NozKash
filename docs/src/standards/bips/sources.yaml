@@ -1,0 +1,40 @@
+# BIP Source Index
+# Bitcoin Improvement Proposals referenced by the NozKash protocol.
+# Last updated: 2026-05-09
+
+documents:
+  - id: bip-0032
+    title: "Hierarchical Deterministic Wallets"
+    year: 2012
+    local_file: bip-0032.mediawiki
+    generated_md: bip-0032.md
+    abstract: "Defines hierarchical deterministic (HD) wallets where a tree of key pairs is derived from a single seed using HMAC-SHA512, enabling backup with just the seed."
+    relevance: "Foundation for key derivation. NozKash derives all token secrets from (masterSeed, index), which is a simplified HD derivation. EIP-2333 BLS key generation extends BIP-32 concepts to BLS12-381."
+    keywords: [HD wallets, key derivation, HMAC-SHA512, seed backup, child keys, hardened derivation]
+
+  - id: bip-0039
+    title: "Mnemonic Seed Phrases"
+    year: 2013
+    local_file: bip-0039.mediawiki
+    generated_md: bip-0039.md
+    abstract: "Defines mnemonic code words for generating deterministic wallet seeds — a human-readable 12-24 word phrase encoding entropy for wallet backup."
+    relevance: "Standard seed phrase generation. NozKash's master seed could be derived from a BIP-39 mnemonic for user-friendly backup, though currently it uses personal_sign derivation."
+    keywords: [mnemonic, seed phrase, 12 words, 24 words, entropy, wallet backup, human-readable]
+
+  - id: bip-0043
+    title: "Purpose Field for Deterministic Wallets"
+    year: 2014
+    local_file: bip-0043.mediawiki
+    generated_md: bip-0043.md
+    abstract: "Defines the 'purpose' field in the HD wallet derivation path (m/purpose'/...), enabling different wallet standards to coexist without collision."
+    relevance: "Purpose field convention referenced by EIP-2334 for BLS key path structure. Ensures NozKash BLS keys don't collide with other key derivation schemes."
+    keywords: [purpose field, derivation path, HD wallet, namespace, EIP-2334]
+
+  - id: bip-0044
+    title: "Multi-Account Hierarchy for Deterministic Wallets"
+    year: 2014
+    local_file: bip-0044.mediawiki
+    generated_md: bip-0044.md
+    abstract: "Defines the m/44'/coin'/account'/change/index derivation path structure for multi-account HD wallets across different cryptocurrencies."
+    relevance: "Account hierarchy standard. NozKash's token index derivation (masterSeed + index) is a simplified version of BIP-44's address indexing. Referenced by EIP-2334 for BLS key paths."
+    keywords: [multi-account, derivation path, coin type, address indexing, BIP-44, cross-currency]

@@ -43,7 +43,6 @@ export const G2_GEN = bls12_381.G2.Point.BASE;
 /** AugSchemeMPL DST for hash-to-G2. */
 export const H2C_DST = 'BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_AUG_';
 
-
 // ==============================================================================
 // Hash-to-curve (RFC 9380)
 // ==============================================================================

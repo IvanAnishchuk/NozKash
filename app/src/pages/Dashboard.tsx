@@ -166,18 +166,18 @@ function BatchRedeemSection({
   const maxRedeemable = revealedTokens.length
   const maxRevealable = depositTokens.length
 
-  const [redeemCount, setRedeemCount] = useState(Math.min(1, maxRedeemable))
-  const [revealCount, setRevealCount] = useState(Math.min(1, maxRevealable))
+  const [redeemCount, setRedeemCount] = useState(0)
+  const [revealCount, setRevealCount] = useState(0)
   const [recipient, setRecipient] = useState('')
   const [busy, setBusy] = useState(false)
 
-  // Clamp counts when available tokens change
+  // Default reveal to all available; default redeem to 1; clamp when counts change
   useEffect(() => {
-    setRedeemCount((c) => Math.min(c, Math.max(0, maxRedeemable)))
-  }, [maxRedeemable])
-  useEffect(() => {
-    setRevealCount((c) => Math.min(c, Math.max(0, maxRevealable)))
+    setRevealCount((c) => c === 0 && maxRevealable > 0 ? maxRevealable : Math.min(c, Math.max(0, maxRevealable)))
   }, [maxRevealable])
+  useEffect(() => {
+    setRedeemCount((c) => c === 0 && maxRedeemable > 0 ? Math.min(1, maxRedeemable) : Math.min(c, Math.max(0, maxRedeemable)))
+  }, [maxRedeemable])
 
   const redeemAmountEth = (redeemCount * VAULT_DENOMINATION_ETH).toFixed(3)
   const revealAmountEth = (revealCount * VAULT_DENOMINATION_ETH).toFixed(3)

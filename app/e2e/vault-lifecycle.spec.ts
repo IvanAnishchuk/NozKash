@@ -36,13 +36,11 @@ import { startMintServer, startRelayerServer, type ServiceHandle } from './fixtu
 const ANVIL_RPC = 'http://127.0.0.1:8545'
 const CHAIN_ID_HEX = '0x7a69'
 
-// Must match VITE_NOZK_MASTER_SEED_HEX in .env.test so the app scanner
-// recognises tokens deposited by the test.
-const ENV_SEED_HEX = 'ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
-const APP_SEED = Uint8Array.from(ENV_SEED_HEX.match(/.{2}/g)!.map(x => parseInt(x, 16)))
-
-// Separate seed for contract-only tests that don't load the UI (faster, no seed conflict)
-const TEST_SEED = new TextEncoder().encode('playwright_e2e_lifecycle_test')
+// Same seed as VITE_NOZK_MASTER_SEED_HEX in .env.test — the app scanner
+// derives deposit IDs from this seed, so all tests must use it for the
+// app to recognise on-chain tokens.
+const SEED_HEX = 'ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+const SEED = Uint8Array.from(SEED_HEX.match(/.{2}/g)!.map(x => parseInt(x, 16)))
 
 // Anvil accounts not used by test infrastructure
 const ACCT4 = '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65' as Address  // account 3
@@ -61,11 +59,11 @@ test.describe('Vault lifecycle E2E', () => {
   })
 
   test('full lifecycle: deposit → announce → reveal → redeem sends 0.001 ETH to recipient', async () => {
-    const { S } = await depositAndAnnounce(TEST_SEED, 0)
-    await revealToken(TEST_SEED, 0, S)
+    const { S } = await depositAndAnnounce(SEED, 0)
+    await revealToken(SEED, 0, S)
 
     const balBefore = await getBalance(RECIPIENT)
-    const { nullifierId } = await redeemToken(TEST_SEED, 0, RECIPIENT)
+    const { nullifierId } = await redeemToken(SEED, 0, RECIPIENT)
     const balAfter = await getBalance(RECIPIENT)
 
     expect(balAfter - balBefore).toBe(DENOMINATION)
@@ -73,11 +71,11 @@ test.describe('Vault lifecycle E2E', () => {
   })
 
   test('redeem to a different recipient also transfers correct amount', async () => {
-    const { S } = await depositAndAnnounce(TEST_SEED, 1)
-    await revealToken(TEST_SEED, 1, S)
+    const { S } = await depositAndAnnounce(SEED, 1)
+    await revealToken(SEED, 1, S)
 
     const balBefore = await getBalance(ACCT5)
-    await redeemToken(TEST_SEED, 1, ACCT5)
+    await redeemToken(SEED, 1, ACCT5)
     const balAfter = await getBalance(ACCT5)
 
     expect(balAfter - balBefore).toBe(DENOMINATION)
@@ -93,8 +91,7 @@ test.describe('Vault lifecycle E2E', () => {
   })
 
   test('app UI shows deposited token in activity feed after deposit + announce', async ({ page }) => {
-    // Use APP_SEED so the app recognises these tokens
-    const { S } = await depositAndAnnounce(APP_SEED, 0)
+    const { S } = await depositAndAnnounce(SEED, 3)
 
     await injectMockWallet(page, {
       rpcUrl: ANVIL_RPC,
@@ -114,9 +111,8 @@ test.describe('Vault lifecycle E2E', () => {
   })
 
   test('app UI shows revealed token as ready to redeem', async ({ page }) => {
-    // Token 0 was deposited + announced in the previous test; now reveal it
-    const secrets0 = await depositAndAnnounce(APP_SEED, 1)
-    await revealToken(APP_SEED, 1, secrets0.S)
+    const secrets0 = await depositAndAnnounce(SEED, 4)
+    await revealToken(SEED, 4, secrets0.S)
 
     await injectMockWallet(page, {
       rpcUrl: ANVIL_RPC,
@@ -131,6 +127,23 @@ test.describe('Vault lifecycle E2E', () => {
     await expect(page.getByText(/ready to redeem/i)).toBeVisible({ timeout: 30_000 })
     await page.screenshot({ path: 'e2e/screenshots/vault-after-reveal.png', fullPage: true })
   })
+
+  test('redeem page shows available token after reveal', async ({ page }) => {
+    const { S } = await depositAndAnnounce(SEED, 2)
+    await revealToken(SEED, 2, S)
+
+    await injectMockWallet(page, {
+      rpcUrl: ANVIL_RPC,
+      chainIdHex: CHAIN_ID_HEX,
+      account: MOCK_ACCOUNT_ADDRESS,
+    })
+    await page.goto('/redeem')
+    await expect(page.locator('#splash')).toBeHidden({ timeout: 15_000 })
+
+    // Wait for token items to render in the "Available tokens" list
+    await expect(page.locator('.mm-wallet-name').first()).toBeVisible({ timeout: 60_000 })
+    await page.screenshot({ path: 'e2e/screenshots/vault-redeem-with-tokens.png', fullPage: true })
+  })
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -138,7 +151,6 @@ test.describe('Vault lifecycle E2E', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 test.describe('Multi-token individual redeem', () => {
-  const SEED = new TextEncoder().encode('multi_individual_redeem')
 
   test.beforeAll(async () => {
     const addr = await deployNozkVault()
@@ -219,7 +231,6 @@ test.describe('Multi-token individual redeem', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 test.describe('Batch reveal + individual redeem', () => {
-  const SEED = new TextEncoder().encode('batch_reveal_test')
 
   test.beforeAll(async () => {
     const addr = await deployNozkVault()
@@ -258,7 +269,6 @@ test.describe('Batch reveal + individual redeem', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 test.describe('Aggregated reveal + aggregated redeem', () => {
-  const SEED = new TextEncoder().encode('aggregated_test')
 
   test.beforeAll(async () => {
     const addr = await deployNozkVault()
@@ -316,7 +326,6 @@ test.describe('Aggregated reveal + aggregated redeem', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 test.describe('Mixed recipients: input address + connected wallet', () => {
-  const SEED = new TextEncoder().encode('mixed_recipients_test')
 
   test.beforeAll(async () => {
     const addr = await deployNozkVault()

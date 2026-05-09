@@ -84,7 +84,7 @@ def compute_vector(master_seed_hex: str, sk_int: int, token_index: int) -> dict:
         "PK_MINT": _g1_to_dict(serialize_g1_sol(pk_g1)),
         # Spend key: G1 pubkey (nullifier) + chia compressed
         "SPEND_BLS": {
-            "priv": hex(secrets.spend_bls_priv),
+            "priv": f"0x{secrets.spend_bls_priv:064x}",
             "pub_G1": _g1_to_dict(serialize_g1_sol(secrets.spend_bls_pub)),
             "pub_compressed": secrets.spend_chia_pk.to_bytes().hex(),
             "nullifier_id": secrets.nullifier_id.hex(),
@@ -93,7 +93,7 @@ def compute_vector(master_seed_hex: str, sk_int: int, token_index: int) -> dict:
             "priv": secrets.deposit_blind_keypair.priv.to_bytes().hex(),
             "pub": secrets.deposit_blind_keypair.pub_hex,
             "address": secrets.deposit_blind_keypair.address,
-            "r": hex(secrets.r),
+            "r": f"0x{secrets.r:064x}",
         },
         "DEPOSIT_ID": secrets.deposit_id,
         # Protocol intermediates: Y and B are G2 (8 uint256), S' and S are G2

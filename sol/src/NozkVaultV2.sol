@@ -137,6 +137,20 @@ contract NozkVaultV2 {
     // -------------------------------------------------------------------------
 
     constructor(uint256[4] memory pkMint_, address mintAuthority_) {
+        // Validate pkMint_ is a valid G1 point by calling G1MSM(pkMint_, 1).
+        // The precompile rejects invalid encodings and off-curve points.
+        bool valid;
+        assembly ("memory-safe") {
+            let ptr := mload(0x40)
+            mstore(ptr, mload(pkMint_))
+            mstore(add(ptr, 0x20), mload(add(pkMint_, 0x20)))
+            mstore(add(ptr, 0x40), mload(add(pkMint_, 0x40)))
+            mstore(add(ptr, 0x60), mload(add(pkMint_, 0x60)))
+            mstore(add(ptr, 0x80), 1) // scalar = 1
+            valid := staticcall(gas(), 0x0c, ptr, 0xa0, ptr, 0x80)
+        }
+        if (!valid) revert InvalidBLS();
+
         pkMint = pkMint_;
         mintAuthority = mintAuthority_;
         DOMAIN_SEPARATOR =

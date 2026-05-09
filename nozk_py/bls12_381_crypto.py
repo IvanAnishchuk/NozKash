@@ -40,6 +40,7 @@ On-chain equivalence (EIP-2537 precompile addresses, final Pectra spec)::
 from __future__ import annotations
 
 import hashlib
+from functools import reduce
 from typing import NewType
 
 from chia_rs import AugSchemeMPL, G1Element, G2Element, PrivateKey  # noqa: F401 — re-exported for nozk_library
@@ -300,22 +301,12 @@ def g1_neg(point: G1Point) -> G1Point:
 
 def aggregate_g1(points: list[G1Point]) -> G1Point:
     """Sum a list of G1 points.  Returns ``Z1_POINT`` for an empty list."""
-    if not points:
-        return Z1_POINT
-    result = points[0]
-    for p in points[1:]:
-        result = g1_add(result, p)
-    return result
+    return reduce(g1_add, points, Z1_POINT)
 
 
 def aggregate_g2(points: list[G2Point]) -> G2Point:
     """Sum a list of G2 points.  Returns ``Z2_POINT`` for an empty list."""
-    if not points:
-        return Z2_POINT
-    result = points[0]
-    for p in points[1:]:
-        result = g2_add(result, p)
-    return result
+    return reduce(g2_add, points, Z2_POINT)
 
 
 # ==============================================================================

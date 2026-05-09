@@ -931,7 +931,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "chia-rs", specifier = ">=0.42.1" },
+    { name = "chia-rs", specifier = ">=0.42.1,<1" },
     { name = "eth-hash", extras = ["pycryptodome"], specifier = ">=0.7.1" },
     { name = "eth-keys", specifier = ">=0.7.0" },
     { name = "eth-utils", specifier = ">=5.3.1" },

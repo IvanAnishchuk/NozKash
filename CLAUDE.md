@@ -136,7 +136,7 @@ bash nozk_flow.sh --to 0xRecipient --dry-run   # simulate with RPC
 
 ### Solidity
 - Foundry toolchain (`forge build`, `forge test`, `forge fmt`)
-- Solidity `^0.8.19`
+- Solidity `^0.8.28`
 - Custom errors over revert strings
 - `calldata` for read-only array parameters
 - `external` visibility when not called internally

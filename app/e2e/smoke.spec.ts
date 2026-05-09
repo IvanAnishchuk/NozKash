@@ -4,7 +4,7 @@
  * Requires: anvil running on localhost:8545 (chain ID 31337 = 0x7a69)
  *
  * Usage:
- *   cd app && npx playwright test
+ *   cd app && npm run test:e2e
  */
 
 import { test, expect } from '@playwright/test'
@@ -24,39 +24,53 @@ test.describe('App smoke tests', () => {
 
   test('app loads and shows the dashboard', async ({ page }) => {
     await page.goto('/')
-    await page.waitForTimeout(2000)
 
-    // App should render something substantial (not a blank page)
-    const bodyText = (await page.textContent('body')) ?? ''
-    expect(bodyText.length).toBeGreaterThan(20)
+    // Wait for splash screen to fully disappear (4.8s animation + fade)
+    await expect(page.locator('#splash')).toBeHidden({ timeout: 15_000 })
 
-    await page.screenshot({ path: 'e2e/screenshots/01-app-loaded.png', fullPage: true })
+    // Now wait for dashboard content
+    await expect(page.getByText('PRIVATE BALANCE')).toBeVisible({ timeout: 5_000 })
+    await expect(page.getByText('Add deposit')).toBeVisible()
+
+    await page.screenshot({ path: 'e2e/screenshots/01-dashboard.png', fullPage: true })
   })
 
   test('wallet address is visible after connection', async ({ page }) => {
     await page.goto('/')
-    await page.waitForTimeout(3000)
+
+    // Wait for splash to disappear
+    await expect(page.locator('#splash')).toBeHidden({ timeout: 15_000 })
+    await expect(page.getByText('PRIVATE BALANCE')).toBeVisible({ timeout: 5_000 })
+
+    // The navbar wallet button should show the account address
+    const addrShort = `${MOCK_ACCOUNT_ADDRESS.slice(0, 6)}...${MOCK_ACCOUNT_ADDRESS.slice(-4)}`
+    await expect(page.locator('.wallet-name').first()).toContainText(addrShort, { timeout: 5_000 })
 
     await page.screenshot({ path: 'e2e/screenshots/02-wallet-connected.png', fullPage: true })
-
-    // The mock wallet should auto-connect; check that the page rendered
-    const bodyText = (await page.textContent('body')) ?? ''
-    expect(bodyText.length).toBeGreaterThan(20)
   })
 
-  test('deposit page loads', async ({ page }) => {
-    await page.goto('/deposit')
-    await page.waitForTimeout(2000)
+  test('deposit modal opens', async ({ page }) => {
+    await page.goto('/')
 
-    await page.screenshot({ path: 'e2e/screenshots/03-deposit-page.png', fullPage: true })
+    // Wait for splash to disappear
+    await expect(page.locator('#splash')).toBeHidden({ timeout: 15_000 })
+    const addDepositBtn = page.getByRole('button', { name: /Add deposit/i })
+    await expect(addDepositBtn).toBeVisible({ timeout: 5_000 })
 
-    const bodyText = (await page.textContent('body')) ?? ''
-    expect(bodyText.length).toBeGreaterThan(20)
+    // Click the Add deposit button
+    await addDepositBtn.click()
+
+    // Wait for the deposit modal heading (exact match to avoid the button label)
+    await expect(page.getByText('ADD DEPOSIT', { exact: true })).toBeVisible({ timeout: 5_000 })
+
+    await page.screenshot({ path: 'e2e/screenshots/03-deposit-modal.png', fullPage: true })
   })
 
   test('redeem page loads', async ({ page }) => {
     await page.goto('/redeem')
-    await page.waitForTimeout(2000)
+
+    // Wait for splash to disappear
+    await expect(page.locator('#splash')).toBeHidden({ timeout: 15_000 })
 
     await page.screenshot({ path: 'e2e/screenshots/04-redeem-page.png', fullPage: true })
 

@@ -30,19 +30,24 @@ TEST_DEADLINE = 2**256 - 1
 
 
 def _g1_to_dict(coords: tuple[int, int, int, int]) -> dict:
-    return {"x_hi": hex(coords[0]), "x_lo": hex(coords[1]), "y_hi": hex(coords[2]), "y_lo": hex(coords[3])}
+    return {
+        "x_hi": f"0x{coords[0]:032x}",
+        "x_lo": f"0x{coords[1]:064x}",
+        "y_hi": f"0x{coords[2]:032x}",
+        "y_lo": f"0x{coords[3]:064x}",
+    }
 
 
 def _g2_to_dict(coords: tuple[int, int, int, int, int, int, int, int]) -> dict:
     return {
-        "x_c0_hi": hex(coords[0]),
-        "x_c0_lo": hex(coords[1]),
-        "x_c1_hi": hex(coords[2]),
-        "x_c1_lo": hex(coords[3]),
-        "y_c0_hi": hex(coords[4]),
-        "y_c0_lo": hex(coords[5]),
-        "y_c1_hi": hex(coords[6]),
-        "y_c1_lo": hex(coords[7]),
+        "x_c0_hi": f"0x{coords[0]:032x}",
+        "x_c0_lo": f"0x{coords[1]:064x}",
+        "x_c1_hi": f"0x{coords[2]:032x}",
+        "x_c1_lo": f"0x{coords[3]:064x}",
+        "y_c0_hi": f"0x{coords[4]:032x}",
+        "y_c0_lo": f"0x{coords[5]:064x}",
+        "y_c1_hi": f"0x{coords[6]:032x}",
+        "y_c1_lo": f"0x{coords[7]:064x}",
     }
 
 
@@ -117,6 +122,7 @@ def compute_vector(master_seed_hex: str, sk_int: int, token_index: int) -> dict:
 def compute_aggregation_vectors(master_seed_hex: str, sk_int: int, indices: list[int]) -> dict:
     master_seed_bytes = master_seed_hex.encode("utf-8")
     sk = Scalar(sk_int)
+    pk_mint = g1_scalar_mul(G1_GEN, sk)
 
     unblinded_sigs = []
     spend_pubs_g1 = []
@@ -155,6 +161,7 @@ def compute_aggregation_vectors(master_seed_hex: str, sk_int: int, indices: list
             "sigma_G2": _g2_to_dict(serialize_g2_sol(reveal_sigma)),
             "nullifier_ids": nullifier_ids,
             "spend_pubs_G1": [_g1_to_dict(serialize_g1_sol(p)) for p in spend_pubs_g1],
+            "pk_mint_G1": _g1_to_dict(serialize_g1_sol(pk_mint)),
         },
         "AGGREGATED_REDEEM": {
             "sigma_compressed": redeem_sigma.to_bytes().hex(),

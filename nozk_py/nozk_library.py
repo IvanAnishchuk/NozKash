@@ -44,6 +44,7 @@ from bls12_381_crypto import (
     g1_scalar_mul,
     g2_scalar_mul,
     hash_to_g2,
+    is_g2_identity,
     verify_mint_pairing,
 )
 
@@ -454,7 +455,12 @@ def blind_token(spend_bls_pub: G1Point, r: int) -> BlindedPoints:
 
     Returns:
         A :class:`BlindedPoints` containing both ``Y`` and ``B``.
+
+    Raises:
+        DerivationError: If ``r`` is not in the valid range ``[1, CURVE_ORDER)``.
     """
+    if not (0 < r < CURVE_ORDER):
+        raise DerivationError("blinding factor r must be in [1, CURVE_ORDER)")
     Y = hash_to_g2(abi_encode_g1(spend_bls_pub))
     B = g2_scalar_mul(Y, Scalar(r))
     return BlindedPoints(Y=Y, B=B)
@@ -549,8 +555,6 @@ def mint_blind_sign(B: G2Point, sk_mint: Scalar) -> G2Point:
     Raises:
         ScalarMultiplicationError: If the result is the G2 identity.
     """
-    from bls12_381_crypto import is_g2_identity
-
     result = g2_scalar_mul(B, sk_mint)
     if is_g2_identity(result):
         raise ScalarMultiplicationError("Blind signature produced identity")
@@ -628,7 +632,12 @@ def aggregate_reveal_sigma(unblinded_sigs: list[G2Point]) -> G2Point:
 
     Returns:
         The aggregated G2 signature point (sum of all inputs).
+
+    Raises:
+        ValueError: If ``unblinded_sigs`` is empty (mirrors Solidity ``EmptyBatch()``).
     """
+    if not unblinded_sigs:
+        raise ValueError("unblinded_sigs must not be empty (Solidity: EmptyBatch)")
     return aggregate_g2(unblinded_sigs)
 
 
@@ -655,8 +664,11 @@ def verify_aggregated_reveal(
         pk_mint: Mint's G1 public key.
 
     Returns:
-        ``True`` if the aggregated pairing check passes.
+        ``True`` if the aggregated pairing check passes, ``False`` if
+        ``spend_pubs`` is empty (mirrors Solidity ``EmptyBatch()``).
     """
+    if not spend_pubs:
+        return False
     ys = [hash_to_g2(abi_encode_g1(pub)) for pub in spend_pubs]
     y_agg = aggregate_g2(ys)
     return verify_mint_pairing(sigma, y_agg, pk_mint)
@@ -675,7 +687,12 @@ def aggregate_redeem_sigma(spend_sigs: list[G2Element]) -> G2Element:
 
     Returns:
         A single aggregated chia_rs ``G2Element``.
+
+    Raises:
+        ValueError: If ``spend_sigs`` is empty (mirrors Solidity ``EmptyBatch()``).
     """
+    if not spend_sigs:
+        raise ValueError("spend_sigs must not be empty (Solidity: EmptyBatch)")
     return AugSchemeMPL.aggregate(spend_sigs)
 
 
@@ -699,8 +716,11 @@ def verify_aggregated_redeem(
             in the same order as the signatures were aggregated.
 
     Returns:
-        ``True`` if the aggregate verification passes.
+        ``True`` if the aggregate verification passes, ``False`` if
+        ``spend_pks`` is empty (mirrors Solidity ``EmptyBatch()``).
     """
+    if not spend_pks:
+        return False
     msgs = [msg_hash] * len(spend_pks)
     return AugSchemeMPL.aggregate_verify(spend_pks, msgs, sigma)
 

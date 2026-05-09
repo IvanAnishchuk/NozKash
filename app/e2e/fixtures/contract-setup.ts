@@ -53,6 +53,10 @@ export const DENOMINATION = parseEther('0.001')
 export const MINT_SK = 42n
 const MINT_PK = g1ScalarMul(G1_GEN, MINT_SK)
 
+// Deterministic CREATE address: deployer (anvil account 0) at nonce 0.
+// Matches VITE_NOZK_VAULT_ADDRESS in .env.test so the app scanner finds tokens.
+export const EXPECTED_VAULT_ADDRESS = '0x5FbDB2315678afecb367f032d93F642f64180aa3' as Address
+
 // Anvil default accounts (well-known test keys, not real secrets)
 import { DEPLOYER_KEY, DEPOSITOR_KEY, RECIPIENT } from './test-constants.ts'
 export { DEPLOYER_KEY, DEPOSITOR_KEY, RECIPIENT }
@@ -114,6 +118,14 @@ async function writeVault(wallet: any, params: Record<string, any>): Promise<`0x
 // ==============================================================================
 
 export async function deployNozkVault(): Promise<Address> {
+  // Reset Anvil so deployer nonce is 0 → deterministic contract address.
+  // This ensures the app's VITE_NOZK_VAULT_ADDRESS matches the deployed contract.
+  await fetch(ANVIL_RPC, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'anvil_reset', params: [] }),
+  })
+
   const artifactPath = resolve(__dirname, '..', '..', '..', 'sol', 'out', 'NozkVaultV2.sol', 'NozkVaultV2.json')
   const artifact = JSON.parse(readFileSync(artifactPath, 'utf-8'))
   abi = artifact.abi as Abi
@@ -129,6 +141,14 @@ export async function deployNozkVault(): Promise<Address> {
   const receipt = await publicClient.waitForTransactionReceipt({ hash })
   if (receipt.status !== 'success') throw new Error('Deploy failed')
   vaultAddress = receipt.contractAddress!
+
+  if (vaultAddress.toLowerCase() !== EXPECTED_VAULT_ADDRESS.toLowerCase()) {
+    throw new Error(
+      `Vault deployed at ${vaultAddress}, expected ${EXPECTED_VAULT_ADDRESS}. ` +
+      `Deployer nonce was not 0 — anvil_reset may have failed.`
+    )
+  }
+
   return vaultAddress
 }
 

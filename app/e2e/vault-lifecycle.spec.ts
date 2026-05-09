@@ -35,6 +35,13 @@ import { startMintServer, startRelayerServer, type ServiceHandle } from './fixtu
 
 const ANVIL_RPC = 'http://127.0.0.1:8545'
 const CHAIN_ID_HEX = '0x7a69'
+
+// Must match VITE_NOZK_MASTER_SEED_HEX in .env.test so the app scanner
+// recognises tokens deposited by the test.
+const ENV_SEED_HEX = 'ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+const APP_SEED = Uint8Array.from(ENV_SEED_HEX.match(/.{2}/g)!.map(x => parseInt(x, 16)))
+
+// Separate seed for contract-only tests that don't load the UI (faster, no seed conflict)
 const TEST_SEED = new TextEncoder().encode('playwright_e2e_lifecycle_test')
 
 // Anvil accounts not used by test infrastructure
@@ -85,9 +92,9 @@ test.describe('Vault lifecycle E2E', () => {
     expect(denom).toBe(DENOMINATION)
   })
 
-  test('revealed token shows activity in the app UI', async ({ page }) => {
-    const { S } = await depositAndAnnounce(TEST_SEED, 2)
-    await revealToken(TEST_SEED, 2, S)
+  test('app UI shows deposited token in activity feed after deposit + announce', async ({ page }) => {
+    // Use APP_SEED so the app recognises these tokens
+    const { S } = await depositAndAnnounce(APP_SEED, 0)
 
     await injectMockWallet(page, {
       rpcUrl: ANVIL_RPC,
@@ -98,7 +105,31 @@ test.describe('Vault lifecycle E2E', () => {
     await expect(page.locator('#splash')).toBeHidden({ timeout: 15_000 })
     await expect(page.getByText('PRIVATE BALANCE')).toBeVisible({ timeout: 5_000 })
 
-    await page.screenshot({ path: 'e2e/screenshots/vault-lifecycle-dashboard.png', fullPage: true })
+    // Wait for the scanner to find the deposit + mint fulfilled events
+    await expect(page.getByText(/mint fulfilled/i)).toBeVisible({ timeout: 30_000 })
+    await page.screenshot({ path: 'e2e/screenshots/vault-after-deposit.png', fullPage: true })
+
+    // Verify balance reflects the token
+    await expect(page.getByText('PENDING')).toBeVisible()
+  })
+
+  test('app UI shows revealed token as ready to redeem', async ({ page }) => {
+    // Token 0 was deposited + announced in the previous test; now reveal it
+    const secrets0 = await depositAndAnnounce(APP_SEED, 1)
+    await revealToken(APP_SEED, 1, secrets0.S)
+
+    await injectMockWallet(page, {
+      rpcUrl: ANVIL_RPC,
+      chainIdHex: CHAIN_ID_HEX,
+      account: MOCK_ACCOUNT_ADDRESS,
+    })
+    await page.goto('/')
+    await expect(page.locator('#splash')).toBeHidden({ timeout: 15_000 })
+    await expect(page.getByText('PRIVATE BALANCE')).toBeVisible({ timeout: 5_000 })
+
+    // Wait for scanner to find revealed token
+    await expect(page.getByText(/ready to redeem/i)).toBeVisible({ timeout: 30_000 })
+    await page.screenshot({ path: 'e2e/screenshots/vault-after-reveal.png', fullPage: true })
   })
 })
 

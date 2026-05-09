@@ -409,6 +409,23 @@ contract NozkVaultV2Test is Test {
         assertFalse(v.depositPending(depositId));
     }
 
+    function test_refund_revertsNotDepositor() public {
+        string memory j = vm.readFile(_tokenFile(keypairDirs[0], tokenIndices[0]));
+        uint256[4] memory pk = _loadPkMint(j);
+        NozkVaultV2 v = new NozkVaultV2(pk, mintAuth);
+
+        address depositId = vm.parseAddress(vm.parseJsonString(j, ".DEPOSIT_ID"));
+        uint256[8] memory B = _loadG2(j, ".B_BLINDED");
+
+        vm.deal(deployer, 1 ether);
+        vm.prank(deployer);
+        v.deposit{value: 0.001 ether}(depositId, B);
+
+        vm.prank(address(0x999));
+        vm.expectRevert(NozkVaultV2.NotDepositor.selector);
+        v.refund(depositId);
+    }
+
     function test_refund_revertsAfterAnnounce() public {
         string memory j = vm.readFile(_tokenFile(keypairDirs[0], tokenIndices[0]));
         uint256[4] memory pk = _loadPkMint(j);
@@ -428,5 +445,202 @@ contract NozkVaultV2Test is Test {
         vm.prank(deployer);
         vm.expectRevert(NozkVaultV2.NothingToRefund.selector);
         v.refund(depositId);
+    }
+
+    // =========================================================================
+    //  Deposit edge cases
+    // =========================================================================
+
+    function test_deposit_revertsDepositIdReuse() public {
+        string memory j = vm.readFile(_tokenFile(keypairDirs[0], tokenIndices[0]));
+        uint256[4] memory pk = _loadPkMint(j);
+        NozkVaultV2 v = new NozkVaultV2(pk, mintAuth);
+
+        address depositId = vm.parseAddress(vm.parseJsonString(j, ".DEPOSIT_ID"));
+        uint256[8] memory B = _loadG2(j, ".B_BLINDED");
+
+        vm.deal(deployer, 1 ether);
+        vm.prank(deployer);
+        v.deposit{value: 0.001 ether}(depositId, B);
+
+        vm.deal(deployer, 1 ether);
+        vm.prank(deployer);
+        vm.expectRevert(NozkVaultV2.DepositIdAlreadyUsed.selector);
+        v.deposit{value: 0.001 ether}(depositId, B);
+    }
+
+    function test_deposit_revertsZeroAddress() public {
+        string memory j = vm.readFile(_tokenFile(keypairDirs[0], tokenIndices[0]));
+        uint256[4] memory pk = _loadPkMint(j);
+        NozkVaultV2 v = new NozkVaultV2(pk, mintAuth);
+
+        uint256[8] memory B = _loadG2(j, ".B_BLINDED");
+
+        vm.deal(deployer, 1 ether);
+        vm.prank(deployer);
+        vm.expectRevert(NozkVaultV2.InvalidDepositId.selector);
+        v.deposit{value: 0.001 ether}(address(0), B);
+    }
+
+    // =========================================================================
+    //  Reveal edge cases
+    // =========================================================================
+
+    function test_reveal_revertsDoubleReveal() public {
+        string memory j = vm.readFile(_tokenFile(keypairDirs[0], tokenIndices[0]));
+        uint256[4] memory pk = _loadPkMint(j);
+        NozkVaultV2 v = new NozkVaultV2(pk, mintAuth);
+
+        address depositId = vm.parseAddress(vm.parseJsonString(j, ".DEPOSIT_ID"));
+        uint256[8] memory B = _loadG2(j, ".B_BLINDED");
+        vm.deal(deployer, 1 ether);
+        vm.prank(deployer);
+        v.deposit{value: 0.001 ether}(depositId, B);
+
+        uint256[8] memory S_prime = _loadG2(j, ".S_PRIME");
+        vm.prank(mintAuth);
+        v.announce(depositId, S_prime);
+
+        uint256[4] memory spendPub = _loadG1(j, ".REVEAL_TX.spend_pub_G1");
+        uint256[8] memory S = _loadG2(j, ".REVEAL_TX.S_G2");
+        v.reveal(spendPub, S);
+
+        // Second reveal with same nullifier should revert
+        vm.expectRevert(NozkVaultV2.AlreadyRevealed.selector);
+        v.reveal(spendPub, S);
+    }
+
+    // =========================================================================
+    //  Redeem edge cases
+    // =========================================================================
+
+    function test_redeem_revertsDoubleSpend() public {
+        string memory j = vm.readFile(_tokenFile(keypairDirs[0], tokenIndices[0]));
+        NozkVaultV2 v = _deployVault(j);
+        _depositAnnounceReveal(v, j);
+
+        uint256[4] memory spendPub = _loadG1(j, ".REVEAL_TX.spend_pub_G1");
+        bytes32 nId = v.nullifierId(spendPub);
+        address recipient = vm.parseAddress(vm.parseJsonString(j, ".REDEEM_TX.recipient"));
+        uint256[8] memory spendSig = _loadG2(j, ".REDEEM_TX.sigma_G2");
+        uint256 deadline = vm.parseUint(vm.parseJsonString(j, ".REDEEM_TX.deadline"));
+
+        v.redeem(recipient, spendSig, nId, deadline);
+
+        // Second redeem should revert AlreadySpent
+        vm.expectRevert(NozkVaultV2.AlreadySpent.selector);
+        v.redeem(recipient, spendSig, nId, deadline);
+    }
+
+    function test_redeem_revertsNotRevealed() public {
+        string memory j = vm.readFile(_tokenFile(keypairDirs[0], tokenIndices[0]));
+        NozkVaultV2 v = _deployVault(j);
+
+        // Deposit + announce but DON'T reveal
+        address depositId = vm.parseAddress(vm.parseJsonString(j, ".DEPOSIT_ID"));
+        uint256[8] memory B = _loadG2(j, ".B_BLINDED");
+        vm.deal(deployer, 1 ether);
+        vm.prank(deployer);
+        v.deposit{value: 0.001 ether}(depositId, B);
+        uint256[8] memory S_prime = _loadG2(j, ".S_PRIME");
+        vm.prank(mintAuth);
+        v.announce(depositId, S_prime);
+
+        uint256[4] memory spendPub = _loadG1(j, ".REVEAL_TX.spend_pub_G1");
+        bytes32 nId = v.nullifierId(spendPub);
+        address recipient = vm.parseAddress(vm.parseJsonString(j, ".REDEEM_TX.recipient"));
+        uint256[8] memory spendSig = _loadG2(j, ".REDEEM_TX.sigma_G2");
+        uint256 deadline = vm.parseUint(vm.parseJsonString(j, ".REDEEM_TX.deadline"));
+
+        vm.expectRevert(NozkVaultV2.NotRevealed.selector);
+        v.redeem(recipient, spendSig, nId, deadline);
+    }
+
+    function test_redeem_revertsExpiredDeadline() public {
+        string memory j = vm.readFile(_tokenFile(keypairDirs[0], tokenIndices[0]));
+        NozkVaultV2 v = _deployVault(j);
+        _depositAnnounceReveal(v, j);
+
+        uint256[4] memory spendPub = _loadG1(j, ".REVEAL_TX.spend_pub_G1");
+        bytes32 nId = v.nullifierId(spendPub);
+        address recipient = vm.parseAddress(vm.parseJsonString(j, ".REDEEM_TX.recipient"));
+        uint256[8] memory spendSig = _loadG2(j, ".REDEEM_TX.sigma_G2");
+
+        // Set block.timestamp past the deadline
+        uint256 expiredDeadline = 1000;
+        vm.warp(expiredDeadline + 1);
+
+        vm.expectRevert(NozkVaultV2.ExpiredSignature.selector);
+        v.redeem(recipient, spendSig, nId, expiredDeadline);
+    }
+
+    // =========================================================================
+    //  Nullifier state transitions
+    // =========================================================================
+
+    function test_nullifierStateTransitions() public {
+        string memory j = vm.readFile(_tokenFile(keypairDirs[0], tokenIndices[0]));
+        NozkVaultV2 v = _deployVault(j);
+
+        uint256[4] memory spendPub = _loadG1(j, ".REVEAL_TX.spend_pub_G1");
+        bytes32 nId = v.nullifierId(spendPub);
+
+        // Initially UNREVEALED (0)
+        assertEq(uint256(v.nullifierState(nId)), 0);
+
+        _depositAnnounceReveal(v, j);
+
+        // After reveal: REVEALED (1)
+        assertEq(uint256(v.nullifierState(nId)), 1);
+        assertEq(v.revealedAmount(nId), 0.001 ether);
+
+        // Redeem
+        address recipient = vm.parseAddress(vm.parseJsonString(j, ".REDEEM_TX.recipient"));
+        uint256[8] memory spendSig = _loadG2(j, ".REDEEM_TX.sigma_G2");
+        uint256 deadline = vm.parseUint(vm.parseJsonString(j, ".REDEEM_TX.deadline"));
+        v.redeem(recipient, spendSig, nId, deadline);
+
+        // After redeem: SPENT (2)
+        assertEq(uint256(v.nullifierState(nId)), 2);
+    }
+
+    // =========================================================================
+    //  Contract balance accounting
+    // =========================================================================
+
+    function test_contractBalanceAccounting() public {
+        string memory j = vm.readFile(_tokenFile(keypairDirs[0], tokenIndices[0]));
+        NozkVaultV2 v = _deployVault(j);
+
+        uint256 vaultBalBefore = address(v).balance;
+        assertEq(vaultBalBefore, 0);
+
+        // Deposit adds 0.001 ETH
+        address depositId = vm.parseAddress(vm.parseJsonString(j, ".DEPOSIT_ID"));
+        uint256[8] memory B = _loadG2(j, ".B_BLINDED");
+        vm.deal(deployer, 1 ether);
+        vm.prank(deployer);
+        v.deposit{value: 0.001 ether}(depositId, B);
+        assertEq(address(v).balance, 0.001 ether);
+
+        // Announce doesn't change balance
+        uint256[8] memory S_prime = _loadG2(j, ".S_PRIME");
+        vm.prank(mintAuth);
+        v.announce(depositId, S_prime);
+        assertEq(address(v).balance, 0.001 ether);
+
+        // Reveal doesn't change balance
+        uint256[4] memory spendPub = _loadG1(j, ".REVEAL_TX.spend_pub_G1");
+        uint256[8] memory S = _loadG2(j, ".REVEAL_TX.S_G2");
+        v.reveal(spendPub, S);
+        assertEq(address(v).balance, 0.001 ether);
+
+        // Redeem drains 0.001 ETH
+        bytes32 nId = v.nullifierId(spendPub);
+        address recipient = vm.parseAddress(vm.parseJsonString(j, ".REDEEM_TX.recipient"));
+        uint256[8] memory spendSig = _loadG2(j, ".REDEEM_TX.sigma_G2");
+        uint256 deadline = vm.parseUint(vm.parseJsonString(j, ".REDEEM_TX.deadline"));
+        v.redeem(recipient, spendSig, nId, deadline);
+        assertEq(address(v).balance, 0);
     }
 }

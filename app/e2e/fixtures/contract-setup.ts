@@ -40,7 +40,6 @@ import {
   generateRedemptionProof,
   mintBlindSign,
   unblindSignature,
-  verifyBlsPairing,
   // @ts-ignore -- compiled JS, no .d.ts
 } from '../../../nozk_ts/dist/nozk-library.js'
 

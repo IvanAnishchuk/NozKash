@@ -385,8 +385,9 @@ contract NozkVaultV2 {
                 revert NotRevealed();
             }
             nullifierState[nIds[i]] = NullifierState.SPENT;
-            totalAmount += revealedAmount[nIds[i]];
-            emit Redeemed(nIds[i], recipient, revealedAmount[nIds[i]]);
+            uint256 amount = revealedAmount[nIds[i]];
+            totalAmount += amount;
+            emit Redeemed(nIds[i], recipient, amount);
         }
 
         (bool sent,) = payable(recipient).call{value: totalAmount}("");
@@ -430,24 +431,6 @@ contract NozkVaultV2 {
     // =========================================================================
     //  Internal: EIP-2537 precompile wrappers (G1ADD, pairing, negation)
     // =========================================================================
-
-    /// @dev BLS12-381 G1 point addition via precompile 0x0b.
-    function _g1Add(uint256[4] memory a, uint256[4] memory b) internal view returns (uint256[4] memory result) {
-        bool success;
-        assembly ("memory-safe") {
-            let ptr := mload(0x40)
-            mstore(ptr, mload(a))
-            mstore(add(ptr, 0x20), mload(add(a, 0x20)))
-            mstore(add(ptr, 0x40), mload(add(a, 0x40)))
-            mstore(add(ptr, 0x60), mload(add(a, 0x60)))
-            mstore(add(ptr, 0x80), mload(b))
-            mstore(add(ptr, 0xa0), mload(add(b, 0x20)))
-            mstore(add(ptr, 0xc0), mload(add(b, 0x40)))
-            mstore(add(ptr, 0xe0), mload(add(b, 0x60)))
-            success := staticcall(gas(), 0x0b, ptr, 0x100, result, 0x80)
-        }
-        if (!success) revert PrecompileFailed();
-    }
 
     /// @dev Verify BLS12-381 pairing: e(PK, Y) * e(-G1_gen, S) == 1.
     ///      PK is G1 (128 bytes), Y and S are G2 (256 bytes each).
@@ -527,20 +510,6 @@ contract NozkVaultV2 {
         if (!success) revert PrecompileFailed();
     }
 
-    /// @dev Negate an arbitrary BLS12-381 G1 point using G1MSM(point, order-1).
-    function _negateG1(uint256[4] memory p) internal view returns (uint256[4] memory result) {
-        bool success;
-        assembly ("memory-safe") {
-            let ptr := mload(0x40)
-            mstore(ptr, mload(p))
-            mstore(add(ptr, 0x20), mload(add(p, 0x20)))
-            mstore(add(ptr, 0x40), mload(add(p, 0x40)))
-            mstore(add(ptr, 0x60), mload(add(p, 0x60)))
-            mstore(add(ptr, 0x80), 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000000)
-            success := staticcall(gas(), 0x0c, ptr, 0xa0, result, 0x80)
-        }
-        if (!success) revert PrecompileFailed();
-    }
 
     // =========================================================================
     //  Internal: G1 compression (for AugSchemeMPL message augmentation)

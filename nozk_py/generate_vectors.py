@@ -25,8 +25,11 @@ from py_ecc.bls.g2_primitives import signature_to_G2
 VECTORS_DIR = Path(__file__).resolve().parent.parent / "test_vectors"
 
 TEST_RECIPIENT = "0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7"
-TEST_CHAIN_ID = 11155111
-TEST_CONTRACT = "0x00000000000000000000000000000000DeaDBeef"
+# Chain ID 31337 = Foundry/Anvil local network.
+# Contract address = deterministic CREATE from Forge's test contract
+# (deployer 0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496, nonce 1).
+TEST_CHAIN_ID = 31337
+TEST_CONTRACT = "0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f"
 TEST_DEADLINE = 2**256 - 1
 
 

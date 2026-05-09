@@ -3,14 +3,14 @@
   "scheme": "standard (PK=G1, Sig=G2)",
   "eip712_domain_name": "NozkVault",
   "eip712_domain_version": "1",
-  "chain_id": 11155111,
-  "contract_address": "0x00000000000000000000000000000000DeaDBeef",
+  "chain_id": 31337,
+  "contract_address": "0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f",
   "recipient": "0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7",
   "deadline": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
   "keypairs": [
-    "97c1f8f2_2fdb7430",
-    "e889612d_310a932f",
-    "ccdd1f0b_638d0ca9"
+    "d28735ff_9af76e80",
+    "6596650e_ebd23cc4",
+    "062cf835_c8e98518"
   ],
   "indices": [
     0,

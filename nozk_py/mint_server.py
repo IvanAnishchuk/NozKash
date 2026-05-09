@@ -437,7 +437,7 @@ def load_config(verbosity: Verbosity) -> MintConfig:
 
 # ── Contract ABI ──────────────────────────────────────────────────────────────
 
-_ABI_PATH = Path(__file__).resolve().parent / ".." / "abi" / "nozk_vault_abi.json"
+_ABI_PATH = Path(__file__).resolve().parent / ".." / "abi" / "nozk_vault_v2_abi.json"
 NOZK_VAULT_ABI = json.loads(_ABI_PATH.read_text())
 
 

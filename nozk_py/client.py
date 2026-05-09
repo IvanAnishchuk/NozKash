@@ -812,10 +812,11 @@ def cmd_reveal(
         info("Sending reveal request to relayer — no local ETH required.")
 
         try:
+            spend_pub_coords = list(serialize_g1_sol(secrets.spend_bls_pub))
             resp = httpx.post(
                 relayer_url.rstrip("/") + "/reveal",
                 json={
-                    "nullifier_id": nullifier_id,
+                    "spend_pub_g1": [hex(v) for v in spend_pub_coords],
                     "s_g2": [hex(v) for v in s_ints],
                 },
                 timeout=180,
@@ -846,8 +847,9 @@ def cmd_reveal(
         kv("Nonce", str(nonce))
 
         try:
+            spend_pub_coords = list(serialize_g1_sol(secrets.spend_bls_pub))
             tx = contract.functions.reveal(
-                nullifier_id,
+                spend_pub_coords,
                 list(s_ints),
             ).build_transaction(
                 {
@@ -1096,8 +1098,8 @@ def cmd_redeem(
                 relayer_url.rstrip("/") + "/redeem",
                 json={
                     "recipient": recipient_checksum,
-                    "spend_sig_g2": [hex(v) for v in spend_sig_coords],
-                    "spend_pk_g1": [hex(v) for v in spend_pk_coords],
+                    "spend_sigma_compressed": bytes(proof.sigma).hex(),
+                    "spend_pk_compressed": bytes(proof.spend_pk).hex(),
                     "nullifier_id": nullifier_id,
                     "deadline": deadline,
                 },

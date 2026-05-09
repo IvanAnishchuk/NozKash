@@ -647,7 +647,7 @@ function latestLogByDepositId(
 }
 
 /**
- * Reads `MintFulfilled` for a `depositId` and returns S′ (G1) as integers from the event.
+ * Reads `MintFulfilled` for a `depositId` and returns S′ (G2) as integers from the event.
  */
 /**
  * V2: MintFulfilled event data contains 8 uint256 words (G2 point S').

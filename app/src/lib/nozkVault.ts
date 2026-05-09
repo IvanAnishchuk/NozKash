@@ -360,10 +360,22 @@ function normalizeAddress(a: string): string {
   return `0x${h}`
 }
 
+/** Normalize a 32-byte hex string (nullifier ID). */
+function normalizeBytes32(h: string): string {
+  const clean = h.replace(/^0x/i, '').toLowerCase()
+  if (clean.length !== 64) throw new Error(`Invalid bytes32: ${h}`)
+  return `0x${clean}`
+}
+
 /** `depositId` as log topic: 32-byte left-padded (indexed address). */
 export function depositIdToTopic(depositId: string): string {
   const addr = normalizeAddress(depositId).slice(2)
   return `0x${'0'.repeat(24)}${addr}`
+}
+
+/** `nullifierIdHex` as log topic: already 32 bytes, just normalize. */
+export function nullifierIdToTopic(nullifierIdHex: string): string {
+  return normalizeBytes32(nullifierIdHex)
 }
 
 /**
@@ -380,7 +392,7 @@ export function vaultDerivedAddressesForIndices(
     return {
       tokenIndex,
       depositId: normalizeAddress(getDepositId(secrets)),
-      nullifierIdHex: normalizeAddress(getNullifierIdHex(secrets)),
+      nullifierIdHex: getNullifierIdHex(secrets),
     }
   })
 }
@@ -388,6 +400,11 @@ export function vaultDerivedAddressesForIndices(
 function topic1ToDepositId(topic1: string): string {
   const h = topic1.replace(/^0x/i, '')
   return normalizeAddress(`0x${h.slice(-40)}`)
+}
+
+/** Parse topic1 as a raw bytes32 (for NullifierRevealed). */
+function topic1ToBytes32(topic1: string): string {
+  return normalizeBytes32(topic1)
 }
 
 function encodeAddress32(depositId: string): string {
@@ -569,9 +586,11 @@ async function fetchLogsForDepositIds(
   topic0: string,
   depositIds: string[],
   fromBlock: string,
-  rpc: ChainRpcFn = chainRpcCall
+  rpc: ChainRpcFn = chainRpcCall,
+  /** Override topic1 formatting. Default: left-pad address to 32 bytes. */
+  topic1Formatter: (id: string) => string = depositIdToTopic
 ): Promise<RpcLog[]> {
-  const topic1List = depositIds.map(depositIdToTopic)
+  const topic1List = depositIds.map(topic1Formatter)
   const partialOr: EthGetLogsPartialFilter = {
     address: vault,
     topics: [topic0, topic1List],
@@ -606,12 +625,16 @@ async function fetchLogsForDepositIds(
   return logs
 }
 
-function latestLogByDepositId(logs: RpcLog[]): Map<string, RpcLog> {
+function latestLogByDepositId(
+  logs: RpcLog[],
+  /** Parse topic1 into a map key. Default: extract address from padded topic. */
+  parseTopic1: (t1: string) => string = topic1ToDepositId
+): Map<string, RpcLog> {
   const m = new Map<string, RpcLog>()
   for (const log of logs) {
     const t1 = log.topics?.[1]
     if (!t1) continue
-    const id = topic1ToDepositId(t1)
+    const id = parseTopic1(t1)
     const prev = m.get(id)
     if (
       !prev ||
@@ -710,9 +733,10 @@ export async function fetchVaultRowForTokenIndex(
     if (nState === NULLIFIER_REVEALED) {
       // Fetch the actual NullifierRevealed log for accurate tx metadata
       const revealLogs = await fetchLogsForDepositIds(
-        vault, NULLIFIER_REVEALED_TOPIC, [nullifierIdHex], fromBlock, chainRpcCall
+        vault, NULLIFIER_REVEALED_TOPIC, [nullifierIdHex], fromBlock, chainRpcCall,
+        nullifierIdToTopic
       )
-      const revealLog = latestLogByDepositId(revealLogs).get(normalizeAddress(nullifierIdHex))
+      const revealLog = latestLogByDepositId(revealLogs, topic1ToBytes32).get(normalizeBytes32(nullifierIdHex))
       const rBn = revealLog ? parseHexBlock(revealLog.blockNumber) : bn
       const rTxh = revealLog?.transactionHash ?? txh
       const rDateIso = revealLog ? await blockHexToDateIso(revealLog.blockNumber, chainRpcCall) : dateIso
@@ -1099,15 +1123,16 @@ async function fetchVaultActivityForFirstTokensImpl(
     })
 
     // Batch-fetch NullifierRevealed logs for all revealed spend addresses
-    const revealedSpendAddresses = indices
+    const revealedNullifierIds = indices
       .map((_, j) => nullifierStates[j] === NULLIFIER_REVEALED ? getNullifierIdHex(secretsList[j]!) : null)
       .filter((a): a is string => a !== null)
     let revealedLogById = new Map<string, RpcLog>()
-    if (revealedSpendAddresses.length > 0) {
+    if (revealedNullifierIds.length > 0) {
       const revealLogs = await fetchLogsForDepositIds(
-        vault, NULLIFIER_REVEALED_TOPIC, revealedSpendAddresses, fromBlock, rpc
+        vault, NULLIFIER_REVEALED_TOPIC, revealedNullifierIds, fromBlock, rpc,
+        nullifierIdToTopic
       )
-      revealedLogById = latestLogByDepositId(revealLogs)
+      revealedLogById = latestLogByDepositId(revealLogs, topic1ToBytes32)
     }
 
     const batchDrafts: VaultRowDraft[] = []
@@ -1145,7 +1170,7 @@ async function fetchVaultActivityForFirstTokensImpl(
       }
 
       if (nullifierStates[j] === NULLIFIER_REVEALED) {
-        const revealLog = revealedLogById.get(normalizeAddress(nullifierIdHex))
+        const revealLog = revealedLogById.get(normalizeBytes32(nullifierIdHex))
         const mintLog = fulfilledById.get(depositId)
         const lockLog = lockedById.get(depositId)
         const refLog = mintLog ?? lockLog

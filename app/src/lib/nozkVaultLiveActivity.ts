@@ -60,6 +60,12 @@ function parseTopic1ToDepositId(topic1: string): string {
   return normalizeAddress(`0x${h.slice(-40)}`)
 }
 
+/** Parse topic1 as bytes32 (for NullifierRevealed). */
+function parseTopic1ToBytes32(topic1: string): string {
+  const h = topic1.replace(/^0x/i, '').toLowerCase()
+  return `0x${h.padStart(64, '0')}`
+}
+
 function parseLogId(log: LogLike): string {
   const txh = log.transactionHash ?? ''
   const li = log.logIndex ?? ''
@@ -567,8 +573,8 @@ export function startNozkVaultActivityLive(params: {
     const bnHex = log.blockNumber
     if (!topic1 || !bnHex) return
 
-    // topic1 is the nullifier (= nullifierIdHex), not depositId
-    const nullifier = parseTopic1ToDepositId(topic1) // same address parsing
+    // V2: topic1 is bytes32 nullifier ID, not a left-padded address
+    const nullifier = parseTopic1ToBytes32(topic1)
     const tokenIndex = nullifierIdHexToTokenIndex.get(nullifier)
     if (tokenIndex == null) return
 

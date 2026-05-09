@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- TypeScript BLS12-381 migration: `bls12-381-crypto.ts` with AugSchemeMPL sign/verify,
+  G1/G2 serialization, aggregation; `nozk-library.ts` with BLS spend signatures replacing ECDSA
+- TypeScript test parity with Python: 309 unit/mock/vector + 11 anvil E2E tests (320 total)
+- MockMint + MockRedeemer classes (`mint-mock.ts`, `redeem-mock.ts`) for offline testing
+- Aggregation vector tests, BLS rejection tests, derivation isolation tests
+- Coverage configuration: Python (branch, 59% threshold), TypeScript (v8, 90% threshold)
+- React frontend: relayer-only mode for reveal/redeem (no direct on-chain tx needed)
+- React frontend: V2 contract support (G2 blinded points, bytes32 nullifier IDs)
 - BLS12-381 migration: full-stack port from BN254 to BLS12-381 using EIP-2537 Pectra precompiles
 - Standard BLS scheme: PK in G1, Sig in G2 (matches Ethereum consensus + chia_rs/blst)
 - `BLS12HashToCurve.sol`: standalone RFC 9380 hash-to-curve library using SHA-256 + MAP_FP2_TO_G2
@@ -20,6 +28,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Mock flow CLI tests: nozk_flow.sh --mock subprocess verification
 - RFC 9380 official test vectors for expand_message_xmd, hash_to_field, hash_to_curve
 - Cross-library parity: chia_rs == py_ecc == Solidity precompile (verified)
+
+### Fixed
+
+- Frontend scanner: `normalizeAddress` was called on bytes32 nullifier IDs (64 hex chars),
+  causing runtime errors; replaced with `normalizeBytes32` for nullifier-related lookups
+- Frontend scanner: NullifierRevealed event topic1 parsed as left-padded address instead of
+  bytes32; added `topic1ToBytes32` parser and `nullifierIdToTopic` formatter
+- Python client: replaced undeclared `requests` dependency with `httpx` (already in pyproject.toml)
 
 ### Changed
 

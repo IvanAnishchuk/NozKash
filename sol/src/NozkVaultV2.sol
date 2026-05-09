@@ -510,7 +510,6 @@ contract NozkVaultV2 {
         if (!success) revert PrecompileFailed();
     }
 
-
     // =========================================================================
     //  Internal: G1 compression (for AugSchemeMPL message augmentation)
     // =========================================================================

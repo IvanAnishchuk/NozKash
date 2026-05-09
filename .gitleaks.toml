@@ -12,4 +12,6 @@ paths = [
     '''test_vectors/.*''',
     # Well-known deterministic anvil keys (Foundry default mnemonic, not real secrets)
     '''nozk_py/test_constants\.py''',
+    '''nozk_ts/test-constants\.ts''',
+    '''app/e2e/fixtures/test-constants\.ts''',
 ]

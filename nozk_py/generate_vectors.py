@@ -11,6 +11,8 @@ import json
 import os
 from pathlib import Path
 
+from py_ecc.bls.g2_primitives import signature_to_G2
+
 import nozk_library as gl
 from bls12_381_crypto import (
     CURVE_ORDER,
@@ -20,7 +22,6 @@ from bls12_381_crypto import (
     serialize_g1_sol,
     serialize_g2_sol,
 )
-from py_ecc.bls.g2_primitives import signature_to_G2
 
 VECTORS_DIR = Path(__file__).resolve().parent.parent / "test_vectors"
 

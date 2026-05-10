@@ -579,7 +579,7 @@
   },
   {
     "type": "error",
-    "name": "PrecompileFailed",
+    "name": "PairingCheckFailed",
     "inputs": []
   },
   {

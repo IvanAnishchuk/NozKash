@@ -129,7 +129,7 @@ contract NozkVaultV2 {
     error NothingToRefund();
     error ExpiredSignature();
     error BatchLengthMismatch();
-    error PrecompileFailed();
+    error PairingCheckFailed();
     error EmptyBatch();
 
     // -------------------------------------------------------------------------
@@ -388,7 +388,7 @@ contract NozkVaultV2 {
             success := staticcall(gas(), 0x0f, ptr, len, resultPtr, 0x20)
             pairingResult := eq(mload(resultPtr), 1)
         }
-        if (!success) revert PrecompileFailed();
+        if (!success) revert PairingCheckFailed();
         if (!pairingResult) revert InvalidBLS();
 
         // Mark all SPENT and transfer
@@ -500,7 +500,7 @@ contract NozkVaultV2 {
             success := staticcall(gas(), 0x0f, ptr, 0x300, ptr, 0x20)
             pairingResult := eq(mload(ptr), 1)
         }
-        if (!success) revert PrecompileFailed();
+        if (!success) revert PairingCheckFailed();
         return pairingResult;
     }
 
@@ -521,7 +521,7 @@ contract NozkVaultV2 {
             // G1MSM with k=1: 160 bytes in, 128 bytes out
             success := staticcall(gas(), 0x0c, ptr, 0xa0, result, 0x80)
         }
-        if (!success) revert PrecompileFailed();
+        if (!success) revert PairingCheckFailed();
     }
 
     // =========================================================================

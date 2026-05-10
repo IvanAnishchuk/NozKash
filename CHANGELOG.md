@@ -37,6 +37,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   bytes32; added `topic1ToBytes32` parser and `nullifierIdToTopic` formatter
 - Python client: replaced undeclared `requests` dependency with `httpx` (already in pyproject.toml)
 - EIP-2537 precompile addresses updated to final Pectra spec
+- Python client `reveal()`: was passing nullifier_id instead of spend pubkey G1 coords
+- Python client relayer redeem: field names didn't match relayer's RedeemRequest model
+- Constructor validates pkMint via G1MSM precompile (rejects invalid/off-curve points)
+- Aggregation vector tests now use real BLS verification instead of smoke checks
+- Input validation: `unblind_signature()` and TS `blindToken()`/`deriveTokenSecrets()` guard edge cases
+- Zero-padded scalar hex in test vector generator for cross-language consistency
 
 ### Changed
 

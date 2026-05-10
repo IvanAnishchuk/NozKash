@@ -1060,7 +1060,6 @@ def cmd_redeem(
         calldata = contract.functions.redeem(
             recipient_checksum,
             list(spend_sig_coords),
-            list(spend_pk_coords),
             nullifier_id,
             deadline,
         ).build_transaction({"from": ZERO})["data"]

@@ -25,6 +25,7 @@ async function relayerPost<T>(path: string, body: unknown): Promise<T> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(180_000),
   })
   if (!resp.ok) {
     const text = await resp.text()

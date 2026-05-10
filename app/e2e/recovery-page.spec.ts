@@ -11,6 +11,14 @@ const ANVIL_RPC = 'http://127.0.0.1:8545'
 const CHAIN_ID_HEX = '0x7a69'
 
 test.describe('Recovery page', () => {
+  test.beforeAll(async () => {
+    await fetch(ANVIL_RPC, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'anvil_reset', params: [] }),
+    })
+  })
+
   test.beforeEach(async ({ page }) => {
     await injectMockWallet(page, {
       rpcUrl: ANVIL_RPC,

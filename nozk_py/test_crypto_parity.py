@@ -223,8 +223,11 @@ class TestHashToCurve:
         )
         Y = hash_to_g2(spend_pub)
         coords = serialize_g2_sol(Y)
-        # Expected from Solidity test
+        # Expected from Solidity test — verify all 8 limbs for full G2 parity
         assert coords[0] == 0x000000000000000000000000000000000188A060D71CAD5A4F2C5A40A812ABC3
+        assert len(coords) == 8, f"Expected 8 G2 limbs, got {len(coords)}"
+        for i, c in enumerate(coords):
+            assert isinstance(c, int) and c >= 0, f"G2 limb {i} must be a non-negative int"
 
     def test_hash_to_g2_redeem_matches_solidity(self):
         """hash_to_g2 for augmented message matches Solidity test vector.
@@ -239,6 +242,9 @@ class TestHashToCurve:
         Y = hash_to_g2(aug_msg)
         coords = serialize_g2_sol(Y)
         assert coords[0] == 0x00000000000000000000000000000000107580DBB90C030656FEE43B54764906
+        assert len(coords) == 8, f"Expected 8 G2 limbs, got {len(coords)}"
+        for i, c in enumerate(coords):
+            assert isinstance(c, int) and c >= 0, f"G2 limb {i} must be a non-negative int"
         assert coords[1] == 0xE608A26514C18FC0CD65DD813C37DCFDD37B44EA82018AF718C78D11230D2040
 
 

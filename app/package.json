@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "deploy": "bash scripts/deploy-gh-pages.sh",
-    "test:e2e": "npx @playwright/test test"
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@noble/curves": "^2.0.1",

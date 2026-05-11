@@ -8,6 +8,7 @@ import {
     blsGetPublicKey,
     blsSign,
     blsVerify,
+    bytesToHex,
     CURVE_ORDER,
     G1_GEN,
     type G1Point,
@@ -15,6 +16,7 @@ import {
     g1ScalarMul,
     g2ScalarMul,
     hashToG2,
+    hexToBytes,
     modInverse,
     nullifierId,
     verifyMintPairing,
@@ -22,9 +24,6 @@ import {
 
 // Re-export types for downstream consumers
 export type { G1Point, G2Point };
-
-// Use bytesToHex/hexToBytes from bls12-381-crypto (noble-based, no mcl dependency)
-import { bytesToHex, hexToBytes } from './bls12-381-crypto.js';
 
 // ==============================================================================
 // ERROR HIERARCHY

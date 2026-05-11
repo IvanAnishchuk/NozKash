@@ -19,6 +19,7 @@ import subprocess
 import time
 
 import pytest
+from py_ecc.bls.g2_primitives import signature_to_G2
 from web3 import Web3
 
 from bls12_381_crypto import (
@@ -29,6 +30,7 @@ from bls12_381_crypto import (
 from nozk_library import (
     blind_token,
     derive_token_secrets,
+    eip712_redemption_hash,
     generate_redemption_proof,
     mint_blind_sign,
     unblind_signature,
@@ -238,8 +240,6 @@ def test_full_lifecycle(deployed_contract, w3):
     )
 
     # Serialize spend sig G2 for on-chain
-    from py_ecc.bls.g2_primitives import signature_to_G2
-
     spend_sig_g2 = signature_to_G2(bytes(proof.sigma))
     spend_sig_coords = list(serialize_g2_sol(spend_sig_g2))
 
@@ -486,8 +486,6 @@ def test_multiple_tokens(deployed_contract, w3):
             vault.address,
             2**256 - 1,
         )
-        from py_ecc.bls.g2_primitives import signature_to_G2
-
         spend_sig = list(serialize_g2_sol(signature_to_G2(bytes(proof.sigma))))
         tx = vault.functions.redeem(recipient, spend_sig, nid, 2**256 - 1).build_transaction(
             {
@@ -655,8 +653,6 @@ def test_nullifier_state_transitions(deployed_contract, w3):
         vault.address,
         2**256 - 1,
     )
-    from py_ecc.bls.g2_primitives import signature_to_G2
-
     spend_sig = list(serialize_g2_sol(signature_to_G2(bytes(proof.sigma))))
     tx = vault.functions.redeem(RECIPIENT, spend_sig, nid, 2**256 - 1).build_transaction(
         {
@@ -676,8 +672,6 @@ def test_nullifier_state_transitions(deployed_contract, w3):
 def test_eip712_hash_matches_solidity(deployed_contract, w3):
     """Python EIP-712 hash must match the contract's redemptionMessageHash."""
     vault = deployed_contract
-    from nozk_library import eip712_redemption_hash
-
     recipient = RECIPIENT
     deadline = 2**256 - 1
 

@@ -105,7 +105,7 @@ function main() {
     const destination = '0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7';
     const chainId = Number(process.env.CHAIN_ID || '11155111');
     const contractAddress = process.env.CONTRACT_ADDRESS || '0x00000000000000000000000000000000DeaDBeef';
-    const deadline = BigInt(2 ** 256) - 1n;
+    const deadline = 2n ** 256n - 1n;
     const proof = gl.generateRedemptionProof(
         secrets.spendBlsPriv,
         secrets.spendPubCompressed,

@@ -1003,27 +1003,21 @@ def cmd_redeem(
 
     spend_sig_g2 = G2Point(signature_to_G2(bytes(proof.sigma)))
     spend_sig_coords = serialize_g2_sol(spend_sig_g2)
-    # Also serialize spend pubkey G1 for on-chain
-    spend_pk_coords = serialize_g1_sol(secrets.spend_bls_pub)
     if is_debug():
         for i, v in enumerate(spend_sig_coords):
             kv_hex(f"spend_sig[{i}]", hex(v))
-        for i, v in enumerate(spend_pk_coords):
-            kv_hex(f"spend_pk[{i}]", hex(v))
     console.print()
 
     # ── Mock mode: skip calldata / broadcasting entirely ──────────────────
     nullifier_id = secrets.nullifier_id_hex
     if is_mock():
         section("Step 4 · Mock Redemption Payload", "🧪")
-        dry("redeem(recipient, spendSigG2, spendPkG1, nullifierId, deadline)")
+        dry("redeem(recipient, spendSigG2, nullifierId, deadline)")
         dry(f"recipient    = {recipient_checksum}")
         dry(f"nullifier_id = {nullifier_id}")
         dry(f"deadline     = {deadline}")
         for i, v in enumerate(spend_sig_coords):
             dry(f"spend_sig[{i}] = {hex(v)}")
-        for i, v in enumerate(spend_pk_coords):
-            dry(f"spend_pk[{i}]  = {hex(v)}")
         dry("No calldata built (mock mode — no contract needed)")
         ok("Mock redemption payload generated. Run 'redeem_mock.py verify' to validate.")
         return
@@ -1130,7 +1124,6 @@ def cmd_redeem(
             tx = contract.functions.redeem(
                 recipient_checksum,
                 list(spend_sig_coords),
-                list(spend_pk_coords),
                 nullifier_id,
                 deadline,
             ).build_transaction(

@@ -569,7 +569,7 @@ def test_deposit_wrong_value_reverts(deployed_contract, w3):
     tx = vault.functions.deposit(deposit_id, list(serialize_g2_sol(blinded.B))).build_transaction(
         {
             "from": depositor.address,
-            "value": Web3.to_wei(0.002, "ether"),  # wrong value
+            "value": DENOMINATION * 2,  # wrong value — must be exactly DENOMINATION
             "nonce": w3.eth.get_transaction_count(depositor.address),
             "gas": 200_000,
             "gasPrice": w3.eth.gas_price,

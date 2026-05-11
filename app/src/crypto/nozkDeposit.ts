@@ -131,10 +131,8 @@ export async function buildNozkVaultDepositCalldata(
   if (isNozkVaultDebugEnabled()) {
     console.log('[NozkVault deposit debug] derivation inputs', {
       tokenIndex,
-      masterSeedHex: bytesToHex(masterSeed),
       depositId: getDepositId(secrets),
       nullifierIdHex: getNullifierIdHex(secrets),
-      r: getR(secrets).toString(16),
     })
   }
 
@@ -144,7 +142,6 @@ export async function buildNozkVaultDepositCalldata(
   if (isNozkVaultDebugEnabled()) {
     console.log('[NozkVault deposit debug] deposit(address,uint256[8]) payload', {
       tokenIndex,
-      rHex: '0x' + r.toString(16),
       B_coords: bCoords.map((c) => '0x' + c.toString(16)),
       depositId,
       calldata: data,

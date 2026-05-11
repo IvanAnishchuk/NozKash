@@ -80,7 +80,13 @@ export function getVaultAddress(): Address {
 }
 
 export function getAbi(): Abi {
+  if (!abi) throw new Error('ABI not initialized — call deployVault() first')
   return abi
+}
+
+export function getVaultAddress(): Address {
+  if (!vaultAddress) throw new Error('Vault not deployed — call deployVault() first')
+  return vaultAddress
 }
 
 // ==============================================================================

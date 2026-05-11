@@ -11,7 +11,7 @@ pairings via EIP-2537 Pectra precompiles — no zero-knowledge proofs needed.
 
 ## Token Lifecycle
 
-```
+```text
 FRESH -> AWAITING_MINT -> READY_TO_REDEEM -> SPENT
 ```
 

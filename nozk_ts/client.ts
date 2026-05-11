@@ -87,15 +87,15 @@ function loadConfig(): Config {
     const pkStr = process.env.MINT_BLS_PUBKEY || '';
     if (pkStr) {
         const parts = pkStr.split(',').map((p) => p.trim());
-        if (parts.length === 4) {
-            // G1 point as 4 uint256: [x_hi, x_lo, y_hi, y_lo]
-            mintBlsPubkey = parseG1Sol(
-                hexToBigint(parts[0]),
-                hexToBigint(parts[1]),
-                hexToBigint(parts[2]),
-                hexToBigint(parts[3]),
-            );
+        if (parts.length !== 4) {
+            throw new Error(`MINT_BLS_PUBKEY must have exactly 4 comma-separated hex limbs, got ${parts.length}`);
         }
+        mintBlsPubkey = parseG1Sol(
+            hexToBigint(parts[0]),
+            hexToBigint(parts[1]),
+            hexToBigint(parts[2]),
+            hexToBigint(parts[3]),
+        );
     }
     // Fallback: derive from privkey
     if (!mintBlsPubkey) {

@@ -433,9 +433,9 @@ describe.each(ALL_VECTORS.map(({ id, v }) => ({ id, v })))('G1 serialization [$i
         );
         const [xHi, xLo, yHi, yLo] = serializeG1Sol(pub);
         expect(xHi).toBeGreaterThanOrEqual(0n);
-        expect(xLo).toBeGreaterThan(0n);
+        expect(xLo).toBeGreaterThanOrEqual(0n);
         expect(yHi).toBeGreaterThanOrEqual(0n);
-        expect(yLo).toBeGreaterThan(0n);
+        expect(yLo).toBeGreaterThanOrEqual(0n);
     });
 });
 

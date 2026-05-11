@@ -184,7 +184,9 @@ def compute_aggregation_vectors(master_seed_hex: str, sk_int: int, indices: list
 
 def generate_keypair() -> tuple[str, int]:
     master_seed_hex = os.urandom(32).hex()
-    sk_int = int.from_bytes(os.urandom(32), "big") % CURVE_ORDER
+    sk_int = 0
+    while sk_int == 0:
+        sk_int = int.from_bytes(os.urandom(32), "big") % CURVE_ORDER
     return master_seed_hex, sk_int
 
 

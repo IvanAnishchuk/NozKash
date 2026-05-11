@@ -120,12 +120,13 @@ def relayer_client(deployed_contract, w3):
         chain_id=CHAIN_ID,
         mint_bls_pubkey=MINT_PK,
     )
+    prev_relayer = relayer_server._relayer
     relayer_server._relayer = Relayer(config)
 
     from fastapi.testclient import TestClient
 
     yield TestClient(fastapi_app)
-    relayer_server._relayer = None
+    relayer_server._relayer = prev_relayer
 
 
 # ==============================================================================
@@ -225,8 +226,8 @@ def test_reveal_invalid_signature_400(relayer_client, deployed_contract, w3):
             "s_g2": ["0x1", "0x2", "0x3", "0x4", "0x5", "0x6", "0x7", "0x8"],
         },
     )
-    # Should fail — either 400 (pairing check) or 500 (on-chain revert)
-    assert resp.status_code in (400, 500), f"Expected error, got {resp.status_code}: {resp.json()}"
+    # Should fail with 400 (invalid signature caught by off-chain validation)
+    assert resp.status_code == 400, f"Expected 400, got {resp.status_code}: {resp.json()}"
 
 
 # ==============================================================================

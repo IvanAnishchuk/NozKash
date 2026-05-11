@@ -313,9 +313,10 @@ def _parse_mint_bls_pubkey(raw: str) -> G1Point | None:
 
     if raw:
         parts = [p.strip() for p in raw.split(",")]
-        if len(parts) == 4:
-            x_hi, x_lo, y_hi, y_lo = (int(p, 16) for p in parts)
-            return parse_g1_sol(x_hi, x_lo, y_hi, y_lo)
+        if len(parts) != 4:
+            raise ValueError(f"MINT_BLS_PUBKEY must have exactly 4 comma-separated hex limbs, got {len(parts)}")
+        x_hi, x_lo, y_hi, y_lo = (int(p, 16) for p in parts)
+        return parse_g1_sol(x_hi, x_lo, y_hi, y_lo)
 
     sk_hex = os.getenv("MINT_BLS_PRIVKEY", "").strip() or os.getenv("MINT_BLS_PRIVKEY_INT", "").strip()
     if sk_hex:
@@ -713,6 +714,7 @@ def cmd_scan(
         null_state = contract.functions.nullifierState(nullifier_id).call()
 
         existing.s_unblinded_g2 = [hex(v) for v in s_coords]
+        existing.spend_pub_g1 = [hex(v) for v in serialize_g1_sol(secrets.spend_bls_pub)]
         if null_state == 2:
             existing.spent = True
         elif null_state == 1:
@@ -794,7 +796,7 @@ def cmd_reveal(
     # ── Mock mode ──────────────────────────────────────────────────────────
     if is_mock():
         section("Step 2 · Mock Reveal", "🧪")
-        dry("reveal(nullifier_id, S_g2)")
+        dry("reveal(spendPubG1, S_g2)")
         dry(f"nullifier  = {nullifier_id}")
         for i, v in enumerate(s_ints):
             dry(f"S[{i}]       = {hex(v)}")
@@ -821,7 +823,7 @@ def cmd_reveal(
                 },
                 timeout=180,
             )
-        except httpx.ConnectError as exc:
+        except (httpx.ConnectError, httpx.TimeoutException) as exc:
             err(f"Cannot connect to relayer at {relayer_url}: {exc}")
             raise typer.Exit(code=1) from exc
 
@@ -1098,7 +1100,7 @@ def cmd_redeem(
                 },
                 timeout=180,
             )
-        except httpx.ConnectError as exc:
+        except (httpx.ConnectError, httpx.TimeoutException) as exc:
             err(f"Cannot connect to relayer at {relayer_url}: {exc}")
             raise typer.Exit(code=1) from exc
 

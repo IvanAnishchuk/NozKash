@@ -13,6 +13,8 @@ contract NozkVaultV2Script is Script {
             vm.envOr("PK_MINT_Y_LO", uint256(0))
         ];
         address mintAuthority = vm.envOr("MINT_AUTHORITY", address(0));
+        require(pkMint[0] != 0 || pkMint[1] != 0, "PK_MINT env vars not set");
+        require(mintAuthority != address(0), "MINT_AUTHORITY env var not set");
         vm.startBroadcast();
         new NozkVaultV2(pkMint, mintAuthority);
         vm.stopBroadcast();

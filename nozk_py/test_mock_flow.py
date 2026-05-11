@@ -98,8 +98,7 @@ class TestMockFlowScript:
             timeout=120,
         )
 
-        if result.returncode != 0:
-            pytest.skip(f"Mock flow failed (may need NOZK_WALLET_PATH support): {result.stderr[-200:]}")
+        assert result.returncode == 0, f"Mock flow failed:\n{result.stderr[-500:]}"
 
         if wallet_path.exists():
             state = json.loads(wallet_path.read_text())

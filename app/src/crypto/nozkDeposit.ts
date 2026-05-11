@@ -10,7 +10,6 @@ import {
   type TokenSecrets,
 } from '@nozk/nozk-library'
 import { hex0x, u256be } from './abiHelpers'
-import { bytesToHex } from './nozkClient'
 
 /**
  * No async init needed — @noble/curves is pure JS, no WASM step.
@@ -136,7 +135,7 @@ export async function buildNozkVaultDepositCalldata(
     })
   }
 
-  const { depositId, data, r, bCoords } =
+  const { depositId, data, bCoords } =
     await assembleNozkVaultDeposit(secrets)
 
   if (isNozkVaultDebugEnabled()) {

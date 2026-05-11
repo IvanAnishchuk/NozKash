@@ -143,6 +143,7 @@ beforeAll(async () => {
     const artifactPath = resolve('..', 'sol', 'out', 'NozkVaultV2.sol', 'NozkVaultV2.json');
     const artifact = JSON.parse(readFileSync(artifactPath, 'utf-8'));
     abi = artifact.abi as Abi;
+    // Type assertion: forge artifact always has 0x-prefixed bytecode
     const bytecode = artifact.bytecode.object as `0x${string}`;
 
     // Deploy

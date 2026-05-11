@@ -8,10 +8,13 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { type Abi, encodeFunctionData } from 'viem';
 import { describe, expect, it } from 'vitest';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 const REPO_ROOT = resolve(__dirname, '..');
 const abiPath = resolve(REPO_ROOT, 'abi', 'nozk_vault_v2_abi.json');
 const NOZK_VAULT_ABI = JSON.parse(readFileSync(abiPath, 'utf-8')) as Abi;

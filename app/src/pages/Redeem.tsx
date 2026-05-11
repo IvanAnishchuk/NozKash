@@ -19,7 +19,7 @@ import {
   walletNetworkBadgeLabel,
 } from '../lib/ethereum'
 import { NOZK_VAULT_DEPOSIT_AMOUNT_LABEL } from '../lib/nozkVault'
-import { sendVaultRedeemTransaction } from '../lib/sendVaultRedeem'
+import { sendRelayerRedeemTransaction } from '../lib/sendVaultRedeem'
 import { useNozkVaultActivityLive } from '../hooks/useNozkVaultActivityLive'
 import type { LayoutOutletContext } from '../layoutOutletContext'
 
@@ -110,7 +110,7 @@ export function Redeem() {
       return
     }
     setStoredDraftSummary(
-      `Token #${d.tokenIndex} · depositId ${addrPickLabel(d.depositId)} · nullifier ${addrPickLabel(d.spendAddress)}`
+      `Token #${d.tokenIndex} · depositId ${addrPickLabel(d.depositId)} · nullifier ${d.nullifierIdHex.slice(0, 10)}`
     )
   }, [seedRevision, preparePending])
 
@@ -134,7 +134,7 @@ export function Redeem() {
       )
       saveRedemptionDraft(draft)
       setStoredDraftSummary(
-        `Token #${draft.tokenIndex} · depositId ${addrPickLabel(draft.depositId)} · nullifier ${addrPickLabel(draft.spendAddress)}`
+        `Token #${draft.tokenIndex} · depositId ${addrPickLabel(draft.depositId)} · nullifier ${draft.nullifierIdHex.slice(0, 10)}`
       )
       showToast(
         'Step 1 done: spend/blind keys saved in this browser. Switch to the account that pays gas and use “Send transaction”.',
@@ -183,11 +183,14 @@ export function Redeem() {
         return
       }
 
-      const { txHash } = await sendVaultRedeemTransaction({
-        ethereum,
+      if (!seed) {
+        showToast('Master seed not available — cannot sign redemption', 'error')
+        return
+      }
+      const { txHash } = await sendRelayerRedeemTransaction({
+        masterSeed: seed,
+        tokenIndex: draft.tokenIndex,
         recipient: recipient.trim(),
-        draft,
-        masterSeed: seed ?? null,
       })
 
       setStoredDraftSummary(null)

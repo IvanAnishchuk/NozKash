@@ -3,11 +3,15 @@
 useDefault = true
 
 [allowlist]
-description = "Allow published standards and test vectors"
+description = "Allow published standards, test vectors, and well-known anvil test keys"
 paths = [
     '''docs/src/standards/rfcs/.*''',
     '''docs/src/standards/bips/.*''',
     '''docs/src/standards/eips/.*''',
     '''docs/src/papers/.*''',
     '''test_vectors/.*''',
+    # Well-known deterministic anvil keys (Foundry default mnemonic, not real secrets)
+    '''nozk_py/test_constants\.py''',
+    '''nozk_ts/test-constants\.ts''',
+    '''app/e2e/fixtures/test-constants\.ts''',
 ]

@@ -2,8 +2,9 @@ import { keccak256 } from 'ethereum-cryptography/keccak.js'
 import {
   deriveTokenSecrets,
   getDepositId,
-  getSpendAddress,
+  getNullifierIdHex,
 } from '@nozk/nozk-library'
+import { bytesToHex } from '@nozk/bls12-381-crypto'
 import { TARGET_NETWORK_LABEL } from './ethereum'
 import { chainRpcCall } from './chainPublicRpc'
 import { isNozkVaultDebugEnabled } from './nozkDebug'
@@ -113,12 +114,6 @@ function scanCacheTtlMs(): number {
   return Math.max(0, n)
 }
 
-function bytesToHex(b: Uint8Array): string {
-  return Array.from(b)
-    .map((x) => x.toString(16).padStart(2, '0'))
-    .join('')
-}
-
 function masterSeedCacheKey(seed: Uint8Array): string {
   return bytesToHex(keccak256(seed))
 }
@@ -146,10 +141,17 @@ function lastUsedFromVaultActivityRows(rows: VaultTx[]): number {
   return last
 }
 
-type ScanCacheEntry = { at: number; rows: VaultTx[] }
+type ScanCacheEntry = {
+  at: number
+  rows: VaultTx[]
+  lastBlock: number   // highest block number seen across all rows
+  batchCount: number  // number of non-empty batches in last scan
+}
 const vaultActivityCache = new Map<string, ScanCacheEntry>()
 let inflightActivityKey: string | null = null
 let inflightActivityPromise: Promise<VaultTx[]> | null = null
+/** Bumped on stale-mark; if it changed during flight, don't cache the result. */
+let cacheGeneration = 0
 
 /** Dev or `VITE_NOZK_DEBUG=true` — enables {@link nozkVaultActivityDebug}. */
 export function isNozkVaultActivityDebug(): boolean {
@@ -162,10 +164,22 @@ export function nozkVaultActivityDebug(...args: unknown[]): void {
 }
 
 /**
- * Invalidates the `fetchVaultActivityForFirstTokens` cache (e.g. after a confirmed deposit).
+ * Marks all cache entries as stale so the next fetch bypasses TTL,
+ * but keeps existing rows intact for incremental use.
  */
-export function invalidateVaultActivityCache(): void {
-  nozkVaultActivityDebug('invalidateVaultActivityCache: cleared')
+export function markVaultActivityCacheStale(): void {
+  nozkVaultActivityDebug('markVaultActivityCacheStale')
+  cacheGeneration++
+  for (const entry of vaultActivityCache.values()) {
+    entry.at = 0
+  }
+}
+
+/**
+ * Fully clears the cache (e.g. on account switch where the seed changes).
+ */
+export function clearVaultActivityCache(): void {
+  nozkVaultActivityDebug('clearVaultActivityCache')
   vaultActivityCache.clear()
 }
 
@@ -180,26 +194,23 @@ export type NozkVaultOptimisticPendingDetail = {
   networkLabel: string
 }
 
-let nozkVaultLiveActive = false
-
 /**
- * When vault live (WebSocket incremental updates) is active, we avoid clearing
- * the HTTP activity cache on deposit/redeem so the app doesn’t immediately
- * re-scan large log ranges and trigger 429s.
+ * No-op kept for API compatibility with useNozkVaultActivityLive.
  */
-export function setNozkVaultLiveActive(active: boolean): void {
-  nozkVaultLiveActive = active
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function setNozkVaultLiveActive(_active: boolean): void {
+  // no-op
 }
 
 let vaultActivityRefreshDebounce: number | null = null
 
 /**
  * Notifies listeners (e.g. Dashboard) to refetch soon (debounced to avoid
- * duplicate scans). When live updates are active we skip clearing the HTTP
- * cache to keep the app stable on public RPC.
+ * duplicate scans). Marks the cache as stale so the next fetch bypasses TTL
+ * but keeps existing rows for incremental scanning.
  */
 export function requestVaultActivityRefresh(): void {
-  if (!nozkVaultLiveActive) invalidateVaultActivityCache()
+  markVaultActivityCacheStale()
   if (vaultActivityRefreshDebounce != null) {
     window.clearTimeout(vaultActivityRefreshDebounce)
   }
@@ -329,31 +340,34 @@ export const NOZK_VAULT_DEPOSIT_AMOUNT_LABEL = '0.001 ETH' as const
 export const NOZK_VAULT_DEPOSIT_VALUE_WEI_HEX = '0x38d7ea4c68000' as const
 
 /**
- * Topic0 for `DepositLocked(address indexed depositId, uint256[2] B)`.
+ * V2 event topic0 hashes (recomputed for V2 signatures with uint256[8] and bytes32).
  */
+
+/** `DepositLocked(address indexed depositId, uint256[8] B)` */
 export const DEPOSIT_LOCKED_TOPIC =
-  '0x862ec9340d087ce196a3c0e8813906101b8309ca08f1b34116302bb83558ed97'
+  '0xe178a1ad0a6551e527bf743737bb290b02b63b06d23210978cb7d3ec4f671730'
 
-/** `MintFulfilled(address indexed depositId, uint256[2] S_prime)` */
+/** `MintFulfilled(address indexed depositId, uint256[8] S_prime)` */
 export const MINT_FULFILLED_TOPIC =
-  '0x7416ef7e58ae7b94b7df89de0e6dc3e80de4ad46d77e62954dbe55de26829f79'
+  '0xa6bf61f6f77b0e662f085afc8515b4d61a6afb45870cbd0f42088b54c789d05d'
 
-/** `Refunded(address indexed depositId, address indexed to)` */
+/** `Refunded(address indexed depositId, address indexed to)` — unchanged */
 export const REFUNDED_TOPIC =
   '0x51ebc7481979ebbd2e5cf0be7bb298c0a8dfe2c94e2b37ec845b412b2b93df52'
 
-/** `NullifierRevealed(address indexed nullifier, uint256 amount)` */
+/** `NullifierRevealed(bytes32 indexed nullifierId, uint256 amount)` */
 export const NULLIFIER_REVEALED_TOPIC =
-  '0x08a7881b64eac318bde190ddac8b02a366234276f091bb1802715ac2eab87b13'
+  '0x475b6724a8fa68fea88b1ebf93141fdff143978465f5cf9535b98c4cdc0c0bf6'
 
-/** `spentNullifiers(address)` getter — backward compat (returns bool). */
-const SPENT_NULLIFIERS_SELECTOR = '0x2b2ba6e8'
+/**
+ * V2 function selectors.
+ */
 
-/** `nullifierState(address)` getter — returns uint8: 0=UNREVEALED, 1=REVEALED, 2=SPENT. */
-const NULLIFIER_STATE_SELECTOR = '0x2d35035c'
-/** `depositPending(address)` getter. */
+/** `nullifierState(bytes32)` — returns uint8: 0=UNREVEALED, 1=REVEALED, 2=SPENT. */
+const NULLIFIER_STATE_SELECTOR = '0x1fa862b9'
+/** `depositPending(address)` — unchanged. */
 const DEPOSIT_PENDING_SELECTOR = '0xd7d82302'
-/** `depositFulfilled(address)` getter. */
+/** `depositFulfilled(address)` — unchanged. */
 const DEPOSIT_FULFILLED_SELECTOR = '0x7cf15601'
 
 function normalizeAddress(a: string): string {
@@ -362,10 +376,22 @@ function normalizeAddress(a: string): string {
   return `0x${h}`
 }
 
+/** Normalize a 32-byte hex string (nullifier ID). */
+function normalizeBytes32(h: string): string {
+  const clean = h.replace(/^0x/i, '').toLowerCase()
+  if (clean.length !== 64) throw new Error(`Invalid bytes32: ${h}`)
+  return `0x${clean}`
+}
+
 /** `depositId` as log topic: 32-byte left-padded (indexed address). */
 export function depositIdToTopic(depositId: string): string {
   const addr = normalizeAddress(depositId).slice(2)
   return `0x${'0'.repeat(24)}${addr}`
+}
+
+/** `nullifierIdHex` as log topic: already 32 bytes, just normalize. */
+export function nullifierIdToTopic(nullifierIdHex: string): string {
+  return normalizeBytes32(nullifierIdHex)
 }
 
 /**
@@ -376,13 +402,13 @@ export function depositIdToTopic(depositId: string): string {
 export function vaultDerivedAddressesForIndices(
   masterSeed: Uint8Array,
   tokenIndices: number[]
-): { tokenIndex: number; depositId: string; spendAddress: string }[] {
+): { tokenIndex: number; depositId: string; nullifierIdHex: string }[] {
   return tokenIndices.map((tokenIndex) => {
     const secrets = deriveTokenSecrets(masterSeed, tokenIndex)
     return {
       tokenIndex,
       depositId: normalizeAddress(getDepositId(secrets)),
-      spendAddress: normalizeAddress(getSpendAddress(secrets)),
+      nullifierIdHex: getNullifierIdHex(secrets),
     }
   })
 }
@@ -390,6 +416,11 @@ export function vaultDerivedAddressesForIndices(
 function topic1ToDepositId(topic1: string): string {
   const h = topic1.replace(/^0x/i, '')
   return normalizeAddress(`0x${h.slice(-40)}`)
+}
+
+/** Parse topic1 as a raw bytes32 (for NullifierRevealed). */
+function topic1ToBytes32(topic1: string): string {
+  return normalizeBytes32(topic1)
 }
 
 function encodeAddress32(depositId: string): string {
@@ -571,9 +602,11 @@ async function fetchLogsForDepositIds(
   topic0: string,
   depositIds: string[],
   fromBlock: string,
-  rpc: ChainRpcFn = chainRpcCall
+  rpc: ChainRpcFn = chainRpcCall,
+  /** Override topic1 formatting. Default: left-pad address to 32 bytes. */
+  topic1Formatter: (id: string) => string = depositIdToTopic
 ): Promise<RpcLog[]> {
-  const topic1List = depositIds.map(depositIdToTopic)
+  const topic1List = depositIds.map(topic1Formatter)
   const partialOr: EthGetLogsPartialFilter = {
     address: vault,
     topics: [topic0, topic1List],
@@ -594,26 +627,25 @@ async function fetchLogsForDepositIds(
     return out
   }
 
-  let logs: RpcLog[] = []
   try {
-    logs = await ethGetLogsAutoChunk(rpc, partialOr, fromBlock, 'latest')
+    const logs = await ethGetLogsAutoChunk(rpc, partialOr, fromBlock, 'latest')
+    return Array.isArray(logs) ? logs : []
   } catch {
-    logs = []
+    // OR filter not supported by this RPC — fall back to one query per depositId
+    return fetchPerTopic1()
   }
-  if (!Array.isArray(logs)) logs = []
-
-  if (logs.length === 0 && topic1List.length > 0) {
-    logs = await fetchPerTopic1()
-  }
-  return logs
 }
 
-function latestLogByDepositId(logs: RpcLog[]): Map<string, RpcLog> {
+function latestLogByDepositId(
+  logs: RpcLog[],
+  /** Parse topic1 into a map key. Default: extract address from padded topic. */
+  parseTopic1: (t1: string) => string = topic1ToDepositId
+): Map<string, RpcLog> {
   const m = new Map<string, RpcLog>()
   for (const log of logs) {
     const t1 = log.topics?.[1]
     if (!t1) continue
-    const id = topic1ToDepositId(t1)
+    const id = parseTopic1(t1)
     const prev = m.get(id)
     if (
       !prev ||
@@ -626,12 +658,15 @@ function latestLogByDepositId(logs: RpcLog[]): Map<string, RpcLog> {
 }
 
 /**
- * Reads `MintFulfilled` for a `depositId` and returns S′ (G1) as integers from the event.
+ * Reads `MintFulfilled` for a `depositId` and returns S′ (G2) as integers from the event.
+ */
+/**
+ * V2: MintFulfilled event data contains 8 uint256 words (G2 point S').
  */
 export async function fetchMintFulfilledSPrime(
   depositId: string,
   options?: Pick<NozkVaultFetchOptions, 'contractAddress' | 'fromBlock'>
-): Promise<{ sx: bigint; sy: bigint } | null> {
+): Promise<{ coords: readonly [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint] } | null> {
   const vault = normalizeAddress(
     options?.contractAddress ?? NOZK_VAULT_ADDRESS
   )
@@ -646,10 +681,12 @@ export async function fetchMintFulfilledSPrime(
   )
   const log = latestLogByDepositId(logs).get(id)
   const data = log?.data?.replace(/^0x/i, '') ?? ''
-  if (data.length < 128) return null
-  const sx = BigInt('0x' + data.slice(0, 64))
-  const sy = BigInt('0x' + data.slice(64, 128))
-  return { sx, sy }
+  // V2: 8 words = 512 hex chars
+  if (data.length < 512) return null
+  const coords = Array.from({ length: 8 }, (_, i) =>
+    BigInt('0x' + data.slice(i * 64, (i + 1) * 64))
+  ) as unknown as readonly [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint]
+  return { coords }
 }
 
 /**
@@ -668,9 +705,9 @@ export async function fetchVaultRowForTokenIndex(
   const netLabel = options?.networkLabel ?? TARGET_NETWORK_LABEL
   const secrets = deriveTokenSecrets(masterSeed, tokenIndex)
   const depositId = normalizeAddress(getDepositId(secrets))
-  const spendAddress = getSpendAddress(secrets)
+  const nullifierIdHex = getNullifierIdHex(secrets)
   const blindShort = addrShort(depositId)
-  const spendShort = addrShort(spendAddress)
+  const spendShort = addrShort(nullifierIdHex)
 
   const [lockedRaw, fulfilledRaw, refundedRaw] = await Promise.all([
     fetchLogsForDepositIds(vault, DEPOSIT_LOCKED_TOPIC, [depositId], fromBlock, chainRpcCall),
@@ -685,7 +722,7 @@ export async function fetchVaultRowForTokenIndex(
   if (!lockLog && !mintLog && !refundLog) return null
 
   if (mintLog) {
-    const nState = await fetchNullifierState(vault, spendAddress, chainRpcCall)
+    const nState = await fetchNullifierState(vault, nullifierIdHex, chainRpcCall)
     const bn = parseHexBlock(mintLog.blockNumber)
     const txh = mintLog.transactionHash ?? '—'
     const dateIso = await blockHexToDateIso(mintLog.blockNumber, chainRpcCall)
@@ -707,9 +744,10 @@ export async function fetchVaultRowForTokenIndex(
     if (nState === NULLIFIER_REVEALED) {
       // Fetch the actual NullifierRevealed log for accurate tx metadata
       const revealLogs = await fetchLogsForDepositIds(
-        vault, NULLIFIER_REVEALED_TOPIC, [spendAddress], fromBlock, chainRpcCall
+        vault, NULLIFIER_REVEALED_TOPIC, [nullifierIdHex], fromBlock, chainRpcCall,
+        nullifierIdToTopic
       )
-      const revealLog = latestLogByDepositId(revealLogs).get(normalizeAddress(spendAddress))
+      const revealLog = latestLogByDepositId(revealLogs, topic1ToBytes32).get(normalizeBytes32(nullifierIdHex))
       const rBn = revealLog ? parseHexBlock(revealLog.blockNumber) : bn
       const rTxh = revealLog?.transactionHash ?? txh
       const rDateIso = revealLog ? await blockHexToDateIso(revealLog.blockNumber, chainRpcCall) : dateIso
@@ -808,16 +846,17 @@ export const NULLIFIER_REVEALED = 1
 export const NULLIFIER_SPENT = 2
 
 /**
- * Query `nullifierState(address)` → 0=UNREVEALED, 1=REVEALED, 2=SPENT.
- * Falls back to `spentNullifiers(address)` if the new view is unavailable.
+ * V2: Query `nullifierState(bytes32)` → 0=UNREVEALED, 1=REVEALED, 2=SPENT.
+ * Takes a 32-byte nullifier ID hex (keccak of ABI-encoded G1 spend pub).
  */
 async function fetchNullifierState(
   vault: string,
-  spendAddress: string,
+  nullifierIdHex: string,
   rpc: ChainRpcFn = chainRpcCall
 ): Promise<number> {
-  const addr = normalizeAddress(spendAddress).slice(2)
-  const data = (NULLIFIER_STATE_SELECTOR + addr.padStart(64, '0')).toLowerCase()
+  // bytes32: already 32 bytes, pad to 64 hex chars if needed
+  const nid = nullifierIdHex.replace(/^0x/i, '').toLowerCase().padStart(64, '0')
+  const data = (NULLIFIER_STATE_SELECTOR + nid).toLowerCase()
   try {
     const result = await rpc<string>('eth_call', [
       { to: vault, data },
@@ -827,30 +866,9 @@ async function fetchNullifierState(
       return Number(BigInt(result))
     }
   } catch {
-    // fallback to spentNullifiers for older deployments
+    /* contract may not be deployed yet */
   }
-  return await spentNullifierIsSetLegacy(vault, spendAddress, rpc)
-    ? NULLIFIER_SPENT
-    : NULLIFIER_UNREVEALED
-}
-
-async function spentNullifierIsSetLegacy(
-  vault: string,
-  spendAddress: string,
-  rpc: ChainRpcFn = chainRpcCall
-): Promise<boolean> {
-  const addr = normalizeAddress(spendAddress).slice(2)
-  const data = (SPENT_NULLIFIERS_SELECTOR + addr.padStart(64, '0')).toLowerCase()
-  const result = await rpc<string>('eth_call', [
-    { to: vault, data },
-    'latest',
-  ])
-  if (!result || result === '0x') return false
-  try {
-    return BigInt(result) !== 0n
-  } catch {
-    return false
-  }
+  return NULLIFIER_UNREVEALED
 }
 
 /** True if any derived `depositId` in this batch has vault-relevant logs on-chain. */
@@ -926,18 +944,17 @@ export async function fetchVaultActivityForFirstTokens(
   const ttl = scanCacheTtlMs()
   const now = Date.now()
 
-  if (!options?.skipCache && ttl > 0) {
-    const hit = vaultActivityCache.get(cacheKey)
-    if (hit && now - hit.at < ttl) {
-      nozkVaultActivityDebug('cache hit', {
-        ageMs: now - hit.at,
-        ttlMs: ttl,
-        rowCount: hit.rows.length,
-        tokenIndices: hit.rows.map((r) => r.tokenIndex),
-      })
-      options?.onProgress?.(hit.rows)
-      return hit.rows
-    }
+  const existing = vaultActivityCache.get(cacheKey)
+
+  if (!options?.skipCache && ttl > 0 && existing && now - existing.at < ttl) {
+    nozkVaultActivityDebug('cache hit', {
+      ageMs: now - existing.at,
+      ttlMs: ttl,
+      rowCount: existing.rows.length,
+      tokenIndices: existing.rows.map((r) => r.tokenIndex),
+    })
+    options?.onProgress?.(existing.rows)
+    return existing.rows
   }
 
   if (inflightActivityKey === cacheKey && inflightActivityPromise) {
@@ -945,25 +962,51 @@ export async function fetchVaultActivityForFirstTokens(
     return inflightActivityPromise
   }
 
+  // Incremental scan if we have stale cached data
+  const isIncremental = existing != null && existing.lastBlock > 0
+  const scanFromBlock = isIncremental
+    ? '0x' + (existing.lastBlock + 1).toString(16)
+    : fromBlock
+  const incrementalParams = isIncremental
+    ? { minBatches: existing.batchCount + 1 }
+    : undefined
+
   nozkVaultActivityDebug('fetch start', {
     skipCache: options?.skipCache ?? false,
     ttlMs: ttl,
     vault,
-    fromBlock,
-    cacheKeyPrefix: `${vault.slice(0, 10)}…|${fromBlock}`,
+    scanFromBlock,
+    incremental: isIncremental,
+    cachedRows: existing?.rows.length ?? 0,
   })
 
+  const genAtStart = cacheGeneration
   inflightActivityKey = cacheKey
   inflightActivityPromise = fetchVaultActivityForFirstTokensImpl(
     masterSeed,
     options,
     vault,
-    fromBlock
-  ).then((rows) => {
-    if (!options?.skipCache && ttl > 0) {
-      vaultActivityCache.set(cacheKey, { at: Date.now(), rows })
+    scanFromBlock,
+    incrementalParams
+  ).then(({ rows: newRows, batchCount: newBatchCount }) => {
+    // Merge incremental results with cached rows
+    const finalRows = isIncremental && existing
+      ? mergeIncrementalRows(existing.rows, newRows)
+      : newRows
+    const lastBlock = Math.max(
+      existing?.lastBlock ?? 0,
+      ...finalRows.map((r) => r.blockNumber ?? 0)
+    )
+    // Only cache if no stale-mark happened during this fetch
+    if (!options?.skipCache && ttl > 0 && cacheGeneration === genAtStart) {
+      vaultActivityCache.set(cacheKey, {
+        at: Date.now(),
+        rows: finalRows,
+        lastBlock,
+        batchCount: Math.max(existing?.batchCount ?? 0, newBatchCount),
+      })
     }
-    return rows
+    return finalRows
   })
 
   try {
@@ -977,6 +1020,21 @@ export async function fetchVaultActivityForFirstTokens(
 type VaultRowDraft = {
   row: Omit<VaultTx, 'dateIso' | 'time'>
   blockHex?: string
+}
+
+/**
+ * Merge incremental scan results into cached rows.
+ * New rows override cached rows with the same tokenIndex.
+ */
+function mergeIncrementalRows(cached: VaultTx[], incremental: VaultTx[]): VaultTx[] {
+  const merged = new Map<number, VaultTx>()
+  for (const r of cached) {
+    if (r.tokenIndex != null) merged.set(r.tokenIndex, r)
+  }
+  for (const r of incremental) {
+    if (r.tokenIndex != null) merged.set(r.tokenIndex, r)
+  }
+  return Array.from(merged.values()).sort(sortVaultRowsCompare)
 }
 
 function sortVaultRowsCompare(a: VaultTx, b: VaultTx): number {
@@ -1016,12 +1074,15 @@ async function finalizeDraftsToRows(
   }))
 }
 
+type ScanResult = { rows: VaultTx[]; batchCount: number }
+
 async function fetchVaultActivityForFirstTokensImpl(
   masterSeed: Uint8Array,
   options: NozkVaultFetchOptions | undefined,
   vault: string,
-  fromBlock: string
-): Promise<VaultTx[]> {
+  fromBlock: string,
+  incremental?: { minBatches: number }
+): Promise<ScanResult> {
   const netLabel = options?.networkLabel ?? TARGET_NETWORK_LABEL
   const rpc = createVaultScanRpcLimiter(
     NOZK_VAULT_SCAN_RPC_BURST,
@@ -1032,18 +1093,26 @@ async function fetchVaultActivityForFirstTokensImpl(
       ? Math.min(options.maxBatches, NOZK_VAULT_ACTIVITY_MAX_BATCHES)
       : NOZK_VAULT_ACTIVITY_MAX_BATCHES
 
+  const effectiveMaxBatches = incremental
+    ? Math.min(incremental.minBatches, NOZK_VAULT_ACTIVITY_MAX_BATCHES)
+    : maxBatches
+
   nozkVaultActivityDebug('scan batches', {
     burst: NOZK_VAULT_SCAN_RPC_BURST,
     pauseMs: NOZK_VAULT_SCAN_RPC_PAUSE_MS,
     batchSize: NOZK_VAULT_TOKEN_BATCH_SIZE,
-    maxBatches,
-    note: 'stop after first empty batch (contiguous index assumption)',
+    maxBatches: effectiveMaxBatches,
+    incremental: !!incremental,
+    note: incremental
+      ? `incremental: scan ${effectiveMaxBatches} batches, no early stop`
+      : 'stop after first empty batch (contiguous index assumption)',
   })
 
   let mergedRows: VaultTx[] = []
+  let nonEmptyBatchCount = 0
   /** Stop at first empty batch under contiguous index assumption. */
 
-  for (let b = 0; b < maxBatches; b++) {
+  for (let b = 0; b < effectiveMaxBatches; b++) {
     const indices = batchTokenIndices(b)
     // On-chain match: derived depositId ⇔ log topic1 (see `latestLogByDepositId`).
     // Debug: `vaultDerivedAddressesForIndices(masterSeed, indices)`.
@@ -1091,7 +1160,7 @@ async function fetchVaultActivityForFirstTokensImpl(
       } else {
         const nState = await fetchNullifierState(
           vault,
-          getSpendAddress(secrets),
+          getNullifierIdHex(secrets),
           rpc
         )
         nullifierStates.push(nState)
@@ -1116,15 +1185,16 @@ async function fetchVaultActivityForFirstTokensImpl(
     })
 
     // Batch-fetch NullifierRevealed logs for all revealed spend addresses
-    const revealedSpendAddresses = indices
-      .map((_, j) => nullifierStates[j] === NULLIFIER_REVEALED ? getSpendAddress(secretsList[j]!) : null)
+    const revealedNullifierIds = indices
+      .map((_, j) => nullifierStates[j] === NULLIFIER_REVEALED ? getNullifierIdHex(secretsList[j]!) : null)
       .filter((a): a is string => a !== null)
     let revealedLogById = new Map<string, RpcLog>()
-    if (revealedSpendAddresses.length > 0) {
+    if (revealedNullifierIds.length > 0) {
       const revealLogs = await fetchLogsForDepositIds(
-        vault, NULLIFIER_REVEALED_TOPIC, revealedSpendAddresses, fromBlock, rpc
+        vault, NULLIFIER_REVEALED_TOPIC, revealedNullifierIds, fromBlock, rpc,
+        nullifierIdToTopic
       )
-      revealedLogById = latestLogByDepositId(revealLogs)
+      revealedLogById = latestLogByDepositId(revealLogs, topic1ToBytes32)
     }
 
     const batchDrafts: VaultRowDraft[] = []
@@ -1133,9 +1203,9 @@ async function fetchVaultActivityForFirstTokensImpl(
       const tokenIndex = indices[j]!
       const secrets = secretsList[j]!
       const depositId = normalizeAddress(getDepositId(secrets))
-      const spendAddress = getSpendAddress(secrets)
+      const nullifierIdHex = getNullifierIdHex(secrets)
       const blindShort = addrShort(depositId)
-      const spendShort = addrShort(spendAddress)
+      const spendShort = addrShort(nullifierIdHex)
 
       if (nullifierStates[j] === NULLIFIER_SPENT) {
         const mintLog = fulfilledById.get(depositId)
@@ -1162,7 +1232,7 @@ async function fetchVaultActivityForFirstTokensImpl(
       }
 
       if (nullifierStates[j] === NULLIFIER_REVEALED) {
-        const revealLog = revealedLogById.get(normalizeAddress(spendAddress))
+        const revealLog = revealedLogById.get(normalizeBytes32(nullifierIdHex))
         const mintLog = fulfilledById.get(depositId)
         const lockLog = lockedById.get(depositId)
         const refLog = mintLog ?? lockLog
@@ -1285,10 +1355,14 @@ async function fetchVaultActivityForFirstTokensImpl(
       fulfilledById,
       refundedById
     )
+    if (batchAny) nonEmptyBatchCount++
 
     // Progressive loading: update UI after each batch, even if it yielded no new rows.
     options?.onBatchProgress?.(b, mergedRows, indices)
-    if (!batchAny) {
+
+    // In incremental mode, scan all requested batches (don't stop early).
+    // In full-scan mode, stop at first empty batch (contiguous index assumption).
+    if (!incremental && !batchAny) {
       nozkVaultActivityDebug(
         'scan stop: first empty batch (no DepositLocked / MintFulfilled / Refunded)',
         { batchIndex: b, tokenIndices: indices }
@@ -1296,9 +1370,10 @@ async function fetchVaultActivityForFirstTokensImpl(
       break
     }
 
-    if (b === maxBatches - 1) {
-      nozkVaultActivityDebug('scan stop: reached maxBatches cap', {
-        maxBatches,
+    if (b === effectiveMaxBatches - 1) {
+      nozkVaultActivityDebug('scan stop: reached batch cap', {
+        maxBatches: effectiveMaxBatches,
+        incremental: !!incremental,
         lastBatchTokenIndices: indices,
       })
     }
@@ -1313,7 +1388,7 @@ async function fetchVaultActivityForFirstTokensImpl(
     })),
   })
 
-  return mergedRows
+  return { rows: mergedRows, batchCount: nonEmptyBatchCount }
 }
 
 /**

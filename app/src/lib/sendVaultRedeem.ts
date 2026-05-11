@@ -1,227 +1,101 @@
 import {
-  buildNozkVaultRedeemCalldata,
   buildNozkVaultRevealCalldata,
+  buildRelayerRedeemPayload,
   clearRedemptionDraft,
-  redemptionDraftMatchesSecrets,
-  type RedemptionDraftV1,
 } from '../crypto/nozkRedeem'
-import {
-  ensureTargetChain,
-  TARGET_CHAIN_ID_DECIMAL,
-  targetChainMismatchUserMessage,
-  waitForTransactionReceipt,
-} from './ethereum'
-import { chainRpcCall } from './chainPublicRpc'
+import { deriveTokenSecretsFromSeed } from '../crypto/nozkClient'
 import { isNozkVaultDebugEnabled } from './nozkDebug'
 import {
   fetchMintFulfilledSPrime,
   NOZK_VAULT_ADDRESS,
-  requestVaultActivityRefresh,
 } from './nozkVault'
+import { TARGET_CHAIN_ID_DECIMAL, waitForTransactionReceipt } from './ethereum'
 
-export type EthereumRequester = {
-  request: (args: {
-    method: string
-    params?: unknown[]
-  }) => Promise<unknown>
-}
-
-/**
- * Sends `NozkVault.redeem` using the local draft (spend/blind keys) and `recipient`.
- * Clears the draft and invalidates activity cache on success.
- */
 function redeemDebug(msg: string, data?: Record<string, unknown>) {
   if (!isNozkVaultDebugEnabled()) return
   console.log('[NozkVault redeem]', msg, data ?? '')
 }
 
-export async function sendVaultRedeemTransaction(params: {
-  ethereum: EthereumRequester
-  recipient: string
-  draft: RedemptionDraftV1
-  /**
-   * When `masterSeed` is present, alignment is checked **only** if the account
-   * signing the tx is the same as the one that prepared the draft (Account 1).
-   * If another account (Account 2) sends the tx, the in-memory seed differs — the
-   * draft already carries spend/blind in localStorage and is not validated against `masterSeed`.
-   */
-  masterSeed?: Uint8Array | null
-}): Promise<{ txHash: string }> {
-  const { ethereum, recipient, draft, masterSeed } = params
-  const r = recipient.trim()
-  if (!/^0x[a-fA-F0-9]{40}$/.test(r)) {
-    throw new Error('Invalid recipient address')
-  }
+const RELAYER_URL = (import.meta.env.VITE_RELAYER_URL as string | undefined) ?? ''
 
-  const recipientLc = r.toLowerCase()
-  const prepareLc = draft.prepareAccount?.toLowerCase()
-  const isExecutorAccount =
-    draft.prepareAccount != null && recipientLc !== prepareLc
-
-  redeemDebug('pre-check', {
-    recipient: recipientLc,
-    prepareAccount: prepareLc ?? '(none)',
-    isExecutorAccount,
-    hasMasterSeed: Boolean(masterSeed?.length),
+async function relayerPost<T>(path: string, body: unknown): Promise<T> {
+  if (!RELAYER_URL) throw new Error('VITE_RELAYER_URL not configured')
+  const resp = await fetch(`${RELAYER_URL.replace(/\/$/, '')}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(180_000),
   })
-  redeemDebug('draft', {
-    tokenIndex: draft.tokenIndex,
-    depositId: draft.depositId.toLowerCase(),
-    nullifier: draft.spendAddress.toLowerCase(),
-    savedAtMs: draft.savedAt,
-  })
-
-  if (masterSeed && !isExecutorAccount) {
-    const ok = redemptionDraftMatchesSecrets(draft, masterSeed)
-    redeemDebug('redemptionDraftMatchesSecrets', { ok })
-    if (!ok) {
-      throw new Error('Redeem draft does not match current vault seed')
-    }
-  } else if (isExecutorAccount) {
-    redeemDebug(
-      'skip seed check (executor account; draft keys are self-contained)'
-    )
+  if (!resp.ok) {
+    const text = await resp.text()
+    throw new Error(`Relayer ${path} returned ${resp.status}: ${text}`)
   }
-
-  const okChain = await ensureTargetChain(ethereum)
-  if (!okChain) {
-    throw new Error(targetChainMismatchUserMessage())
-  }
-
-  redeemDebug('building redeem calldata (reveal is a separate step)', {
-    tokenIndex: draft.tokenIndex,
-    depositId: draft.depositId.toLowerCase(),
-  })
-
-  const data = await buildNozkVaultRedeemCalldata({
-    draft,
-    recipient: r,
-    chainId: Number(TARGET_CHAIN_ID_DECIMAL),
-    contractAddress: NOZK_VAULT_ADDRESS,
-  })
-  redeemDebug('calldata built', {
-    tokenIndex: draft.tokenIndex,
-    selector: data.slice(0, 10).toLowerCase(),
-    bytes: Math.max(0, (data.length - 2) / 2),
-  })
-
-  const accs = (await ethereum.request({
-    method: 'eth_requestAccounts',
-  })) as unknown
-  const from =
-    Array.isArray(accs) && typeof accs[0] === 'string' ? accs[0] : null
-  if (!from) {
-    throw new Error('No connected account')
-  }
-
-  const sendParams = {
-    from,
-    to: NOZK_VAULT_ADDRESS,
-    data,
-    value: '0x0',
-  }
-
-  try {
-    await chainRpcCall('eth_call', [sendParams, 'latest'])
-  } catch {
-    /* optional simulation */
-  }
-
-  const hash = (await ethereum.request({
-    method: 'eth_sendTransaction',
-    params: [sendParams],
-  })) as string
-
-  /* Prefer wallet RPC for receipt polling so Infura isn’t hit during the same redeem flow as `fetchMintFulfilledSPrime` + vault refresh. */
-  const receipt = await waitForTransactionReceipt(hash, { ethereum })
-  if (receipt.status === '0x0') {
-    throw new Error('Transaction reverted')
-  }
-
-  clearRedemptionDraft()
-  requestVaultActivityRefresh()
-  return { txHash: hash }
+  return resp.json() as Promise<T>
 }
 
 /**
- * Sends `NozkVault.reveal` — permissionless BLS verification + nullifier registration.
- * Must be called before `redeem` in the new split flow.
+ * Sends reveal via relayer — no on-chain tx from the user's wallet.
  */
-export async function sendVaultRevealTransaction(params: {
-  ethereum: EthereumRequester
-  draft: RedemptionDraftV1
-  masterSeed?: Uint8Array | null
+export async function sendRelayerRevealTransaction(params: {
+  masterSeed: Uint8Array
+  tokenIndex: number
 }): Promise<{ txHash: string }> {
-  const { ethereum, draft, masterSeed } = params
+  const { masterSeed, tokenIndex } = params
+  const secrets = deriveTokenSecretsFromSeed(masterSeed, tokenIndex)
 
-  if (masterSeed) {
-    const ok = redemptionDraftMatchesSecrets(draft, masterSeed)
-    redeemDebug('reveal: redemptionDraftMatchesSecrets', { ok })
-    if (!ok) {
-      throw new Error('Redeem draft does not match current vault seed')
-    }
-  }
-
-  const okChain = await ensureTargetChain(ethereum)
-  if (!okChain) {
-    throw new Error(targetChainMismatchUserMessage())
-  }
-
-  const mint = await fetchMintFulfilledSPrime(draft.depositId, {
+  const mint = await fetchMintFulfilledSPrime(secrets.depositId, {
     contractAddress: NOZK_VAULT_ADDRESS,
   })
   if (!mint) {
-    throw new Error('No MintFulfilled log for this depositId')
+    throw new Error('No MintFulfilled log for this token')
   }
-  redeemDebug('reveal: mint log found', {
-    tokenIndex: draft.tokenIndex,
-    depositId: draft.depositId.toLowerCase(),
-    sx: mint.sx.toString(10),
-    sy: mint.sy.toString(10),
+
+  redeemDebug('reveal: mint log found', { tokenIndex, depositId: secrets.depositId })
+
+  const { spendPubCoords, sCoords } = buildNozkVaultRevealCalldata({
+    masterSeed,
+    tokenIndex,
+    mintFulfilledCoords: mint.coords,
   })
 
-  const { data } = await buildNozkVaultRevealCalldata({
-    draft,
-    mintFulfilled: mint,
-  })
-  redeemDebug('reveal calldata built', {
-    tokenIndex: draft.tokenIndex,
-    selector: data.slice(0, 10).toLowerCase(),
-    bytes: Math.max(0, (data.length - 2) / 2),
+  const result = await relayerPost<{ tx_hash: string; block_number: number }>('/reveal', {
+    spend_pub_g1: [...spendPubCoords].map((c: bigint) => '0x' + c.toString(16)),
+    s_g2: [...sCoords].map((c: bigint) => '0x' + c.toString(16)),
   })
 
-  const accs = (await ethereum.request({
-    method: 'eth_requestAccounts',
-  })) as unknown
-  const from =
-    Array.isArray(accs) && typeof accs[0] === 'string' ? accs[0] : null
-  if (!from) {
-    throw new Error('No connected account')
-  }
+  redeemDebug('reveal relayer response', result as unknown as Record<string, unknown>)
+  await waitForTransactionReceipt(result.tx_hash)
+  return { txHash: result.tx_hash }
+}
 
-  const sendParams = {
-    from,
-    to: NOZK_VAULT_ADDRESS,
-    data,
-    value: '0x0',
-  }
+/**
+ * Sends redeem via relayer — BLS spend signature.
+ */
+export async function sendRelayerRedeemTransaction(params: {
+  masterSeed: Uint8Array
+  tokenIndex: number
+  recipient: string
+}): Promise<{ txHash: string }> {
+  const { masterSeed, tokenIndex, recipient } = params
 
-  try {
-    await chainRpcCall('eth_call', [sendParams, 'latest'])
-  } catch {
-    /* optional simulation */
-  }
+  const payload = buildRelayerRedeemPayload({
+    masterSeed,
+    tokenIndex,
+    recipient,
+    chainId: Number(TARGET_CHAIN_ID_DECIMAL),
+    contractAddress: NOZK_VAULT_ADDRESS,
+  })
 
-  const hash = (await ethereum.request({
-    method: 'eth_sendTransaction',
-    params: [sendParams],
-  })) as string
+  const result = await relayerPost<{ tx_hash: string; block_number: number }>('/redeem', {
+    recipient: payload.recipient,
+    spend_sigma_compressed: payload.spendSigmaCompressedHex,
+    spend_pk_compressed: payload.spendPkCompressedHex,
+    nullifier_id: payload.nullifierIdHex,
+    deadline: payload.deadline,
+  })
 
-  const receipt = await waitForTransactionReceipt(hash, { ethereum })
-  if (receipt.status === '0x0') {
-    throw new Error('Transaction reverted')
-  }
-
-  requestVaultActivityRefresh()
-  return { txHash: hash }
+  redeemDebug('redeem relayer response', result as unknown as Record<string, unknown>)
+  await waitForTransactionReceipt(result.tx_hash)
+  clearRedemptionDraft()
+  return { txHash: result.tx_hash }
 }

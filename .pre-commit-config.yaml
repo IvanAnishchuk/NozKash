@@ -87,6 +87,16 @@ repos:
         pass_filenames: false
         files: ^nozk_ts/.*\.ts$
 
+  # ── App: tsc ──────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: app-tsc-check
+        name: app tsc -b
+        entry: bash -c 'cd app && npx tsc -b --noEmit'
+        language: system
+        pass_filenames: false
+        files: ^app/
+
   # ── Solidity: forge fmt ────────────────────────────────
   - repo: local
     hooks:

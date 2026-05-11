@@ -13,9 +13,5 @@ export default defineConfig({
       // TS-aware resolver remaps .js → .ts when no compiled output exists.
       '@nozk': path.resolve(__dirname, '../nozk_ts'),
     },
-    dedupe: ['mcl-wasm'],
-  },
-  optimizeDeps: {
-    include: ['mcl-wasm'],
   },
 })

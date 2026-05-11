@@ -10,7 +10,7 @@ convenience layer, not an enforcement layer.
 
 Endpoints:
     POST /reveal           Submit a BLS signature to register a nullifier
-    POST /redeem           Submit an ECDSA signature to redeem a revealed token
+    POST /redeem           Submit a BLS spend signature to redeem a revealed token
     GET  /status/{nullifier}  Query nullifier lifecycle state
     GET  /health           Relayer health / balance check
 
@@ -40,7 +40,9 @@ from typing import Optional
 import typer
 import uvicorn
 from dotenv import load_dotenv
+from eth_utils import keccak
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from rich import box
 from rich.panel import Panel
@@ -50,18 +52,18 @@ from rich.traceback import install as install_rich_traceback
 from web3 import Web3
 from web3.exceptions import ContractCustomError, ContractLogicError
 
-from contract_errors import decode_contract_error
-from nozk_library import (
+from bls12_381_crypto import (
+    G1_GEN,
     G1Point,
-    G2Point,
     Scalar,
-    VerificationError,
-    _mul_g2,
-    hash_to_curve,
-    parse_g1,
-    verify_bls_pairing,
-    verify_ecdsa_mev_protection,
+    abi_encode_g1,
+    g1_scalar_mul,
+    hash_to_g2,
+    parse_g1_sol,
+    parse_g2_sol,
+    verify_mint_pairing,
 )
+from contract_errors import decode_contract_error
 from nozk_theme import make_console
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
@@ -160,23 +162,21 @@ class RelayerConfig:
     wallet_address: str
     wallet_key: str
     chain_id: int
-    mint_bls_pubkey: G2Point | None
+    mint_bls_pubkey: G1Point | None
 
 
-def _parse_mint_bls_pubkey(raw: str) -> G2Point | None:
-    from py_ecc.bn128 import FQ2
-    from py_ecc.bn128 import G2 as G2_gen
-
+def _parse_mint_bls_pubkey(raw: str) -> G1Point | None:
     if raw:
         parts = [p.strip() for p in raw.split(",")]
-        if len(parts) == 4:
-            x_imag, x_real, y_imag, y_real = (int(p, 16) for p in parts)
-            return G2Point((FQ2([x_real, x_imag]), FQ2([y_real, y_imag])))
+        if len(parts) != 4:
+            raise ValueError(f"MINT_BLS_PUBKEY must have exactly 4 comma-separated hex limbs, got {len(parts)}")
+        x_hi, x_lo, y_hi, y_lo = (int(p, 16) for p in parts)
+        return parse_g1_sol(x_hi, x_lo, y_hi, y_lo)
 
     sk_hex = os.getenv("MINT_BLS_PRIVKEY", "").strip() or os.getenv("MINT_BLS_PRIVKEY_INT", "").strip()
     if sk_hex:
         sk_int = int(sk_hex, 16) if sk_hex.startswith("0x") else int(sk_hex)
-        return _mul_g2(G2Point(G2_gen), Scalar(sk_int))
+        return g1_scalar_mul(G1_GEN, Scalar(sk_int))
 
     return None
 
@@ -223,7 +223,7 @@ def load_config() -> RelayerConfig:
 
 # ── Contract ABI ──────────────────────────────────────────────────────────────
 
-_ABI_PATH = Path(__file__).resolve().parent / ".." / "abi" / "nozk_vault_abi.json"
+_ABI_PATH = Path(__file__).resolve().parent / ".." / "abi" / "nozk_vault_v2_abi.json"
 NOZK_VAULT_ABI = json.loads(_ABI_PATH.read_text())
 
 
@@ -231,15 +231,15 @@ NOZK_VAULT_ABI = json.loads(_ABI_PATH.read_text())
 
 
 class RevealRequest(BaseModel):
-    nullifier: str  # 0x-prefixed address
-    s_x: str  # hex uint256
-    s_y: str  # hex uint256
+    spend_pub_g1: list[str]  # 4 hex uint256 (G1 spend pubkey)
+    s_g2: list[str]  # 8 hex uint256 (G2 unblinded mint signature)
 
 
 class RedeemRequest(BaseModel):
     recipient: str  # 0x-prefixed address
-    spend_signature: str  # 0x-prefixed 65-byte hex (r||s||v)
-    nullifier: str  # 0x-prefixed address
+    spend_sigma_compressed: str  # 96-byte compressed G2 hex (BLS spend sig)
+    spend_pk_compressed: str  # 48-byte compressed G1 hex (BLS spend pubkey)
+    nullifier_id: str  # 32-byte hex (keccak of G1 spend pubkey)
     deadline: int  # unix timestamp
 
 
@@ -334,98 +334,92 @@ class Relayer:
         return tx_hash.hex(), receipt["blockNumber"], receipt["gasUsed"]
 
     def validate_reveal(self, req: RevealRequest) -> None:
-        """Off-chain pre-validation for reveal."""
-        nullifier = Web3.to_checksum_address(req.nullifier)
-        s_x = int(req.s_x, 16)
-        s_y = int(req.s_y, 16)
-
-        # Check point is on curve
+        """Off-chain pre-validation for reveal (BLS12-381 standard scheme)."""
+        # Parse G1 spend pubkey and G2 signature from request
         try:
-            S = parse_g1(s_x, s_y)
-        except Exception as exc:
-            raise HTTPException(status_code=400, detail=f"Invalid G1 point: {exc}")
+            spend_pub = parse_g1_sol(*[int(c, 16) for c in req.spend_pub_g1])
+        except (ValueError, TypeError) as exc:
+            raise HTTPException(status_code=400, detail=f"Invalid G1 spend pubkey: {exc}")
+        try:
+            S = parse_g2_sol(*[int(c, 16) for c in req.s_g2])
+        except (ValueError, TypeError) as exc:
+            raise HTTPException(status_code=400, detail=f"Invalid G2 signature: {exc}")
 
         # BLS pairing pre-check (if we have the pubkey)
         if self.config.mint_bls_pubkey is not None:
-            nullifier_bytes = bytes.fromhex(nullifier[2:])
-            Y: G1Point = hash_to_curve(nullifier_bytes)
-            if not verify_bls_pairing(S, Y, self.config.mint_bls_pubkey):
-                raise HTTPException(status_code=400, detail="BLS pairing check failed — invalid signature")
+            try:
+                Y = hash_to_g2(abi_encode_g1(spend_pub))
+                if not verify_mint_pairing(S, Y, self.config.mint_bls_pubkey):
+                    raise HTTPException(status_code=400, detail="BLS pairing check failed")
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=f"Invalid BLS point: {exc}")
 
-        # On-chain state check
-        state_val = self.contract.functions.nullifierState(nullifier).call()
-        if state_val != 0:  # 0 = UNREVEALED
+        # Compute nullifier ID
+        nullifier_id = keccak(abi_encode_g1(spend_pub))
+        state_val = self.contract.functions.nullifierState(nullifier_id).call()
+        if state_val != 0:
             state_name = {1: "REVEALED", 2: "SPENT"}.get(state_val, f"UNKNOWN({state_val})")
             raise HTTPException(status_code=409, detail=f"Nullifier already {state_name}")
 
     def validate_redeem(self, req: RedeemRequest) -> None:
-        """Off-chain pre-validation for redeem."""
-        nullifier = Web3.to_checksum_address(req.nullifier)
+        """Off-chain pre-validation for redeem (BLS spend signature)."""
+        from chia_rs import AugSchemeMPL, G1Element, G2Element
+
         recipient = Web3.to_checksum_address(req.recipient)
 
         # Deadline check
         if req.deadline < int(time.time()):
             raise HTTPException(status_code=400, detail="Deadline has already passed")
 
-        # Signature format
-        sig_hex = req.spend_signature.replace("0x", "")
-        if len(sig_hex) != 130:  # 65 bytes = 130 hex chars
-            raise HTTPException(status_code=400, detail=f"spend_signature must be 65 bytes, got {len(sig_hex) // 2}")
-
-        # ECDSA pre-check
-        r_hex = sig_hex[:64]
-        s_hex = sig_hex[64:128]
-        v_byte = int(sig_hex[128:130], 16)
-        if v_byte not in (27, 28):
-            raise HTTPException(status_code=400, detail=f"Invalid signature v byte: {v_byte}, expected 27 or 28")
-        recovery_bit = v_byte - 27
-
-        compact_hex = r_hex + s_hex
+        # Parse BLS spend signature (compressed G2) and spend pubkey (compressed G1)
         try:
-            if not verify_ecdsa_mev_protection(
-                self.contract.functions.redemptionMessageHash(recipient, req.deadline).call(),
-                compact_hex,
-                recovery_bit,
-                nullifier,
-            ):
-                raise HTTPException(status_code=400, detail="ECDSA recovery does not match nullifier")
-        except VerificationError as exc:
-            raise HTTPException(status_code=400, detail=f"Malformed ECDSA signature: {exc}")
+            sigma = G2Element.from_bytes(bytes.fromhex(req.spend_sigma_compressed.removeprefix("0x")))
+            spend_pk = G1Element.from_bytes(bytes.fromhex(req.spend_pk_compressed.removeprefix("0x")))
+        except (ValueError, TypeError) as exc:
+            raise HTTPException(status_code=400, detail=f"Invalid BLS signature or pubkey: {exc}")
+
+        # BLS spend sig pre-check
+        msg_hash = self.contract.functions.redemptionMessageHash(recipient, req.deadline).call()
+        if not AugSchemeMPL.verify(spend_pk, msg_hash, sigma):
+            raise HTTPException(status_code=400, detail="BLS spend signature verification failed")
 
         # On-chain state check
-        state_val = self.contract.functions.nullifierState(nullifier).call()
+        nid_hex = req.nullifier_id.removeprefix("0x").removeprefix("0X")
+        nullifier_id = bytes.fromhex(nid_hex)
+        state_val = self.contract.functions.nullifierState(nullifier_id).call()
         if state_val != 1:  # 1 = REVEALED
             state_name = {0: "UNREVEALED", 2: "SPENT"}.get(state_val, f"UNKNOWN({state_val})")
             raise HTTPException(status_code=409, detail=f"Nullifier is {state_name}, expected REVEALED")
 
     def submit_reveal(self, req: RevealRequest) -> TxResponse:
-        nullifier = Web3.to_checksum_address(req.nullifier)
-        s_x = int(req.s_x, 16)
-        s_y = int(req.s_y, 16)
-
         self.validate_reveal(req)
 
-        tx_builder = self.contract.functions.reveal(nullifier, [s_x, s_y])
+        spend_pub_coords = [int(c, 16) for c in req.spend_pub_g1]
+        s_coords = [int(c, 16) for c in req.s_g2]
+
+        tx_builder = self.contract.functions.reveal(spend_pub_coords, s_coords)
         tx_hash, block, gas = self._send_tx(tx_builder)
 
-        self._log_tx("reveal", nullifier, tx_hash, block, gas)
-        return TxResponse(tx_hash=tx_hash, block_number=block, gas_used=gas, nullifier=nullifier)
+        spend_pub = parse_g1_sol(*spend_pub_coords)
+        nid = keccak(abi_encode_g1(spend_pub)).hex()
+        self._log_tx("reveal", nid[:10], tx_hash, block, gas)
+        return TxResponse(tx_hash=tx_hash, block_number=block, gas_used=gas, nullifier=nid)
 
     def submit_reveal_batch(self, items: list[RevealRequest]) -> BatchTxResponse:
-        nullifiers = []
+        spend_pubs = []
         sigs = []
         for item in items:
             self.validate_reveal(item)
-            nullifiers.append(Web3.to_checksum_address(item.nullifier))
-            sigs.append([int(item.s_x, 16), int(item.s_y, 16)])
+            spend_pubs.append([int(c, 16) for c in item.spend_pub_g1])
+            sigs.append([int(c, 16) for c in item.s_g2])
 
-        tx_builder = self.contract.functions.revealBatch(nullifiers, sigs)
+        tx_builder = self.contract.functions.revealBatch(spend_pubs, sigs)
         tx_hash, block, gas = self._send_tx(tx_builder)
 
         if not is_quiet():
             console.print(
                 Text.assemble(
-                    ("  ✅  revealBatch  ", "success"),
+                    ("  revealBatch  ", "success"),
                     ("count=", "muted"),
                     (str(len(items)), "num"),
                     ("  tx=", "muted"),
@@ -439,24 +433,40 @@ class Relayer:
         return BatchTxResponse(tx_hash=tx_hash, block_number=block, gas_used=gas, count=len(items))
 
     def submit_redeem(self, req: RedeemRequest) -> TxResponse:
-        nullifier = Web3.to_checksum_address(req.nullifier)
-        recipient = Web3.to_checksum_address(req.recipient)
-        sig_bytes = bytes.fromhex(req.spend_signature.replace("0x", ""))
+        """Submit a redeem transaction on behalf of the user.
+
+        Decompresses the BLS spend signature from chia_rs compressed G2 (96 bytes)
+        to EIP-2537 uncompressed format (8 uint256) for the on-chain call.
+        """
+        from chia_rs import G2Element
+        from py_ecc.bls.g2_primitives import signature_to_G2
+
+        from bls12_381_crypto import G2Point, serialize_g2_sol
 
         self.validate_redeem(req)
 
-        tx_builder = self.contract.functions.redeem(recipient, sig_bytes, nullifier, req.deadline)
+        recipient = Web3.to_checksum_address(req.recipient)
+
+        # Decompress BLS spend sig: compressed G2 (96 bytes) → EIP-2537 (8 uint256)
+        sigma_chia = G2Element.from_bytes(bytes.fromhex(req.spend_sigma_compressed.removeprefix("0x")))
+        spend_sig_pyecc = G2Point(signature_to_G2(sigma_chia.to_bytes()))
+        spend_sig_coords = list(serialize_g2_sol(spend_sig_pyecc))
+
+        nid_bytes = bytes.fromhex(req.nullifier_id.removeprefix("0x"))
+
+        tx_builder = self.contract.functions.redeem(recipient, spend_sig_coords, nid_bytes, req.deadline)
         tx_hash, block, gas = self._send_tx(tx_builder)
 
-        self._log_tx("redeem", nullifier, tx_hash, block, gas)
-        return TxResponse(tx_hash=tx_hash, block_number=block, gas_used=gas, nullifier=nullifier)
+        self._log_tx("redeem", req.nullifier_id[:18], tx_hash, block, gas)
+        return TxResponse(tx_hash=tx_hash, block_number=block, gas_used=gas, nullifier=req.nullifier_id)
 
-    def get_status(self, nullifier_addr: str) -> StatusResponse:
-        nullifier = Web3.to_checksum_address(nullifier_addr)
-        state_val = self.contract.functions.nullifierState(nullifier).call()
-        amount = self.contract.functions.revealedAmount(nullifier).call()
+    def get_status(self, nullifier_id_hex: str) -> StatusResponse:
+        """Query nullifier lifecycle state. nullifier_id is a 32-byte hex string."""
+        nid = bytes.fromhex(nullifier_id_hex.replace("0x", ""))
+        state_val = self.contract.functions.nullifierState(nid).call()
+        amount = self.contract.functions.revealedAmount(nid).call()
         state_name = {0: "UNREVEALED", 1: "REVEALED", 2: "SPENT"}.get(state_val, f"UNKNOWN({state_val})")
-        return StatusResponse(nullifier=nullifier, state=state_name, amount=amount)
+        return StatusResponse(nullifier=nullifier_id_hex, state=state_name, amount=amount)
 
     def get_health(self) -> HealthResponse:
         balance = self.w3.eth.get_balance(self.wallet)
@@ -472,6 +482,12 @@ class Relayer:
 # ── FastAPI app ───────────────────────────────────────────────────────────────
 
 fastapi_app = FastAPI(title="Nozk Relayer", version="0.1.0")
+fastapi_app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # TODO: make it narrow for production
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 _relayer: Optional[Relayer] = None
 

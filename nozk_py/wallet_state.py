@@ -1,10 +1,12 @@
 """Shared wallet state and formatting helpers for NozKash CLI tools."""
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
-WALLET_STATE_FILE = Path(__file__).resolve().parent.parent / ".nozk_wallet.json"
+_DEFAULT_WALLET_STATE_FILE = Path(__file__).resolve().parent.parent / ".nozk_wallet.json"
+WALLET_STATE_FILE = Path(os.environ.get("NOZK_WALLET_PATH", str(_DEFAULT_WALLET_STATE_FILE)))
 
 
 def short_hex(val: str, head: int = 10, tail: int = 8) -> str:

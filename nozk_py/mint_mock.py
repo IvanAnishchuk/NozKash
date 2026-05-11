@@ -1,9 +1,11 @@
 """
-Nozk Protocol: Mock Mint
+Nozk Protocol: Mock Mint (BLS12-381)
 
 Performs the same blind signing operation (S' = sk · B) as the real mint server,
-but without any blockchain interactions. Accepts a blinded G1 point and returns
+but without any blockchain interactions. Accepts a blinded G2 point and returns
 the blind signature directly.
+
+Standard BLS scheme: PK in G1, Sig/S/S'/B/Y in G2.
 
 This module is the off-chain equivalent of:
     1. Listening for a DepositLocked event
@@ -17,8 +19,8 @@ Library usage:
     mint = MockMint.from_env()               # loads MINT_BLS_PRIVKEY_INT from .env
     mint = MockMint.from_sk(sk_int)           # or pass the scalar directly
 
-    S_prime = mint.sign(blinded_point_B)      # returns G1Point
-    s_x, s_y = mint.sign_and_serialize(B)     # returns (int, int) for Solidity
+    S_prime = mint.sign(blinded_point_B)      # returns G2Point
+    coords = mint.sign_and_serialize(B)       # returns 8 uint256 for Solidity
 
 CLI usage (replaces the scan step in mock mode):
     uv run mint_mock.py sign --index 0
@@ -36,24 +38,27 @@ from typing import Annotated, Optional
 
 import typer
 from dotenv import load_dotenv
-from py_ecc.bn128 import curve_order
 from rich.panel import Panel
 from rich.rule import Rule
 from rich.text import Text
 
-from nozk_library import (
-    G1Point,
+from bls12_381_crypto import (
+    CURVE_ORDER,
+    G1_GEN,
     G2Point,
-    NozkError,
     Scalar,
-    _mul_g2,
+    g1_scalar_mul,
+    parse_g2_sol,
+    serialize_g1_sol,
+    serialize_g2_sol,
+)
+from nozk_library import (
+    NozkError,
     blind_token,
     derive_token_secrets,
     mint_blind_sign,
-    parse_g1,
-    serialize_g1,
     unblind_signature,
-    verify_bls_pairing,
+    verify_bls_mint_signature,
 )
 from nozk_theme import make_console
 from wallet_state import load_wallet_state, save_wallet_state, short_hex
@@ -82,17 +87,19 @@ class MockMint:
 
     This mock replaces steps 1 and 3 with direct function calls, keeping
     step 2 identical. The cryptographic output is byte-for-byte equivalent.
+
+    Standard BLS scheme: PK in G1, Sig in G2.
     """
 
     sk: Scalar
 
-    # ── Constructors ──────────────────────────────────────────────────────
+    # -- Constructors ----------------------------------------------------------
 
     @classmethod
     def from_sk(cls, sk_int: int) -> "MockMint":
         """Create from an integer scalar."""
-        if sk_int <= 0 or sk_int >= curve_order:
-            raise MockMintError(f"BLS scalar must be in (0, curve_order), got {sk_int}")
+        if sk_int <= 0 or sk_int >= CURVE_ORDER:
+            raise MockMintError(f"BLS scalar must be in (0, CURVE_ORDER), got {sk_int}")
         return cls(sk=Scalar(sk_int))
 
     @classmethod
@@ -123,25 +130,44 @@ class MockMint:
             "Missing MINT_BLS_PRIVKEY or MINT_BLS_PRIVKEY_INT in environment. Run generate_keys.py first."
         )
 
-    # ── Signing ───────────────────────────────────────────────────────────
+    # -- Signing ---------------------------------------------------------------
 
-    def sign(self, B: G1Point) -> G1Point:
+    def sign(self, B: G2Point) -> G2Point:
         """
-        Blind-sign a G1 point: S' = sk · B.
+        Blind-sign a G2 point: S' = sk · B.
 
         Delegates to nozk_library.mint_blind_sign() which validates
-        that B is on the BN254 G1 curve before multiplying.
+        that B is on the BLS12-381 G2 curve before multiplying.
         """
         return mint_blind_sign(B, self.sk)
 
-    def sign_and_serialize(self, B: G1Point) -> tuple[int, int]:
-        """Blind-sign and return (S'_x, S'_y) as uint256 integers."""
+    def sign_and_serialize(self, B: G2Point) -> tuple[int, int, int, int, int, int, int, int]:
+        """Blind-sign and return 8 uint256 integers (EIP-2537 G2 encoding)."""
         S_prime = self.sign(B)
-        return serialize_g1(S_prime)
+        return serialize_g2_sol(S_prime)
 
-    def sign_from_coords(self, b_x: int, b_y: int) -> tuple[int, int]:
-        """Parse a G1 point from raw coordinates, sign it, return coordinates."""
-        B = parse_g1(b_x, b_y)
+    def sign_from_coords(
+        self,
+        x_c0_hi: int,
+        x_c0_lo: int,
+        x_c1_hi: int,
+        x_c1_lo: int,
+        y_c0_hi: int,
+        y_c0_lo: int,
+        y_c1_hi: int,
+        y_c1_lo: int,
+    ) -> tuple[int, int, int, int, int, int, int, int]:
+        """Parse a G2 point from raw coordinates, sign it, return coordinates."""
+        B = parse_g2_sol(
+            x_c0_hi,
+            x_c0_lo,
+            x_c1_hi,
+            x_c1_lo,
+            y_c0_hi,
+            y_c0_lo,
+            y_c1_hi,
+            y_c1_lo,
+        )
         return self.sign_and_serialize(B)
 
 
@@ -170,7 +196,10 @@ app = typer.Typer(
 @app.command()
 def sign(
     index: Annotated[int, typer.Option("--index", "-i", help="Token index to sign.", min=0)],
-    index_to: Annotated[Optional[int], typer.Option("--index-to", help="Last index (for batch).", min=0)] = None,
+    index_to: Annotated[
+        Optional[int],
+        typer.Option("--index-to", help="Last index (for batch).", min=0),
+    ] = None,
     verbosity: Annotated[Verbosity, typer.Option("--verbosity", "-v")] = Verbosity.normal,
 ) -> None:
     """
@@ -188,15 +217,22 @@ def sign(
     if not is_quiet:
         console.print(
             Panel(
-                Text.assemble(("🧪  ", ""), ("MOCK MINT · SIGN", "banner"), ("  🧪", "")),
-                subtitle=Text("Offline blind signing · no chain required", style="secondary"),
+                Text.assemble(
+                    ("🧪  ", ""),
+                    ("MOCK MINT · SIGN", "banner"),
+                    ("  🧪", ""),
+                ),
+                subtitle=Text(
+                    "Offline blind signing · no chain required",
+                    style="secondary",
+                ),
                 border_style="magenta",
                 padding=(0, 4),
             )
         )
         console.print()
 
-    # ── Load config ───────────────────────────────────────────────────────
+    # -- Load config -----------------------------------------------------------
     master_seed_str = os.getenv("MASTER_SEED")
     if not master_seed_str:
         console.print("[error]  ❌  Missing MASTER_SEED in .env[/error]")
@@ -209,10 +245,8 @@ def sign(
         console.print(f"[error]  ❌  {exc}[/error]")
         raise typer.Exit(code=1)
 
-    # Derive PK for BLS verification
-    from py_ecc.bn128 import G2 as G2_gen
-
-    pk_mint = _mul_g2(G2Point(G2_gen), mint.sk)
+    # Derive PK (G1) for BLS verification
+    pk_mint = g1_scalar_mul(G1_GEN, mint.sk)
 
     if not is_quiet:
         console.print(
@@ -221,9 +255,17 @@ def sign(
                 (short_hex(hex(mint.sk), 12, 6), "hash"),
             )
         )
+        pk_coords = serialize_g1_sol(pk_mint)
+        console.print(
+            Text.assemble(
+                ("  PK (G1)       ", "label"),
+                (short_hex(hex(pk_coords[1]), 12, 6), "hash"),
+                ("  (lo word)", "muted"),
+            )
+        )
         console.print()
 
-    # ── Load wallet state ─────────────────────────────────────────────────
+    # -- Load wallet state -----------------------------------------------------
     state = load_wallet_state()
 
     end_index = index_to if index_to is not None else index
@@ -243,9 +285,9 @@ def sign(
         if not is_quiet:
             console.print(
                 Text.assemble(
-                    ("  Spend address  ", "label"),
-                    (secrets.spend.address, "addr"),
-                    ("  (nullifier)", "muted"),
+                    ("  Nullifier ID   ", "label"),
+                    (secrets.nullifier_id_hex, "addr"),
+                    ("  (on-chain key)", "muted"),
                 )
             )
             console.print(
@@ -255,51 +297,80 @@ def sign(
                 )
             )
 
-        # Step 2: Blind the token (re-derive B from spend address + r)
-        blinded = blind_token(secrets.spend_address_bytes, secrets.r)
-        b_x, b_y = serialize_g1(blinded.B)
+        # Step 2: Blind the token (hash spend G1 pubkey to G2, then blind)
+        blinded = blind_token(secrets.spend_bls_pub, secrets.r)
+        b_coords = serialize_g2_sol(blinded.B)
 
         if is_verbose:
-            console.print(Text.assemble(("  r              ", "label"), (short_hex(hex(secrets.r), 18, 8), "hash")))
-            console.print(Text.assemble(("  B.x            ", "label"), (short_hex(hex(b_x), 18, 8), "hash")))
-            console.print(Text.assemble(("  B.y            ", "label"), (short_hex(hex(b_y), 18, 8), "hash")))
+            console.print(
+                Text.assemble(
+                    ("  r              ", "label"),
+                    (short_hex(hex(secrets.r), 18, 8), "hash"),
+                )
+            )
+            console.print(
+                Text.assemble(
+                    ("  B (G2, 8w)     ", "label"),
+                    (short_hex(hex(b_coords[0]), 18, 8), "hash"),
+                    (" ...", "muted"),
+                )
+            )
 
         # Step 3: Mock mint signs (S' = sk · B)
         S_prime = mint.sign(blinded.B)
-        s_prime_x, s_prime_y = serialize_g1(S_prime)
+        s_prime_coords = serialize_g2_sol(S_prime)
 
         if is_verbose:
-            console.print(Text.assemble(("  S'.x           ", "label"), (short_hex(hex(s_prime_x), 18, 8), "hash")))
-            console.print(Text.assemble(("  S'.y           ", "label"), (short_hex(hex(s_prime_y), 18, 8), "hash")))
+            console.print(
+                Text.assemble(
+                    ("  S' (G2, 8w)    ", "label"),
+                    (short_hex(hex(s_prime_coords[0]), 18, 8), "hash"),
+                    (" ...", "muted"),
+                )
+            )
 
-        # Step 4: Client unblinds (S = S' · r⁻¹)
+        # Step 4: Client unblinds (S = S' · r^-1)
         S = unblind_signature(S_prime, secrets.r)
-        s_x, s_y = serialize_g1(S)
+        s_coords = serialize_g2_sol(S)
 
         if is_verbose:
-            console.print(Text.assemble(("  S.x            ", "label"), (short_hex(hex(s_x), 18, 8), "hash")))
-            console.print(Text.assemble(("  S.y            ", "label"), (short_hex(hex(s_y), 18, 8), "hash")))
+            console.print(
+                Text.assemble(
+                    ("  S (G2, 8w)     ", "label"),
+                    (short_hex(hex(s_coords[0]), 18, 8), "hash"),
+                    (" ...", "muted"),
+                )
+            )
 
         # Step 5: Local BLS verification (sanity check)
-        bls_ok = verify_bls_pairing(S, blinded.Y, pk_mint)
+        bls_ok = verify_bls_mint_signature(S, blinded.Y, pk_mint)
         if bls_ok:
             if not is_quiet:
                 console.print(Text("  ✅  BLS pairing verified", style="success"))
         else:
-            console.print(Text("  ❌  BLS pairing FAILED — this should never happen", style="error"))
+            console.print(
+                Text(
+                    "  ❌  BLS pairing FAILED — this should never happen",
+                    style="error",
+                )
+            )
             raise typer.Exit(code=1)
 
         # Step 6: Write to wallet state (same record shape as client.py)
+        # G2 signature stored as list of 8 hex-encoded uint256 values
         token_key = str(idx)
         existing = state.get("tokens", {}).get(token_key, {})
+        spend_pub_coords = serialize_g1_sol(secrets.spend_bls_pub)
         state.setdefault("tokens", {})[token_key] = {
             "index": idx,
-            "spend_address": secrets.spend.address,
+            "nullifier_id": secrets.nullifier_id_hex,
             "deposit_id": secrets.deposit_id,
             "deposit_tx": existing.get("deposit_tx", "mock-mint-offline"),
             "deposit_block": existing.get("deposit_block"),
-            "s_unblinded_x": hex(s_x),
-            "s_unblinded_y": hex(s_y),
+            "s_unblinded_g2": [hex(c) for c in s_coords],
+            "spend_pub_g1": [hex(c) for c in spend_pub_coords],
+            "b_g2": existing.get("b_g2"),
+            "reveal_tx": existing.get("reveal_tx"),
             "redeem_tx": existing.get("redeem_tx"),
             "spent": existing.get("spent", False),
         }
@@ -318,7 +389,10 @@ def sign(
             Text.assemble(
                 ("  🧪  Mock mint complete: ", "mock"),
                 (str(signed_count), "num"),
-                (" token(s) signed → wallet state ready for redeem --dry-run", "mock"),
+                (
+                    " token(s) signed → wallet state ready for redeem --dry-run",
+                    "mock",
+                ),
             )
         )
         console.print()

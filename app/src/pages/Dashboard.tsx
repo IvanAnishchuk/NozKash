@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import {
-  buildRedemptionDraftFromSeed,
   loadRedemptionDraft,
-  type RedemptionDraftV1,
+  type RedemptionDraftV2,
 } from '../crypto/nozkRedeem'
 import { useNozkMasterSeed } from '../context/NozkMasterSeedProvider'
 import { usePrivacy } from '../context/usePrivacy'
@@ -23,7 +22,8 @@ import {
   filterVaultActivity,
   formatTxAmountDisplay,
 } from '../lib/historyQuery'
-import { sendVaultRedeemTransaction, sendVaultRevealTransaction } from '../lib/sendVaultRedeem'
+import { requestVaultActivityRefresh } from '../lib/nozkVault'
+import { sendRelayerRedeemTransaction, sendRelayerRevealTransaction } from '../lib/sendVaultRedeem'
 import { sendVaultRefundTransaction } from '../lib/sendVaultRefund'
 import { mergeVaultRowsWithRedeemDraft } from '../lib/vaultRedeemMerge'
 import { useNozkVaultActivityLive } from '../hooks/useNozkVaultActivityLive'
@@ -121,6 +121,293 @@ function FilterFunnelIcon() {
   )
 }
 
+// ==============================================================================
+// Batch redeem section — amount-based with auto oldest-first token selection
+// ==============================================================================
+
+function BatchRedeemSection({
+  rows,
+  masterSeed,
+  network,
+  showToast,
+}: {
+  rows: VaultTx[]
+  masterSeed: Uint8Array | null
+  network: string
+  showToast: (msg: string, type: 'success' | 'error' | 'info') => void
+}) {
+  // Revealed tokens sorted oldest-first (by block number, then by id)
+  const revealedTokens = useMemo(
+    () =>
+      rows
+        .filter((r) => r.type === 'Revealed' && r.tokenIndex !== undefined)
+        .sort((a, b) => {
+          const ba = a.blockNumber ?? 0
+          const bb = b.blockNumber ?? 0
+          if (ba !== bb) return ba - bb
+          return a.id.localeCompare(b.id)
+        }),
+    [rows]
+  )
+
+  // Also count tokens eligible for reveal (Deposit state = minted but not yet revealed)
+  const depositTokens = useMemo(
+    () =>
+      rows
+        .filter((r) => r.type === 'Deposit' && r.tokenIndex !== undefined)
+        .sort((a, b) => {
+          const ba = a.blockNumber ?? 0
+          const bb = b.blockNumber ?? 0
+          if (ba !== bb) return ba - bb
+          return a.id.localeCompare(b.id)
+        }),
+    [rows]
+  )
+
+  const maxRedeemable = revealedTokens.length
+  const maxRevealable = depositTokens.length
+
+  const [redeemCount, setRedeemCount] = useState(0)
+  const [revealCount, setRevealCount] = useState(0)
+  const [recipient, setRecipient] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  // Default reveal to all available; default redeem to 1; clamp when counts change
+  useEffect(() => {
+    setRevealCount(maxRevealable)
+  }, [maxRevealable])
+  useEffect(() => {
+    setRedeemCount((c) => c === 0 && maxRedeemable > 0 ? Math.min(1, maxRedeemable) : Math.min(c, Math.max(0, maxRedeemable)))
+  }, [maxRedeemable])
+
+  const redeemAmountEth = (redeemCount * VAULT_DENOMINATION_ETH).toFixed(3)
+  const revealAmountEth = (revealCount * VAULT_DENOMINATION_ETH).toFixed(3)
+
+  const isValidRecipient = /^0x[a-fA-F0-9]{40}$/.test(recipient.trim())
+
+  const handleBatchReveal = useCallback(async () => {
+    if (!masterSeed || revealCount === 0) return
+    if (network !== TARGET_NETWORK_LABEL) {
+      showToast('Switch to the correct network first.', 'error')
+      return
+    }
+    setBusy(true)
+    try {
+      const selected = depositTokens.slice(0, revealCount)
+      let successCount = 0
+      for (const token of selected) {
+        try {
+          await sendRelayerRevealTransaction({
+            masterSeed,
+            tokenIndex: token.tokenIndex!,
+          })
+          successCount++
+        } catch (err: unknown) {
+          const msg = (err as { message?: string })?.message ?? 'Reveal failed'
+          showToast(`Token #${token.tokenIndex}: ${msg}`, 'error')
+        }
+      }
+      if (successCount > 0) {
+        requestWalletBalanceRefresh()
+        requestVaultActivityRefresh()
+        setRevealCount(0)
+        showToast(`${successCount} token(s) revealed via relayer`, 'success')
+      }
+    } finally {
+      setBusy(false)
+    }
+  }, [masterSeed, revealCount, depositTokens, network, showToast])
+
+  const handleBatchRedeem = useCallback(async () => {
+    if (!masterSeed || redeemCount === 0 || !isValidRecipient) return
+    if (network !== TARGET_NETWORK_LABEL) {
+      showToast('Switch to the correct network first.', 'error')
+      return
+    }
+    setBusy(true)
+    try {
+      const selected = revealedTokens.slice(0, redeemCount)
+      let successCount = 0
+      for (const token of selected) {
+        try {
+          await sendRelayerRedeemTransaction({
+            masterSeed,
+            tokenIndex: token.tokenIndex!,
+            recipient: recipient.trim(),
+          })
+          successCount++
+        } catch (err: unknown) {
+          const msg = (err as { message?: string })?.message ?? 'Redeem failed'
+          showToast(`Token #${token.tokenIndex}: ${msg}`, 'error')
+        }
+      }
+      if (successCount > 0) {
+        requestWalletBalanceRefresh()
+        requestVaultActivityRefresh()
+        setRedeemCount(0)
+        setRecipient('')
+        showToast(
+          `${successCount} token(s) redeemed (${(successCount * VAULT_DENOMINATION_ETH).toFixed(3)} ETH) to ${recipient.trim().slice(0, 8)}...`,
+          'success'
+        )
+      }
+    } finally {
+      setBusy(false)
+    }
+  }, [masterSeed, redeemCount, revealedTokens, recipient, isValidRecipient, network, showToast])
+
+  if (!masterSeed || (maxRedeemable === 0 && maxRevealable === 0)) return null
+
+  return (
+    <div className="batch-redeem-section" style={{
+      background: 'var(--bg2)',
+      borderRadius: 12,
+      padding: '16px 20px',
+      marginBottom: 16,
+    }}>
+      {maxRevealable > 0 && (
+        <div style={{ marginBottom: maxRedeemable > 0 ? 16 : 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: 'var(--text)' }}>
+            Reveal tokens ({maxRevealable} available)
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <AmountSelector
+              count={revealCount}
+              max={maxRevealable}
+              onChange={setRevealCount}
+              denomination={VAULT_DENOMINATION_ETH}
+            />
+            <button
+              type="button"
+              className="history-redeem-btn"
+              disabled={busy || revealCount === 0}
+              onClick={() => void handleBatchReveal()}
+              style={{ fontSize: 12, padding: '6px 14px', whiteSpace: 'nowrap' }}
+            >
+              {busy ? 'Revealing...' : `Reveal ${revealCount} (${revealAmountEth} ETH)`}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {maxRedeemable > 0 && (
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: 'var(--text)' }}>
+            Redeem tokens ({maxRedeemable} available)
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <AmountSelector
+              count={redeemCount}
+              max={maxRedeemable}
+              onChange={setRedeemCount}
+              denomination={VAULT_DENOMINATION_ETH}
+            />
+            <input
+              type="text"
+              value={recipient}
+              onChange={(e) => setRecipient(e.target.value)}
+              placeholder="Recipient 0x..."
+              spellCheck={false}
+              autoComplete="off"
+              style={{
+                fontFamily: 'var(--mono)',
+                fontSize: 11,
+                padding: '5px 8px',
+                width: 180,
+                background: 'var(--bg)',
+                border: `1px solid ${isValidRecipient || !recipient ? 'var(--border)' : 'var(--red2)'}`,
+                borderRadius: 6,
+                color: 'var(--text)',
+              }}
+            />
+            <button
+              type="button"
+              className="history-redeem-btn"
+              disabled={busy || redeemCount === 0 || !isValidRecipient}
+              onClick={() => void handleBatchRedeem()}
+              style={{ fontSize: 12, padding: '6px 14px', whiteSpace: 'nowrap' }}
+            >
+              {busy ? 'Redeeming...' : `Redeem ${redeemCount} (${redeemAmountEth} ETH)`}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AmountSelector({
+  count,
+  max,
+  onChange,
+  denomination,
+}: {
+  count: number
+  max: number
+  onChange: (n: number) => void
+  denomination: number
+}) {
+  const amountLabel = (count * denomination).toFixed(3)
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: 0,
+      border: '1px solid var(--border)',
+      borderRadius: 8,
+      overflow: 'hidden',
+      background: 'var(--bg)',
+    }}>
+      <button
+        type="button"
+        onClick={() => onChange(Math.max(1, count - 1))}
+        disabled={count <= 1}
+        style={{
+          padding: '4px 10px',
+          fontSize: 16,
+          fontWeight: 700,
+          background: 'transparent',
+          border: 'none',
+          color: count <= 1 ? 'var(--text3)' : 'var(--text)',
+          cursor: count <= 1 ? 'default' : 'pointer',
+        }}
+        aria-label="Decrease amount"
+      >
+        -
+      </button>
+      <span style={{
+        padding: '4px 8px',
+        fontSize: 13,
+        fontFamily: 'var(--mono)',
+        color: 'var(--text)',
+        minWidth: 70,
+        textAlign: 'center',
+        borderLeft: '1px solid var(--border)',
+        borderRight: '1px solid var(--border)',
+      }}>
+        {amountLabel} ETH
+      </span>
+      <button
+        type="button"
+        onClick={() => onChange(Math.min(max, count + 1))}
+        disabled={count >= max}
+        style={{
+          padding: '4px 10px',
+          fontSize: 16,
+          fontWeight: 700,
+          background: 'transparent',
+          border: 'none',
+          color: count >= max ? 'var(--text3)' : 'var(--text)',
+          cursor: count >= max ? 'default' : 'pointer',
+        }}
+        aria-label="Increase amount"
+      >
+        +
+      </button>
+    </div>
+  )
+}
+
 export function Dashboard() {
   const { privacyOn } = usePrivacy()
   const { effectiveMasterSeed, seedRevision } = useNozkMasterSeed()
@@ -128,7 +415,7 @@ export function Dashboard() {
   const { openDepositModal, showToast } =
     useOutletContext<LayoutOutletContext>()
 
-  const [redemptionDraft, setRedemptionDraft] = useState<RedemptionDraftV1 | null>(
+  const [redemptionDraft, setRedemptionDraft] = useState<RedemptionDraftV2 | null>(
     () => loadRedemptionDraft()
   )
   const [redeemingId, setRedeemingId] = useState<string | null>(null)
@@ -193,7 +480,7 @@ export function Dashboard() {
 
   const homeStats = useMemo(() => {
     const revealedCount = vaultChainRows.filter((r) => r.type === 'Revealed').length
-    const pendingCount = vaultChainRows.filter((r) => r.type === 'Deposit').length
+    const pendingCount = vaultChainRows.filter((r) => r.type === 'Pending' || r.type === 'Deposit').length
     const spentCount = vaultChainRows.filter((r) => r.type === 'Redeem').length
     return {
       revealedCount,
@@ -230,17 +517,12 @@ export function Dashboard() {
     }
     setRevealingId(item.id)
     try {
-      const draft = buildRedemptionDraftFromSeed(
-        effectiveMasterSeed,
-        item.tokenIndex,
-        account
-      )
-      await sendVaultRevealTransaction({
-        ethereum,
-        draft,
+      await sendRelayerRevealTransaction({
         masterSeed: effectiveMasterSeed,
+        tokenIndex: item.tokenIndex,
       })
       requestWalletBalanceRefresh()
+      requestVaultActivityRefresh()
       showToast('Reveal confirmed · nullifier registered on-chain', 'success')
     } catch (err: unknown) {
       const e = err as { code?: number; message?: string }
@@ -332,16 +614,10 @@ export function Dashboard() {
 
     setRedeemingId(item.id)
     try {
-      const draft = buildRedemptionDraftFromSeed(
-        effectiveMasterSeed,
-        item.tokenIndex,
-        account
-      )
-      await sendVaultRedeemTransaction({
-        ethereum,
-        recipient,
-        draft,
+      await sendRelayerRedeemTransaction({
         masterSeed: effectiveMasterSeed,
+        tokenIndex: item.tokenIndex,
+        recipient,
       })
       requestWalletBalanceRefresh()
       showToast(`Redeem confirmed · 0.001 ETH sent to ${recipient.slice(0, 8)}…`, 'success')
@@ -445,6 +721,13 @@ export function Dashboard() {
         </div>
         <span className="add-deposit-badge">+ MINT</span>
       </button>
+
+      <BatchRedeemSection
+        rows={vaultChainRows}
+        masterSeed={effectiveMasterSeed}
+        network={network}
+        showToast={showToast}
+      />
 
       <div className="home-activity-block">
         <div className="section-title home-activity-title">Activity</div>

@@ -43,12 +43,11 @@ from pathlib import Path
 from typing import Annotated, Optional
 
 import typer
-from py_ecc.bn128 import G2, curve_order
-from py_ecc.bn128 import multiply as bn128_multiply
 from rich.panel import Panel
 from rich.rule import Rule
 from rich.text import Text
 
+from bls12_381_crypto import CURVE_ORDER, G1_GEN, Scalar, g1_scalar_mul, serialize_g1_sol
 from nozk_theme import make_console
 
 console = make_console()
@@ -67,10 +66,10 @@ def generate_master_seed() -> str:
 
 
 def generate_bls_scalar() -> int:
-    """Generate a random BLS scalar in (0, curve_order) for the mint."""
+    """Generate a random BLS scalar in (0, CURVE_ORDER) for the mint."""
     while True:
-        sk = secrets.randbelow(curve_order - 1) + 1
-        if 0 < sk < curve_order:
+        sk = secrets.randbelow(CURVE_ORDER - 1) + 1
+        if 0 < sk < CURVE_ORDER:
             return sk
 
 
@@ -90,25 +89,22 @@ def generate_eth_keypair() -> tuple[str, str]:
 
 
 def derive_bls_pubkey_summary(sk: int) -> str:
-    """Compute PK = sk·G2 and return a short summary string."""
-    pk = bn128_multiply(G2, sk)
-    x_real = hex(pk[0].coeffs[0].n)[:18] + "…"
-    return f"G2({x_real})"
+    """Compute PK = sk·G1 and return a short summary string."""
+    pk = g1_scalar_mul(G1_GEN, Scalar(sk))
+    x_hi, x_lo, _y_hi, _y_lo = serialize_g1_sol(pk)
+    x_hi_hex = hex(x_hi)[:18] + "…"
+    return f"G1({x_hi_hex})"
 
 
 def derive_bls_pubkey_hex(sk: int) -> str:
     """
-    Compute PK = sk·G2 and return 4 comma-separated hex uint256 values
-    in the EIP-197 limb order expected by the NozkVault constructor:
-        X_imag, X_real, Y_imag, Y_real
+    Compute PK = sk·G1 and return 4 comma-separated hex uint256 values
+    in EIP-2537 encoding expected by the NozkVault constructor:
+        x_hi, x_lo, y_hi, y_lo
     """
-    pk = bn128_multiply(G2, sk)
-    # py_ecc FQ2 coeffs order: [real, imag]
-    x_real = hex(pk[0].coeffs[0].n)
-    x_imag = hex(pk[0].coeffs[1].n)
-    y_real = hex(pk[1].coeffs[0].n)
-    y_imag = hex(pk[1].coeffs[1].n)
-    return f"{x_imag},{x_real},{y_imag},{y_real}"
+    pk = g1_scalar_mul(G1_GEN, Scalar(sk))
+    x_hi, x_lo, y_hi, y_lo = serialize_g1_sol(pk)
+    return f"{hex(x_hi)},{hex(x_lo)},{hex(y_hi)},{hex(y_lo)}"
 
 
 # ==============================================================================
@@ -133,11 +129,12 @@ def build_env_content(
     """Build the .env file content with clear section headers."""
 
     # Derive BLS pubkey limbs for Forge deployment script
-    pk = bn128_multiply(G2, bls_sk)
-    pk_x_imag = hex(pk[0].coeffs[1].n)
-    pk_x_real = hex(pk[0].coeffs[0].n)
-    pk_y_imag = hex(pk[1].coeffs[1].n)
-    pk_y_real = hex(pk[1].coeffs[0].n)
+    pk = g1_scalar_mul(G1_GEN, Scalar(bls_sk))
+    pk_x_hi, pk_x_lo, pk_y_hi, pk_y_lo = serialize_g1_sol(pk)
+    pk_x_hi_hex = hex(pk_x_hi)
+    pk_x_lo_hex = hex(pk_x_lo)
+    pk_y_hi_hex = hex(pk_y_hi)
+    pk_y_lo_hex = hex(pk_y_lo)
 
     # Chain settings: only include if provided (non-empty)
     chain_section = ""
@@ -236,7 +233,7 @@ MASTER_SEED={master_seed}
 # The mint uses this to compute S' = sk · B on blinded deposit points.
 MINT_BLS_PRIVKEY={hex(bls_sk)}
 
-# BLS public key on G2 (4 uint256 values, EIP-197 limb order).
+# BLS public key on G1 (4 uint256 values, EIP-2537 encoding).
 # Used by the client to verify unblinded signatures locally before redeeming.
 # Derived deterministically from MINT_BLS_PRIVKEY — do not edit manually.
 MINT_BLS_PUBKEY={derive_bls_pubkey_hex(bls_sk)}
@@ -244,10 +241,10 @@ MINT_BLS_PUBKEY={derive_bls_pubkey_hex(bls_sk)}
 # ── Forge Deployment (split BLS pubkey limbs + mint authority) ────────────────
 # These are read by sol/script/NozkVault.s.sol via vm.envOr().
 # MINT_AUTHORITY must be the address authorized to call announce().
-PK_MINT_X_IMAG={pk_x_imag}
-PK_MINT_X_REAL={pk_x_real}
-PK_MINT_Y_IMAG={pk_y_imag}
-PK_MINT_Y_REAL={pk_y_real}
+PK_MINT_X_HI={pk_x_hi_hex}
+PK_MINT_X_LO={pk_x_lo_hex}
+PK_MINT_Y_HI={pk_y_hi_hex}
+PK_MINT_Y_LO={pk_y_lo_hex}
 MINT_AUTHORITY={mint_authority}
 {chain_section}
 # ── Scanning ──────────────────────────────────────────────────────────────────

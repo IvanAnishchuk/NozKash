@@ -43,14 +43,12 @@ from web3 import AsyncWeb3, WebSocketProvider
 from web3.exceptions import ContractCustomError, ContractLogicError
 from web3.types import EventData
 
+from bls12_381_crypto import Scalar, parse_g2_sol, serialize_g2_sol
 from contract_errors import decode_contract_error
 from nozk_library import (
     InvalidPointError,
     NozkError,
-    Scalar,
     mint_blind_sign,
-    parse_g1,
-    serialize_g1,
 )
 from nozk_theme import make_console
 
@@ -439,22 +437,22 @@ def load_config(verbosity: Verbosity) -> MintConfig:
 
 # ── Contract ABI ──────────────────────────────────────────────────────────────
 
-_ABI_PATH = Path(__file__).resolve().parent / ".." / "abi" / "nozk_vault_abi.json"
+_ABI_PATH = Path(__file__).resolve().parent / ".." / "abi" / "nozk_vault_v2_abi.json"
 NOZK_VAULT_ABI = json.loads(_ABI_PATH.read_text())
 
 
 # ── Signing logic ─────────────────────────────────────────────────────────────
 
 
-def sign_deposit(blinded_point_raw: list[int], sk: Scalar) -> tuple[int, int]:
+def sign_deposit(blinded_point_raw: list[int], sk: Scalar) -> tuple[int, int, int, int, int, int, int, int]:
     """
-    Core mint operation: validates the submitted G1 point and blind-signs it.
-    Returns (S'_x, S'_y) as uint256 integers for Solidity.
-    Raises InvalidPointError if B is not on BN254 G1.
+    Core mint operation: validates the submitted G2 point and blind-signs it.
+    Returns 8 uint256 integers (EIP-2537 G2 encoding) for Solidity.
+    Raises InvalidPointError if B is not on BLS12-381 G2.
     """
-    B = parse_g1(int(blinded_point_raw[0]), int(blinded_point_raw[1]))
+    B = parse_g2_sol(*(int(c) for c in blinded_point_raw))
     S_prime = mint_blind_sign(B, sk)
-    return serialize_g1(S_prime)
+    return serialize_g2_sol(S_prime)
 
 
 # ── Mint daemon ───────────────────────────────────────────────────────────────
@@ -512,16 +510,15 @@ class MintDaemon:
         tx_hash = event["transactionHash"].hex()
         block_num = event.get("blockNumber")
 
-        b_x = int(b_coords[0])
-        b_y = int(b_coords[1])
+        b_coords_list = [int(c) for c in b_coords]
 
         log_debug_raw("DepositLocked event", event["args"])
-        log_deposit_received(deposit_id, tx_hash, b_x, b_y, block=block_num)
+        log_deposit_received(deposit_id, tx_hash, b_coords_list[0], b_coords_list[1], block=block_num)
 
         # ── Step 1: Blind-sign B ──────────────────────────────────────────────
         t0 = time.monotonic()
         try:
-            s_prime_x, s_prime_y = sign_deposit(b_coords, self.config.sk)
+            s_prime_coords = sign_deposit(b_coords_list, self.config.sk)
         except InvalidPointError as exc:
             log_invalid_point(deposit_id, exc)
             return
@@ -530,7 +527,7 @@ class MintDaemon:
             return
 
         elapsed_sign = (time.monotonic() - t0) * 1000
-        log_signing(b_x, b_y, s_prime_x, s_prime_y)
+        log_signing(b_coords_list[0], b_coords_list[1], s_prime_coords[0], s_prime_coords[1])
 
         if is_verbose():
             console.print(
@@ -543,7 +540,7 @@ class MintDaemon:
 
         # ── Step 2: Submit announce() ─────────────────────────────────────────
         try:
-            await self._submit_announcement(w3, contract, deposit_id, [s_prime_x, s_prime_y])
+            await self._submit_announcement(w3, contract, deposit_id, list(s_prime_coords))
         except Exception as exc:
             log_announce_error(deposit_id, exc)
 

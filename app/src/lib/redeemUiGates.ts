@@ -1,4 +1,4 @@
-import type { RedemptionDraftV1 } from '../crypto/nozkRedeem'
+import type { RedemptionDraftV2 } from '../crypto/nozkRedeem'
 
 function normalizeAddr(a: string | null | undefined): string | null {
   if (!a || !/^0x[a-fA-F0-9]{40}$/i.test(a.trim())) return null
@@ -19,7 +19,7 @@ function envAddr(
  */
 export function isStartRedeemVisible(
   account: string | null,
-  draft: RedemptionDraftV1 | null,
+  draft: RedemptionDraftV2 | null,
   item: { type: string; tokenIndex?: number }
 ): boolean {
   if ((item.type !== 'Deposit' && item.type !== 'Revealed') || item.tokenIndex === undefined) return false

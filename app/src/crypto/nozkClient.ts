@@ -1,10 +1,9 @@
-import { bytesToHex, hexToBytes } from '@nozk/bn254-crypto'
+import { bytesToHex, hexToBytes, type G1Point } from '@nozk/bls12-381-crypto'
 import {
   deriveTokenSecrets as deriveTokenSecretsLib,
   getDepositId,
   getR,
-  getSpendAddress,
-  getSpendPriv,
+  getNullifierIdHex,
 } from '@nozk/nozk-library'
 
 let masterSeed: Uint8Array | null = null
@@ -19,10 +18,11 @@ export function getMasterSeed(): Uint8Array {
 }
 
 export type DerivedTokenSecrets = {
-  spendPriv: Uint8Array
-  spendAddress: string
-  blindPriv: Uint8Array
-  blindAddress: string
+  spendBlsPriv: bigint
+  spendBlsPub: G1Point
+  spendPubCompressed: Uint8Array
+  nullifierIdHex: string
+  depositId: string
   r: bigint
 }
 
@@ -35,10 +35,11 @@ export function deriveTokenSecretsFromSeed(
 ): DerivedTokenSecrets {
   const s = deriveTokenSecretsLib(masterSeed, tokenIndex)
   return {
-    spendPriv: getSpendPriv(s),
-    spendAddress: getSpendAddress(s),
-    blindPriv: s.blind.priv,
-    blindAddress: getDepositId(s),
+    spendBlsPriv: s.spendBlsPriv,
+    spendBlsPub: s.spendBlsPub,
+    spendPubCompressed: s.spendPubCompressed,
+    nullifierIdHex: getNullifierIdHex(s),
+    depositId: getDepositId(s),
     r: getR(s),
   }
 }

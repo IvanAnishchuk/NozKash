@@ -1,173 +1,183 @@
 """
-Nozk Protocol: Parametrized Vector Tests
-
-Discovers all vector files under test_vectors/ and runs the full protocol
-verification suite against each one. Add more vectors by running:
-
-    uv run generate_vectors.py
-
-Then re-run pytest — new files are picked up automatically.
+Nozk Protocol: Parametrized Vector Tests (BLS12-381, standard scheme: PK=G1, Sig=G2)
 """
 
 import json
 from pathlib import Path
 
 import pytest
-from py_ecc.bn128 import G2
+from chia_rs import G1Element, G2Element
 
 import nozk_library as gl
-from nozk_library import G2Point, Scalar, _mul_g2
-
-# ==============================================================================
-# VECTOR DISCOVERY
-# ==============================================================================
+from bls12_381_crypto import (
+    G1_GEN,
+    Scalar,
+    g1_scalar_mul,
+    parse_g1_sol,
+    parse_g2_sol,
+    serialize_g1_sol,
+    serialize_g2_sol,
+)
 
 VECTORS_DIR = Path(__file__).resolve().parent.parent / "test_vectors"
 
 
 def load_all_vectors() -> list[tuple[str, dict]]:
-    """
-    Returns a list of (test_id, vector_dict) for every JSON file found under
-    test_vectors/. test_id is "<keypair_dir>/<filename>" for readable pytest output.
-    """
     if not VECTORS_DIR.exists():
-        pytest.skip("test_vectors/ not found — run `uv run generate_vectors.py` first")
-        return []  # unreachable, keeps type checker happy
-    # Only collect token_*.json inside keypair subdirectories (skip manifest.json etc.)
+        pytest.skip("test_vectors/ not found")
+        return []
     files = sorted(f for f in VECTORS_DIR.rglob("token_*.json") if f.parent != VECTORS_DIR)
     if not files:
-        pytest.skip("test_vectors/ is empty — run `uv run generate_vectors.py` first")
+        pytest.skip("test_vectors/ is empty")
     return [(f"{f.parent.name}/{f.stem}", json.loads(f.read_text())) for f in files]
+
+
+def load_aggregation_vectors() -> list[tuple[str, dict]]:
+    if not VECTORS_DIR.exists():
+        return []
+    files = sorted(VECTORS_DIR.rglob("aggregation.json"))
+    return [(f.parent.name, json.loads(f.read_text())) for f in files] if files else []
 
 
 ALL_VECTORS = load_all_vectors()
 IDS = [v[0] for v in ALL_VECTORS]
 PARAMS = [v[1] for v in ALL_VECTORS]
 
+AGG_VECTORS = load_aggregation_vectors()
+AGG_IDS = [v[0] for v in AGG_VECTORS]
+AGG_PARAMS = [v[1] for v in AGG_VECTORS]
+
+
+def _g1_from_dict(d: dict) -> tuple[int, int, int, int]:
+    return (int(d["x_hi"], 16), int(d["x_lo"], 16), int(d["y_hi"], 16), int(d["y_lo"], 16))
+
+
+def _g2_from_dict(d: dict) -> tuple[int, int, int, int, int, int, int, int]:
+    return (
+        int(d["x_c0_hi"], 16),
+        int(d["x_c0_lo"], 16),
+        int(d["x_c1_hi"], 16),
+        int(d["x_c1_lo"], 16),
+        int(d["y_c0_hi"], 16),
+        int(d["y_c0_lo"], 16),
+        int(d["y_c1_hi"], 16),
+        int(d["y_c1_lo"], 16),
+    )
+
 
 # ==============================================================================
-# PARAMETRIZED TESTS
+# PER-TOKEN TESTS
 # ==============================================================================
 
 
 @pytest.mark.parametrize("v", PARAMS, ids=IDS)
 def test_mint_pk_vector(v):
-    """Proves the Mint's G2 Public Key derives correctly from the scalar."""
-    sk_mint = Scalar(int(v["MINT_BLS_PRIVKEY"], 16))
-    pk_mint = _mul_g2(G2Point(G2), sk_mint)
-
-    assert hex(pk_mint[0].coeffs[0].n)[2:] == v["PK_MINT"]["X_real"]
-    assert hex(pk_mint[0].coeffs[1].n)[2:] == v["PK_MINT"]["X_imag"]
-    assert hex(pk_mint[1].coeffs[0].n)[2:] == v["PK_MINT"]["Y_real"]
-    assert hex(pk_mint[1].coeffs[1].n)[2:] == v["PK_MINT"]["Y_imag"]
+    sk = Scalar(int(v["MINT_BLS_PRIVKEY"], 16))
+    pk = g1_scalar_mul(G1_GEN, sk)
+    assert serialize_g1_sol(pk) == _g1_from_dict(v["PK_MINT"])
 
 
 @pytest.mark.parametrize("v", PARAMS, ids=IDS)
 def test_derive_token_secrets_vector(v):
-    """Proves deterministic derivation yields the exact address and blinding factor."""
     master_seed = v["MASTER_SEED"].encode("utf-8")
     secrets = gl.derive_token_secrets(master_seed, v["TOKEN_INDEX"])
+    assert secrets.nullifier_id.hex() == v["SPEND_BLS"]["nullifier_id"]
+    assert f"0x{secrets.r:064x}" == v["BLIND_KEYPAIR"]["r"]
+    assert secrets.deposit_id == v["DEPOSIT_ID"]
 
-    assert secrets.spend.address == v["SPEND_KEYPAIR"]["address"]
-    assert hex(secrets.r) == v["BLIND_KEYPAIR"]["r"]
+
+@pytest.mark.parametrize("v", PARAMS, ids=IDS)
+def test_spend_bls_pub_vector(v):
+    master_seed = v["MASTER_SEED"].encode("utf-8")
+    secrets = gl.derive_token_secrets(master_seed, v["TOKEN_INDEX"])
+    assert serialize_g1_sol(secrets.spend_bls_pub) == _g1_from_dict(v["SPEND_BLS"]["pub_G1"])
+    assert secrets.spend_chia_pk.to_bytes().hex() == v["SPEND_BLS"]["pub_compressed"]
+
+
+@pytest.mark.parametrize("v", PARAMS, ids=IDS)
+def test_blind_token_vector(v):
+    master_seed = v["MASTER_SEED"].encode("utf-8")
+    secrets = gl.derive_token_secrets(master_seed, v["TOKEN_INDEX"])
+    blinded = gl.blind_token(secrets.spend_bls_pub, secrets.r)
+    assert serialize_g2_sol(blinded.Y) == _g2_from_dict(v["Y_HASH_TO_CURVE"])
+    assert serialize_g2_sol(blinded.B) == _g2_from_dict(v["B_BLINDED"])
+
+
+@pytest.mark.parametrize("v", PARAMS, ids=IDS)
+def test_mint_blind_sign_vector(v):
+    master_seed = v["MASTER_SEED"].encode("utf-8")
+    secrets = gl.derive_token_secrets(master_seed, v["TOKEN_INDEX"])
+    blinded = gl.blind_token(secrets.spend_bls_pub, secrets.r)
+    sk = Scalar(int(v["MINT_BLS_PRIVKEY"], 16))
+    S_prime = gl.mint_blind_sign(blinded.B, sk)
+    assert serialize_g2_sol(S_prime) == _g2_from_dict(v["S_PRIME"])
+
+
+@pytest.mark.parametrize("v", PARAMS, ids=IDS)
+def test_unblind_signature_vector(v):
+    master_seed = v["MASTER_SEED"].encode("utf-8")
+    secrets = gl.derive_token_secrets(master_seed, v["TOKEN_INDEX"])
+    blinded = gl.blind_token(secrets.spend_bls_pub, secrets.r)
+    sk = Scalar(int(v["MINT_BLS_PRIVKEY"], 16))
+    S_prime = gl.mint_blind_sign(blinded.B, sk)
+    S = gl.unblind_signature(S_prime, secrets.r)
+    assert serialize_g2_sol(S) == _g2_from_dict(v["S_UNBLINDED"])
+
+
+@pytest.mark.parametrize("v", PARAMS, ids=IDS)
+def test_full_lifecycle_vector(v):
+    master_seed = v["MASTER_SEED"].encode("utf-8")
+    sk = Scalar(int(v["MINT_BLS_PRIVKEY"], 16))
+    pk = g1_scalar_mul(G1_GEN, sk)
+    secrets = gl.derive_token_secrets(master_seed, v["TOKEN_INDEX"])
+    blinded = gl.blind_token(secrets.spend_bls_pub, secrets.r)
+    S_prime = gl.mint_blind_sign(blinded.B, sk)
+    S = gl.unblind_signature(S_prime, secrets.r)
+    assert gl.verify_bls_mint_signature(S, blinded.Y, pk) is True
 
 
 @pytest.mark.parametrize("v", PARAMS, ids=IDS)
 def test_redemption_proof_vector(v):
-    """Verifies the MEV protection proof matches the vector and can be verified."""
     master_seed = v["MASTER_SEED"].encode("utf-8")
     secrets = gl.derive_token_secrets(master_seed, v["TOKEN_INDEX"])
     redeem = v["REDEEM_TX"]
     eip712 = v["EIP712"]
 
     proof = gl.generate_redemption_proof(
-        secrets.spend_priv,
+        secrets.spend_chia_sk,
+        secrets.spend_chia_pk,
         redeem["recipient"],
         eip712["chain_id"],
         eip712["contract_address"],
         int(eip712["deadline"], 16),
     )
 
-    # msg_hash is deterministic: EIP-712 typed data hash
     assert proof.msg_hash.hex() == redeem["msg_hash"]
-    # compact_hex is deterministic given the private key and msg_hash
-    assert proof.compact_hex == redeem["compact_hex"]
-    assert proof.recovery_bit == redeem["recovery_bit"]
-
-    # Verify the proof reconstructs correctly from its parts
-    assert (
-        gl.verify_ecdsa_mev_protection(
-            proof.msg_hash,
-            proof.compact_hex,
-            proof.recovery_bit,
-            secrets.spend.address,
-        )
-        is True
-    )
-
-    # Verify the spend_signature encoding: r(32) || s(32) || v(1)
-    expected_sig = redeem["spend_signature"]
-    r_hex = proof.compact_hex[:64]
-    s_hex = proof.compact_hex[64:]
-    v_hex = format(proof.recovery_bit + 27, "02x")
-    assert r_hex + s_hex + v_hex == expected_sig
+    assert proof.sigma.to_bytes().hex() == redeem["sigma_compressed"]
+    assert proof.spend_pk.to_bytes().hex() == redeem["spend_pub_compressed"]
+    assert gl.verify_bls_spend_signature(proof.sigma, proof.msg_hash, secrets.spend_chia_pk) is True
 
 
-@pytest.mark.parametrize("v", PARAMS, ids=IDS)
-def test_blind_token_vector(v):
-    """Proves Hash-to-Curve mapping and multiplicative blinding match."""
-    master_seed = v["MASTER_SEED"].encode("utf-8")
-    secrets = gl.derive_token_secrets(master_seed, v["TOKEN_INDEX"])
-    blinded = gl.blind_token(secrets.spend_address_bytes, secrets.r)
-
-    assert hex(blinded.Y[0].n)[2:] == v["Y_HASH_TO_CURVE"]["X"]
-    assert hex(blinded.Y[1].n)[2:] == v["Y_HASH_TO_CURVE"]["Y"]
-    assert hex(blinded.B[0].n)[2:] == v["B_BLINDED"]["X"]
-    assert hex(blinded.B[1].n)[2:] == v["B_BLINDED"]["Y"]
+# ==============================================================================
+# AGGREGATION TESTS
+# ==============================================================================
 
 
-@pytest.mark.parametrize("v", PARAMS, ids=IDS)
-def test_mint_blind_sign_vector(v):
-    """Proves the Mint's blind signature (S') generates the exact same point."""
-    master_seed = v["MASTER_SEED"].encode("utf-8")
-    secrets = gl.derive_token_secrets(master_seed, v["TOKEN_INDEX"])
-    blinded = gl.blind_token(secrets.spend_address_bytes, secrets.r)
-    sk_mint = Scalar(int(v["MINT_BLS_PRIVKEY"], 16))
-
-    S_prime = gl.mint_blind_sign(blinded.B, sk_mint)
-
-    assert hex(S_prime[0].n)[2:] == v["S_PRIME"]["X"]
-    assert hex(S_prime[1].n)[2:] == v["S_PRIME"]["Y"]
+@pytest.mark.parametrize("v", AGG_PARAMS, ids=AGG_IDS)
+def test_aggregated_reveal_vector(v):
+    """Verify aggregated reveal pairing check against recorded sigma + pubkeys."""
+    agg = v["AGGREGATED_REVEAL"]
+    sigma = parse_g2_sol(*_g2_from_dict(agg["sigma_G2"]))
+    spend_pubs = [parse_g1_sol(*_g1_from_dict(p)) for p in agg["spend_pubs_G1"]]
+    pk_mint = parse_g1_sol(*_g1_from_dict(agg["pk_mint_G1"]))
+    assert gl.verify_aggregated_reveal(sigma, spend_pubs, pk_mint) is True
 
 
-@pytest.mark.parametrize("v", PARAMS, ids=IDS)
-def test_unblind_signature_vector(v):
-    """Proves client-side unblinding correctly recovers the final token signature."""
-    master_seed = v["MASTER_SEED"].encode("utf-8")
-    secrets = gl.derive_token_secrets(master_seed, v["TOKEN_INDEX"])
-    blinded = gl.blind_token(secrets.spend_address_bytes, secrets.r)
-    sk_mint = Scalar(int(v["MINT_BLS_PRIVKEY"], 16))
-    S_prime = gl.mint_blind_sign(blinded.B, sk_mint)
-
-    S = gl.unblind_signature(S_prime, secrets.r)
-
-    assert hex(S[0].n)[2:] == v["S_UNBLINDED"]["X"]
-    assert hex(S[1].n)[2:] == v["S_UNBLINDED"]["Y"]
-
-
-@pytest.mark.parametrize("v", PARAMS, ids=IDS)
-def test_full_lifecycle_vector(v):
-    """
-    End-to-end pairing check: proves e(S, G2) == e(Y, PK_mint) for every vector.
-    This is the mathematical statement the on-chain ecPairing call verifies.
-    """
-    master_seed = v["MASTER_SEED"].encode("utf-8")
-    sk_mint = Scalar(int(v["MINT_BLS_PRIVKEY"], 16))
-    pk_mint = _mul_g2(G2Point(G2), sk_mint)
-
-    secrets = gl.derive_token_secrets(master_seed, v["TOKEN_INDEX"])
-    blinded = gl.blind_token(secrets.spend_address_bytes, secrets.r)
-    S_prime = gl.mint_blind_sign(blinded.B, sk_mint)
-    S = gl.unblind_signature(S_prime, secrets.r)
-
-    assert gl.verify_bls_pairing(S, blinded.Y, pk_mint) is True
+@pytest.mark.parametrize("v", AGG_PARAMS, ids=AGG_IDS)
+def test_aggregated_redeem_vector(v):
+    """Verify aggregated redeem signature against recorded msg_hash + spend pubkeys."""
+    agg = v["AGGREGATED_REDEEM"]
+    sigma = G2Element.from_bytes(bytes.fromhex(agg["sigma_compressed"]))
+    spend_pks = [G1Element.from_bytes(bytes.fromhex(pk)) for pk in agg["spend_pubs_compressed"]]
+    msg_hash = bytes.fromhex(agg["msg_hash"])
+    assert gl.verify_aggregated_redeem(sigma, msg_hash, spend_pks) is True

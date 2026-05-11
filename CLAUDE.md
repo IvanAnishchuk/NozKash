@@ -2,12 +2,12 @@
 
 ## Project Overview
 
-**NozKash** is a privacy-preserving eCash system for EVM chains using **BLS blind signatures over BN254**. It enables unlinkable token transfers without zero-knowledge proofs, using only standard EVM precompiles (`ecAdd`, `ecMul`, `ecPairing`, `ecrecover`). Default testnet: **Ethereum Sepolia** (chain ID 11155111).
+**NozKash** is a privacy-preserving eCash system for EVM chains using **BLS blind signatures over BLS12-381**. It enables unlinkable token transfers without zero-knowledge proofs, using EIP-2537 Pectra precompiles (`BLS12_G1ADD`, `BLS12_G1MSM`, `BLS12_G2ADD`, `BLS12_PAIRING`, `BLS12_MAP_FP2_TO_G2`). Default testnet: **Ethereum Sepolia** (chain ID 11155111).
 
 ## Repository Structure
 
 ```
-nozk_py/         # Python: crypto library (source of truth), mint server, CLI wallet
+nozk_py/         # Python: crypto library, mint server, CLI wallet
 nozk_ts/         # TypeScript: byte-for-byte crypto port, CLI wallet
 sol/             # Solidity: NozkVault smart contract (Foundry project)
 app/             # React frontend wallet (Vite + React 19 + Tailwind)
@@ -136,7 +136,7 @@ bash nozk_flow.sh --to 0xRecipient --dry-run   # simulate with RPC
 
 ### Solidity
 - Foundry toolchain (`forge build`, `forge test`, `forge fmt`)
-- Solidity `^0.8.19`
+- Solidity `^0.8.28`
 - Custom errors over revert strings
 - `calldata` for read-only array parameters
 - `external` visibility when not called internally
@@ -148,15 +148,13 @@ bash nozk_flow.sh --to 0xRecipient --dry-run   # simulate with RPC
 - No crypto implementations in `app/src/crypto/` — only thin wrappers
 
 ### Commit Messages
-Conventional Commits with component scope prefixes:
-- `py: add derive_token_secrets function`
-- `ts: fix hash-to-curve counter encoding`
-- `sol: optimize ecPairing gas cost`
-- `app: implement deposit flow UI`
-- `docs: update architecture section`
-- `ci: add forge fmt check`
-- `test: add cross-language vector for blinding`
-- `chore: update dependencies`
+[Conventional Commits](https://www.conventionalcommits.org/) format: `type(scope): description`. Scope is optional.
+- `feat: add BLS spend signature aggregation`
+- `fix(nozk_py): validate blinding factor in unblind_signature`
+- `test(sol): add constructor invalid-pkMint revert test`
+- `docs: update protocol flow for reveal/redeem split`
+- `ci: add forge fmt check to pre-commit`
+- `chore: update chia-rs upper bound`
 
 ## Critical Workflow Rules
 
@@ -206,27 +204,30 @@ CLIENT: derive token secrets from (masterSeed, index)
   +-- spend_priv -> spend_addr (nullifier at redeem)
   +-- blind_priv -> deposit_id + blinding factor r
 
-CLIENT: blind_token() -> B = r * H_G1(spend_addr)
+CLIENT: blind_token() -> B = r * H_G2(spend_pub)
 CONTRACT: deposit(depositId, B) -> emits DepositLocked {locks 0.001 ETH}
 MINT: announce(depositId, S') where S' = sk * B
-CLIENT: unblind_signature() -> S = S' * r^-1 = sk * H(spend_addr)
-CLIENT: generate_redemption_proof() -> ECDSA binding token to recipient
-CONTRACT: reveal() + redeem() -> verifies ecPairing + ecrecover, transfers 0.001 ETH
+CLIENT: unblind_signature() -> S = S' * r^-1 = sk * H(spend_pub)
+CLIENT: generate_redemption_proof() -> BLS AugSchemeMPL spend signature
+CONTRACT: reveal(spendPub, S) -> BLS pairing check via EIP-2537
+CONTRACT: redeem(recipient, spendSig, nId, deadline) -> verify BLS spend sig, transfer 0.001 ETH
 ```
 
 ### Cross-Language Cryptographic Parity
 
-**CRITICAL:** `nozk_py/nozk_library.py` is the **source of truth**. `nozk_ts/nozk-library.ts` is a byte-for-byte port. Both must produce identical output, enforced by shared JSON test vectors in `test_vectors/`.
+**CRITICAL:** `nozk_py/nozk_library.py` and `nozk_ts/nozk-library.ts` must produce byte-identical output, enforced by shared JSON test vectors in `test_vectors/`.
 
 Parity conventions:
-- Hash-to-curve: `keccak256(msg || counter_be32)` try-and-increment
+- Hash-to-G2: RFC 9380 (`SHA-256 + MAP_FP2_TO_G2`) with DST `BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_AUG_`
 - Token derivation: `keccak256(seed || index_be32)` with domain separation
 - Redemption message: EIP-712 typed structured data (`NozkRedeem(address recipient, uint256 deadline)`)
+- Spend auth: BLS AugSchemeMPL (chia_rs / blst)
 - All multi-byte values use big-endian encoding
-- G2 points stored in EIP-197 limb order `[X_imag, X_real, Y_imag, Y_real]`
+- G1 points: 4 x uint256 (EIP-2537 uncompressed, 128 bytes)
+- G2 points: 8 x uint256 (EIP-2537 uncompressed, 256 bytes)
 
 **When modifying crypto:**
-1. Update `nozk_py/nozk_library.py` (source of truth)
+1. Update `nozk_py/nozk_library.py`
 2. Port changes to `nozk_ts/nozk-library.ts` (byte-for-byte equivalent)
 3. Regenerate test vectors: `cd nozk_py && uv run generate_vectors.py`
 4. Verify Python: `cd nozk_py && uv run pytest test_vectors.py -v`
@@ -235,33 +236,38 @@ Parity conventions:
 ### Smart Contract (`sol/src/NozkVault.sol`)
 
 Entry points:
-- `deposit(address depositId, uint256[2] B)` — lock 0.001 ETH, register blinded point
-- `announce(address depositId, uint256[2] S_prime)` — mint authority posts blind signature
-- `reveal(nullifier, S, spend_pub_G2)` — reveal nullifier and BLS signature
-- `redeem(address recipient, bytes sig, address nullifier, uint256 deadline)` — verify ECDSA and transfer
+- `deposit(address depositId, uint256[8] B)` — lock 0.001 ETH, register blinded G2 point
+- `announce(address depositId, uint256[8] S_prime)` — mint authority posts blind signature (G2)
+- `reveal(uint256[4] spendPub, uint256[8] S)` — reveal spend pubkey (G1) + unblinded signature (G2), BLS pairing check
+- `redeem(address recipient, uint256[8] spendSig, bytes32 nId, uint256 deadline)` — verify BLS spend signature (AugSchemeMPL), transfer ETH
 - `refund(address depositId)` — reclaim ETH if mint never fulfilled (before `announce()`)
+- `revealAggregated(uint256[4][] spendPubs, uint256[8] sigma)` — batch reveal with single pairing
+- `redeemAggregated(address recipient, uint256[8] sigma, bytes32[] nIds, uint256 deadline)` — batch redeem with (n+1)-pairing
 
-Verification:
-1. `ecrecover` — confirm signer == nullifier
-2. Check nullifier not already spent — prevent double-spend
-3. Hash-to-curve on nullifier
-4. `ecPairing(S, G2) == ecPairing(H(nullifier), pkMint)` — BLS verification
+Verification (reveal):
+1. Check nullifier not already revealed — prevent double-reveal
+2. Hash-to-G2 on spend pubkey (RFC 9380 via EIP-2537 MAP_FP2_TO_G2)
+3. `e(pkMint, Y) == e(G1_gen, S)` — BLS pairing check
 
-Gas targets: deposit ~50k, announce ~55k, redeem ~120k, refund ~30k.
+Verification (redeem):
+1. Check nullifier is REVEALED, not SPENT — prevent double-spend
+2. Reconstruct AugSchemeMPL augmented message from compressed spend pubkey
+3. `e(spendPub, H_G2(aug_msg)) == e(G1_gen, spendSig)` — BLS spend signature check
+
 Run `forge snapshot` after contract changes and verify no regressions.
 
 ### Frontend App (`app/`)
 
-**Shared crypto library:** The app imports `nozk_ts/nozk-library.ts` and `nozk_ts/bn254-crypto.ts` directly via the `@nozk/` alias. No local copy — `app/src/crypto/` contains only thin wrappers.
+**Shared crypto library:** The app imports `nozk_ts/nozk-library.ts` and `nozk_ts/bls12-381-crypto.ts` directly via the `@nozk/` alias. No local copy — `app/src/crypto/` contains only thin wrappers.
 
 **Seed derivation:** On wallet connect, `personal_sign` with a deterministic message -> `keccak256(65-byte signature)` = `masterSeed`. Seed lives in RAM only (React context), never persisted. Dev bypass: `VITE_NOZK_MASTER_SEED_HEX`.
 
 **Scanner (`app/src/lib/nozkVault.ts`):** Fetches events via `eth_getLogs`, chunks by ~2048 blocks, rate-limited with burst queue.
 
-## Source of Truth Hierarchy
+## Key Files
 
-1. **Cryptography:** `nozk_py/nozk_library.py`
-2. **Contract ABI:** `abi/nozk_vault_abi.json`
+1. **Cryptography:** `nozk_py/nozk_library.py` + `nozk_ts/nozk-library.ts` (must be kept in sync)
+2. **Contract ABI:** `abi/nozk_vault_v2_abi.json`
 3. **Test vectors:** `test_vectors/manifest.json`
 4. **Environment template:** `example.env`
 
@@ -307,7 +313,7 @@ VITE_NOZK_MASTER_SEED_HEX   # dev only
 - **Limited refund:** Depositors can reclaim ETH only before `announce()`. Once announced, redemption is the only exit
 - **Stateless mint:** The mint daemon stores nothing — all state is on-chain
 - **Stateless recovery:** Every wallet secret is re-derivable from `(masterSeed, index)` via scan
-- **MEV protection:** ECDSA in `redeem()` binds the nullifier to a specific recipient
+- **MEV protection:** BLS spend signature in `redeem()` binds the nullifier to a specific recipient via EIP-712
 - **Token lifecycle:** `FRESH -> AWAITING_MINT -> READY_TO_REDEEM -> SPENT` (tracked in `.nozk_wallet.json`)
 
 ## Verification

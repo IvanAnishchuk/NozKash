@@ -183,7 +183,7 @@ export function DepositConfirmModal({ open, onClose, onToast }: Props) {
         depositFnArgs = parseNozkVaultDepositCalldataArgs(data)
       } catch (e) {
         depositFnArgs = {
-          blindedPointB: ['?', '?'],
+          blindedPointB: [0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n],
           depositId: builtDepositId,
         }
         if (isNozkVaultDebugEnabled()) {

@@ -8,7 +8,7 @@ dependencies = [
     "eth-hash[pycryptodome]>=0.7.1",
     "eth-keys>=0.7.0",
     "eth-utils>=5.3.1",
-    "py-ecc>=8.0.0",
+    "py-ecc>=7.0",
     "pycryptodome>=3.23.0",
     "pytest>=9.0.3",
     "python-dotenv>=1.2.2",
@@ -17,11 +17,13 @@ dependencies = [
     "fastapi>=0.115.0",
     "uvicorn>=0.34.0",
     "httpx>=0.28.0",
+    "chia-rs>=0.42.1,<1",
 ]
 
 [dependency-groups]
 dev = [
     "pre-commit>=4.2.0",
+    "pytest-cov>=7.1.0",
     "ruff>=0.15.0",
     "ty>=0.0.7",
 ]
@@ -41,3 +43,20 @@ python-version = "3.13"
 extra-paths = ["typings"]
 
 [tool.pytest.ini_options]
+addopts = "--cov=bls12_381_crypto --cov=nozk_library --cov=mint_mock --cov=redeem_mock --cov=contract_errors --cov=wallet_state --cov-branch --cov-report=term-missing"
+
+[tool.coverage.run]
+branch = true
+source = [
+    "bls12_381_crypto",
+    "nozk_library",
+    "mint_mock",
+    "redeem_mock",
+    "contract_errors",
+    "wallet_state",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
+fail_under = 59

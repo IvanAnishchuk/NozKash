@@ -56,8 +56,8 @@ import * as gl from './nozk-library.js';
 // ==============================================================================
 
 const DENOMINATION = parseEther('0.001');
-const WALLET_STATE_FILE = resolve('..', '.nozk_wallet.json');
-const ABI_PATH = resolve('..', 'abi', 'nozk_vault_abi.json');
+const WALLET_STATE_FILE = process.env.NOZK_WALLET_STATE_FILE || resolve('..', '.nozk_wallet.json');
+const ABI_PATH = process.env.NOZK_VAULT_ABI_PATH || resolve('..', 'abi', 'nozk_vault_v2_abi.json');
 
 interface Config {
     masterSeed: Uint8Array;
@@ -477,7 +477,7 @@ async function cmdReveal(config: Config, tokenIndex: number, relayerUrl?: string
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                spend_pub: spendPubCoords.map((c) => `0x${c.toString(16)}`),
+                spend_pub_g1: spendPubCoords.map((c) => `0x${c.toString(16)}`),
                 s_g2: sG2Coords.map((c) => `0x${c.toString(16)}`),
             }),
         });
@@ -614,8 +614,9 @@ async function cmdRedeem(config: Config, tokenIndex: number, recipient: string, 
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 recipient: recipientAddr,
-                spend_sig: sigCoords.map((c) => `0x${c.toString(16)}`),
-                nullifier_id: nullifierIdHex,
+                spend_sigma_compressed: Buffer.from(proof.sigma).toString('hex'),
+                spend_pk_compressed: Buffer.from(secrets.spendPubCompressed).toString('hex'),
+                nullifier_id: nullifierIdHex.replace(/^0x/i, ''),
                 deadline: Number(deadline),
             }),
         });

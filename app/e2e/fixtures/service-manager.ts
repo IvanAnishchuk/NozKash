@@ -14,9 +14,12 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 const REPO_ROOT = resolve(__dirname, '..', '..', '..')
 
-async function waitForHealth(url: string, timeoutMs = 15_000): Promise<void> {
+async function waitForHealth(url: string, proc: ChildProcess, timeoutMs = 15_000): Promise<void> {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
+    if (proc.exitCode !== null) {
+      throw new Error(`Process exited with code ${proc.exitCode} before becoming healthy`)
+    }
     try {
       const res = await fetch(url)
       if (res.ok) return
@@ -129,7 +132,7 @@ export async function startRelayerServer(opts: {
   proc.stderr?.pipe(logStream)
 
   // Poll /health until the relayer is ready
-  await waitForHealth(`http://127.0.0.1:${port}/health`)
+  await waitForHealth(`http://127.0.0.1:${port}/health`, proc)
 
   return {
     process: proc,

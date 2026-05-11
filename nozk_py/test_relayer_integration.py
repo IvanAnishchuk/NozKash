@@ -48,9 +48,9 @@ def _wait_for_rpc(url: str, timeout: float = 10.0) -> bool:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         try:
-            w3.eth.block_number  # noqa: B018
+            w3.eth.block_number  # noqa: B018 — bare access to check RPC connectivity
             return True
-        except Exception:
+        except (ConnectionError, OSError):
             time.sleep(0.1)
     return False
 

@@ -76,12 +76,12 @@ sequenceDiagram
     participant R as Relayer
     participant V as NozkVaultV2
 
-    C->>R: POST /reveal {spendPubG1, S_G2}
+    C->>R: POST /reveal {spend_pub_g1, s_g2}
     R->>V: reveal(uint256[4], uint256[8])
     V-->>R: tx hash (revealed)
     R-->>C: tx_hash
 
-    C->>R: POST /redeem {recipient, sigmaCompressed, pkCompressed, nId, deadline}
+    C->>R: POST /redeem {recipient, spend_sigma_compressed, spend_pk_compressed, nullifier_id, deadline}
     R->>V: redeem(address, uint256[8], bytes32, uint256)
     V-->>R: tx hash (spent)
     R-->>C: tx_hash

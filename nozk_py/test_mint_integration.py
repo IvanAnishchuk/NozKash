@@ -66,7 +66,7 @@ def _wait_for_rpc(url: str, timeout: float = 10.0) -> bool:
         try:
             w3.eth.block_number  # noqa: B018 — side-effect: test connectivity
             return True
-        except Exception:
+        except (ConnectionError, OSError):
             time.sleep(0.1)
     return False
 

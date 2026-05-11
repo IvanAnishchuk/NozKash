@@ -63,9 +63,6 @@ from bls12_381_crypto import (
     verify_mint_pairing,
 )
 from contract_errors import decode_contract_error
-from nozk_library import (
-    VerificationError,
-)
 from nozk_theme import make_console
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
@@ -377,19 +374,17 @@ class Relayer:
         try:
             sigma = G2Element.from_bytes(bytes.fromhex(req.spend_sigma_compressed))
             spend_pk = G1Element.from_bytes(bytes.fromhex(req.spend_pk_compressed))
-        except Exception as exc:
+        except (ValueError, TypeError) as exc:
             raise HTTPException(status_code=400, detail=f"Invalid BLS signature or pubkey: {exc}")
 
         # BLS spend sig pre-check
         msg_hash = self.contract.functions.redemptionMessageHash(recipient, req.deadline).call()
-        try:
-            if not AugSchemeMPL.verify(spend_pk, msg_hash, sigma):
-                raise HTTPException(status_code=400, detail="BLS spend signature verification failed")
-        except VerificationError as exc:
-            raise HTTPException(status_code=400, detail=f"Malformed BLS signature: {exc}")
+        if not AugSchemeMPL.verify(spend_pk, msg_hash, sigma):
+            raise HTTPException(status_code=400, detail="BLS spend signature verification failed")
 
         # On-chain state check
-        nullifier_id = bytes.fromhex(req.nullifier_id)
+        nid_hex = req.nullifier_id.removeprefix("0x").removeprefix("0X")
+        nullifier_id = bytes.fromhex(nid_hex)
         state_val = self.contract.functions.nullifierState(nullifier_id).call()
         if state_val != 1:  # 1 = REVEALED
             state_name = {0: "UNREVEALED", 2: "SPENT"}.get(state_val, f"UNKNOWN({state_val})")

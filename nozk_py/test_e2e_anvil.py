@@ -34,7 +34,6 @@ from nozk_library import (
     unblind_signature,
     verify_bls_mint_signature,
 )
-
 from test_constants import (
     ABI_PATH,
     ANVIL_RPC,
@@ -47,6 +46,7 @@ from test_constants import (
     RECIPIENT,
     SOL_DIR,
 )
+
 # ==============================================================================
 # Fixtures
 # ==============================================================================

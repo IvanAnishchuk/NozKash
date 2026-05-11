@@ -28,7 +28,6 @@ from nozk_library import (
     mint_blind_sign,
     unblind_signature,
 )
-
 from test_constants import (
     ABI_PATH,
     ANVIL_RPC,
@@ -93,12 +92,14 @@ def deployed_contract(w3):
     deployer = w3.eth.account.from_key(DEPLOYER_KEY)
     pk_coords = list(serialize_g1_sol(MINT_PK))
     contract = w3.eth.contract(abi=abi, bytecode=bytecode)
-    tx = contract.constructor(pk_coords, deployer.address).build_transaction({
-        "from": deployer.address,
-        "nonce": w3.eth.get_transaction_count(deployer.address),
-        "gas": 5_000_000,
-        "gasPrice": w3.eth.gas_price,
-    })
+    tx = contract.constructor(pk_coords, deployer.address).build_transaction(
+        {
+            "from": deployer.address,
+            "nonce": w3.eth.get_transaction_count(deployer.address),
+            "gas": 5_000_000,
+            "gasPrice": w3.eth.gas_price,
+        }
+    )
     signed = deployer.sign_transaction(tx)
     receipt = w3.eth.wait_for_transaction_receipt(w3.eth.send_raw_transaction(signed.raw_transaction))
     assert receipt["status"] == 1
@@ -158,22 +159,26 @@ def _prepare_token(w3, vault, depositor, deployer, seed, index):
     blinded = blind_token(secrets.spend_bls_pub, secrets.r)
     deposit_id = Web3.to_checksum_address(secrets.deposit_id)
 
-    tx = vault.functions.deposit(deposit_id, list(serialize_g2_sol(blinded.B))).build_transaction({
-        "from": depositor.address,
-        "value": DENOMINATION,
-        "nonce": w3.eth.get_transaction_count(depositor.address),
-        "gas": 200_000,
-        "gasPrice": w3.eth.gas_price,
-    })
+    tx = vault.functions.deposit(deposit_id, list(serialize_g2_sol(blinded.B))).build_transaction(
+        {
+            "from": depositor.address,
+            "value": DENOMINATION,
+            "nonce": w3.eth.get_transaction_count(depositor.address),
+            "gas": 200_000,
+            "gasPrice": w3.eth.gas_price,
+        }
+    )
     _send_tx(w3, depositor, tx)
 
     S_prime = mint_blind_sign(blinded.B, MINT_SCALAR)
-    tx = vault.functions.announce(deposit_id, list(serialize_g2_sol(S_prime))).build_transaction({
-        "from": deployer.address,
-        "nonce": w3.eth.get_transaction_count(deployer.address),
-        "gas": 200_000,
-        "gasPrice": w3.eth.gas_price,
-    })
+    tx = vault.functions.announce(deposit_id, list(serialize_g2_sol(S_prime))).build_transaction(
+        {
+            "from": deployer.address,
+            "nonce": w3.eth.get_transaction_count(deployer.address),
+            "gas": 200_000,
+            "gasPrice": w3.eth.gas_price,
+        }
+    )
     _send_tx(w3, deployer, tx)
 
     S = unblind_signature(S_prime, secrets.r)
@@ -186,10 +191,13 @@ def test_reveal_valid(relayer_client, deployed_contract, w3):
 
     secrets, S = _prepare_token(w3, deployed_contract, depositor, deployer, b"relayer_reveal_test", 300)
 
-    resp = relayer_client.post("/reveal", json={
-        "spend_pub_g1": [hex(c) for c in serialize_g1_sol(secrets.spend_bls_pub)],
-        "s_g2": [hex(c) for c in serialize_g2_sol(S)],
-    })
+    resp = relayer_client.post(
+        "/reveal",
+        json={
+            "spend_pub_g1": [hex(c) for c in serialize_g1_sol(secrets.spend_bls_pub)],
+            "s_g2": [hex(c) for c in serialize_g2_sol(S)],
+        },
+    )
     assert resp.status_code == 200, f"Reveal failed: {resp.json()}"
     data = resp.json()
     assert data["tx_hash"]
@@ -210,10 +218,13 @@ def test_reveal_invalid_signature_400(relayer_client, deployed_contract, w3):
     secrets, _S = _prepare_token(w3, deployed_contract, depositor, deployer, b"relayer_bad_sig", 301)
 
     # Submit with garbage G2 signature
-    resp = relayer_client.post("/reveal", json={
-        "spend_pub_g1": [hex(c) for c in serialize_g1_sol(secrets.spend_bls_pub)],
-        "s_g2": ["0x1", "0x2", "0x3", "0x4", "0x5", "0x6", "0x7", "0x8"],
-    })
+    resp = relayer_client.post(
+        "/reveal",
+        json={
+            "spend_pub_g1": [hex(c) for c in serialize_g1_sol(secrets.spend_bls_pub)],
+            "s_g2": ["0x1", "0x2", "0x3", "0x4", "0x5", "0x6", "0x7", "0x8"],
+        },
+    )
     # Should fail — either 400 (pairing check) or 500 (on-chain revert)
     assert resp.status_code in (400, 500), f"Expected error, got {resp.status_code}: {resp.json()}"
 
@@ -224,13 +235,16 @@ def test_reveal_invalid_signature_400(relayer_client, deployed_contract, w3):
 
 
 def test_redeem_expired_deadline_400(relayer_client):
-    resp = relayer_client.post("/redeem", json={
-        "recipient": RECIPIENT,
-        "spend_sigma_compressed": "aa" * 96,
-        "spend_pk_compressed": "bb" * 48,
-        "nullifier_id": "cc" * 32,
-        "deadline": int(time.time()) - 3600,
-    })
+    resp = relayer_client.post(
+        "/redeem",
+        json={
+            "recipient": RECIPIENT,
+            "spend_sigma_compressed": "aa" * 96,
+            "spend_pk_compressed": "bb" * 48,
+            "nullifier_id": "cc" * 32,
+            "deadline": int(time.time()) - 3600,
+        },
+    )
     assert resp.status_code == 400
     assert "Deadline" in resp.json()["detail"] or "deadline" in resp.json()["detail"].lower()
 
@@ -242,10 +256,13 @@ def test_redeem_valid(relayer_client, deployed_contract, w3):
     secrets, S = _prepare_token(w3, deployed_contract, depositor, deployer, b"relayer_redeem_test", 302)
 
     # Reveal first (via relayer)
-    resp = relayer_client.post("/reveal", json={
-        "spend_pub_g1": [hex(c) for c in serialize_g1_sol(secrets.spend_bls_pub)],
-        "s_g2": [hex(c) for c in serialize_g2_sol(S)],
-    })
+    resp = relayer_client.post(
+        "/reveal",
+        json={
+            "spend_pub_g1": [hex(c) for c in serialize_g1_sol(secrets.spend_bls_pub)],
+            "s_g2": [hex(c) for c in serialize_g2_sol(S)],
+        },
+    )
     assert resp.status_code == 200, f"Reveal failed: {resp.json()}"
 
     # Generate spend signature
@@ -264,13 +281,16 @@ def test_redeem_valid(relayer_client, deployed_contract, w3):
     nid = keccak(abi_encode_g1(secrets.spend_bls_pub))
     bal_before = w3.eth.get_balance(RECIPIENT)
 
-    resp = relayer_client.post("/redeem", json={
-        "recipient": RECIPIENT,
-        "spend_sigma_compressed": proof.sigma.to_bytes().hex(),
-        "spend_pk_compressed": proof.spend_pk.to_bytes().hex(),
-        "nullifier_id": nid.hex(),
-        "deadline": deadline,
-    })
+    resp = relayer_client.post(
+        "/redeem",
+        json={
+            "recipient": RECIPIENT,
+            "spend_sigma_compressed": proof.sigma.to_bytes().hex(),
+            "spend_pk_compressed": proof.spend_pk.to_bytes().hex(),
+            "nullifier_id": nid.hex(),
+            "deadline": deadline,
+        },
+    )
     assert resp.status_code == 200, f"Redeem failed: {resp.json()}"
 
     # Verify on-chain

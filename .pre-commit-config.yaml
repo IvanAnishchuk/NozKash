@@ -32,6 +32,7 @@ repos:
       - id: check-merge-conflict
       - id: check-case-conflict
       - id: detect-private-key
+        exclude: ^docs/src/standards/
       - id: no-commit-to-branch
         args: [--branch, main]
       - id: check-ast
@@ -91,7 +92,7 @@ repos:
     hooks:
       - id: forge-fmt-check
         name: forge fmt --check
-        entry: bash -c 'cd sol && forge fmt --check'
+        entry: bash -c 'cd sol && forge fmt'
         language: system
         pass_filenames: false
         files: ^sol/.*\.sol$

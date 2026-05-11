@@ -235,11 +235,11 @@ quantum cryptanalysis research field.
   March 31, 2026
 
    Building better AI benchmarks: How many raters are enough?
-  
+
 
   -  Algorithms & Theory
-    · 
-  -  Machine Intelligence 
+    ·
+  -  Machine Intelligence
 
   - <a href="/blog/turboquant-redefining-ai-efficiency-with-extreme-compression/"
 
@@ -248,13 +248,13 @@ quantum cryptanalysis research field.
   March 24, 2026
 
    TurboQuant: Redefining AI efficiency with extreme
-  compression 
+  compression
 
   -  Algorithms & Theory
-    · 
+    ·
   -  Generative AI
-    · 
-  -  Machine Intelligence 
+    ·
+  -  Machine Intelligence
 
   - <a href="/blog/mapping-the-modern-world-how-s2vec-learns-the-language-of-our-cities/"
 
@@ -263,10 +263,10 @@ quantum cryptanalysis research field.
   March 24, 2026
 
    Mapping the modern world: How S2Vec learns the language of
-  our cities 
+  our cities
 
   -  Algorithms & Theory
-    · 
+    ·
   -  Earth AI ·
-    
+
   -  Machine Intelligence

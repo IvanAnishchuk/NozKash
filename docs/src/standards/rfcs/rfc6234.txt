@@ -56,7 +56,7 @@ Status of This Memo
 
 
 Eastlake & Hansen             Informational                     [Page 1]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -112,7 +112,7 @@ Copyright Notice
 
 
 Eastlake & Hansen             Informational                     [Page 2]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -168,7 +168,7 @@ Table of Contents
 
 
 Eastlake & Hansen             Informational                     [Page 3]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -224,7 +224,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                     [Page 4]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -280,7 +280,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                     [Page 5]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -336,7 +336,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                     [Page 6]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -392,7 +392,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                     [Page 7]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -448,7 +448,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                     [Page 8]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -504,7 +504,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                     [Page 9]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -560,7 +560,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                    [Page 10]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -616,7 +616,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                    [Page 11]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -672,7 +672,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                    [Page 12]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -728,7 +728,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                    [Page 13]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -784,7 +784,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                    [Page 14]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -840,7 +840,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                    [Page 15]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -896,7 +896,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                    [Page 16]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -952,7 +952,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                    [Page 17]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -1008,7 +1008,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                    [Page 18]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -1064,7 +1064,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                    [Page 19]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -1120,7 +1120,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                    [Page 20]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -1176,7 +1176,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                    [Page 21]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -1232,7 +1232,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                    [Page 22]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -1288,7 +1288,7 @@ enum {
 
 
 Eastlake & Hansen             Informational                    [Page 23]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -1344,7 +1344,7 @@ typedef struct SHA256Context {
 
 
 Eastlake & Hansen             Informational                    [Page 24]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -1400,7 +1400,7 @@ typedef struct USHAContext {
 
 
 Eastlake & Hansen             Informational                    [Page 25]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -1456,7 +1456,7 @@ extern int SHA1Result(SHA1Context *,
 
 
 Eastlake & Hansen             Informational                    [Page 26]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -1512,7 +1512,7 @@ extern const char *USHAHashName(enum SHAversion whichSha);
 
 
 Eastlake & Hansen             Informational                    [Page 27]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -1568,7 +1568,7 @@ extern int hkdfReset(HKDFContext *context, enum SHAversion whichSha,
 
 
 Eastlake & Hansen             Informational                    [Page 28]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -1624,7 +1624,7 @@ typedef short int_least16_t;            /* integer of >= 16 bits */
 
 
 Eastlake & Hansen             Informational                    [Page 29]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -1680,7 +1680,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                    [Page 30]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -1736,7 +1736,7 @@ static void SHA1PadMessage(SHA1Context *context, uint8_t Pad_Byte);
 
 
 Eastlake & Hansen             Informational                    [Page 31]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -1792,7 +1792,7 @@ int SHA1Reset(SHA1Context *context)
 
 
 Eastlake & Hansen             Informational                    [Page 32]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -1848,7 +1848,7 @@ int SHA1Input(SHA1Context *context,
 
 
 Eastlake & Hansen             Informational                    [Page 33]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -1904,7 +1904,7 @@ int SHA1FinalBits(SHA1Context *context, uint8_t message_bits,
 
 
 Eastlake & Hansen             Informational                    [Page 34]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -1960,7 +1960,7 @@ static void SHA1ProcessMessageBlock(SHA1Context *context)
 
 
 Eastlake & Hansen             Informational                    [Page 35]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -2016,7 +2016,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                    [Page 36]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -2072,7 +2072,7 @@ static void SHA1Finalize(SHA1Context *context, uint8_t Pad_Byte)
 
 
 Eastlake & Hansen             Informational                    [Page 37]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -2128,7 +2128,7 @@ static void SHA1PadMessage(SHA1Context *context, uint8_t Pad_Byte)
 
 
 Eastlake & Hansen             Informational                    [Page 38]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -2184,7 +2184,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                    [Page 39]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -2240,7 +2240,7 @@ static void SHA224_256PadMessage(SHA256Context *context,
 
 
 Eastlake & Hansen             Informational                    [Page 40]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -2296,7 +2296,7 @@ int SHA224Reset(SHA224Context *context)
 
 
 Eastlake & Hansen             Informational                    [Page 41]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -2352,7 +2352,7 @@ int SHA224FinalBits(SHA224Context *context,
 
 
 Eastlake & Hansen             Informational                    [Page 42]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -2408,7 +2408,7 @@ int SHA256Reset(SHA256Context *context)
 
 
 Eastlake & Hansen             Informational                    [Page 43]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -2464,7 +2464,7 @@ int SHA256Input(SHA256Context *context, const uint8_t *message_array,
 
 
 Eastlake & Hansen             Informational                    [Page 44]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -2520,7 +2520,7 @@ int SHA256FinalBits(SHA256Context *context,
 
 
 Eastlake & Hansen             Informational                    [Page 45]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -2576,7 +2576,7 @@ static int SHA224_256Reset(SHA256Context *context, uint32_t *H0)
 
 
 Eastlake & Hansen             Informational                    [Page 46]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -2632,7 +2632,7 @@ static void SHA224_256ProcessMessageBlock(SHA256Context *context)
 
 
 Eastlake & Hansen             Informational                    [Page 47]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -2688,7 +2688,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                    [Page 48]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -2744,7 +2744,7 @@ static void SHA224_256PadMessage(SHA256Context *context,
 
 
 Eastlake & Hansen             Informational                    [Page 49]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -2800,7 +2800,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                    [Page 50]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -2856,7 +2856,7 @@ static int SHA224_256ResultN(SHA256Context *context,
 
 
 Eastlake & Hansen             Informational                    [Page 51]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -2912,7 +2912,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                    [Page 52]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -2968,7 +2968,7 @@ static uint32_t ADDTO4_temp, ADDTO4_temp2;
 
 
 Eastlake & Hansen             Informational                    [Page 53]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -3024,7 +3024,7 @@ static uint32_t SIGMA1_temp1[2], SIGMA1_temp2[2],
 
 
 Eastlake & Hansen             Informational                    [Page 54]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -3080,7 +3080,7 @@ static uint32_t Maj_temp1[2], Maj_temp2[2],
 
 
 Eastlake & Hansen             Informational                    [Page 55]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -3136,7 +3136,7 @@ static uint32_t SHA384_H0[SHA512HashSize/4] = {
 
 
 Eastlake & Hansen             Informational                    [Page 56]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -3192,7 +3192,7 @@ static int SHA384_512Reset(SHA512Context *context,
 
 
 Eastlake & Hansen             Informational                    [Page 57]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -3248,7 +3248,7 @@ int SHA384Reset(SHA384Context *context)
 
 
 Eastlake & Hansen             Informational                    [Page 58]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -3304,7 +3304,7 @@ int SHA384FinalBits(SHA384Context *context,
 
 
 Eastlake & Hansen             Informational                    [Page 59]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -3360,7 +3360,7 @@ int SHA512Reset(SHA512Context *context)
 
 
 Eastlake & Hansen             Informational                    [Page 60]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -3416,7 +3416,7 @@ int SHA512Input(SHA512Context *context,
 
 
 Eastlake & Hansen             Informational                    [Page 61]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -3472,7 +3472,7 @@ int SHA512FinalBits(SHA512Context *context,
 
 
 Eastlake & Hansen             Informational                    [Page 62]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -3528,7 +3528,7 @@ static int SHA384_512Reset(SHA512Context *context,
 
 
 Eastlake & Hansen             Informational                    [Page 63]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -3584,7 +3584,7 @@ static void SHA384_512ProcessMessageBlock(SHA512Context *context)
 
 
 Eastlake & Hansen             Informational                    [Page 64]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -3640,7 +3640,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                    [Page 65]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -3696,7 +3696,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                    [Page 66]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -3752,7 +3752,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                    [Page 67]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -3808,7 +3808,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                    [Page 68]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -3864,7 +3864,7 @@ static void SHA384_512Finalize(SHA512Context *context,
 
 
 Eastlake & Hansen             Informational                    [Page 69]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -3920,7 +3920,7 @@ static void SHA384_512PadMessage(SHA512Context *context,
 
 
 Eastlake & Hansen             Informational                    [Page 70]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -3976,7 +3976,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                    [Page 71]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -4032,7 +4032,7 @@ static int SHA384_512ResultN(SHA512Context *context,
 
 
 Eastlake & Hansen             Informational                    [Page 72]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -4088,7 +4088,7 @@ int USHAReset(USHAContext *context, enum SHAversion whichSha)
 
 
 Eastlake & Hansen             Informational                    [Page 73]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -4144,7 +4144,7 @@ int USHAInput(USHAContext *context,
 
 
 Eastlake & Hansen             Informational                    [Page 74]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -4200,7 +4200,7 @@ int USHAFinalBits(USHAContext *context,
 
 
 Eastlake & Hansen             Informational                    [Page 75]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -4256,7 +4256,7 @@ int USHAResult(USHAContext *context,
 
 
 Eastlake & Hansen             Informational                    [Page 76]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -4312,7 +4312,7 @@ int USHAHashSize(enum SHAversion whichSha)
 
 
 Eastlake & Hansen             Informational                    [Page 77]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -4368,7 +4368,7 @@ const char *USHAHashName(enum SHAversion whichSha)
 
 
 Eastlake & Hansen             Informational                    [Page 78]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -4424,7 +4424,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                    [Page 79]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -4480,7 +4480,7 @@ int hmacReset(HMACContext *context, enum SHAversion whichSha,
 
 
 Eastlake & Hansen             Informational                    [Page 80]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -4536,7 +4536,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                    [Page 81]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -4592,7 +4592,7 @@ int hmacInput(HMACContext *context, const unsigned char *text,
 
 
 Eastlake & Hansen             Informational                    [Page 82]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -4648,7 +4648,7 @@ int hmacResult(HMACContext *context, uint8_t *digest)
 
 
 Eastlake & Hansen             Informational                    [Page 83]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -4704,7 +4704,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                    [Page 84]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -4760,7 +4760,7 @@ int hkdf(SHAversion whichSha,
 
 
 Eastlake & Hansen             Informational                    [Page 85]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -4816,7 +4816,7 @@ int hkdfExtract(SHAversion whichSha,
 
 
 Eastlake & Hansen             Informational                    [Page 86]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -4872,7 +4872,7 @@ int hkdfExpand(SHAversion whichSha, const uint8_t prk[ ], int prk_len,
 
 
 Eastlake & Hansen             Informational                    [Page 87]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -4928,7 +4928,7 @@ int hkdfReset(HKDFContext *context, enum SHAversion whichSha,
 
 
 Eastlake & Hansen             Informational                    [Page 88]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -4984,7 +4984,7 @@ int hkdfInput(HKDFContext *context, const unsigned char *ikm,
 
 
 Eastlake & Hansen             Informational                    [Page 89]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -5040,7 +5040,7 @@ int hkdfResult(HKDFContext *context,
 
 
 Eastlake & Hansen             Informational                    [Page 90]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -5096,7 +5096,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                    [Page 91]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -5152,7 +5152,7 @@ static int scasecmp(const char *s1, const char *s2);
 
 
 Eastlake & Hansen             Informational                    [Page 92]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -5208,7 +5208,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                    [Page 93]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -5264,7 +5264,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                    [Page 94]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -5320,7 +5320,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                    [Page 95]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -5376,7 +5376,7 @@ struct hash {
 
 
 Eastlake & Hansen             Informational                    [Page 96]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -5432,7 +5432,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                    [Page 97]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -5488,7 +5488,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                    [Page 98]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -5544,7 +5544,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                    [Page 99]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -5600,7 +5600,7 @@ struct hmachash {
 
 
 Eastlake & Hansen             Informational                   [Page 100]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -5656,7 +5656,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                   [Page 101]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -5712,7 +5712,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                   [Page 102]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -5768,7 +5768,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                   [Page 103]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -5824,7 +5824,7 @@ struct hkdfhash {
 
 
 Eastlake & Hansen             Informational                   [Page 104]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -5880,7 +5880,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                   [Page 105]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -5936,7 +5936,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                   [Page 106]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -5992,7 +5992,7 @@ void printxstr(const char *str, int len)
 
 
 Eastlake & Hansen             Informational                   [Page 107]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -6048,7 +6048,7 @@ void usage(const char *argv0)
 
 
 Eastlake & Hansen             Informational                   [Page 108]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -6104,7 +6104,7 @@ void printResult(uint8_t *Message_Digest, int hashsize,
 
 
 Eastlake & Hansen             Informational                   [Page 109]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -6160,7 +6160,7 @@ int hash(int testno, int loopno, int hashno,
 
 
 Eastlake & Hansen             Informational                   [Page 110]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -6216,7 +6216,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                   [Page 111]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -6272,7 +6272,7 @@ int hashHkdf(int testno, int loopno, int hashno,
 
 
 Eastlake & Hansen             Informational                   [Page 112]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -6328,7 +6328,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                   [Page 113]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -6384,7 +6384,7 @@ int hashfile(int hashno, const char *hashfilename, int bits,
 
 
 Eastlake & Hansen             Informational                   [Page 114]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -6440,7 +6440,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                   [Page 115]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -6496,7 +6496,7 @@ void randomtest(int hashno, const char *seed, int hashsize,
 
 
 Eastlake & Hansen             Informational                   [Page 116]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -6552,7 +6552,7 @@ void testErrors(int hashnolow, int hashnohigh, int printResults,
 
 
 Eastlake & Hansen             Informational                   [Page 117]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -6608,7 +6608,7 @@ int unhexStr(char *hexstr)
 
 
 Eastlake & Hansen             Informational                   [Page 118]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -6664,7 +6664,7 @@ int main(int argc, char **argv)
 
 
 Eastlake & Hansen             Informational                   [Page 119]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -6720,7 +6720,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                   [Page 120]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -6776,7 +6776,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                   [Page 121]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -6832,7 +6832,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                   [Page 122]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -6888,7 +6888,7 @@ int scasecmp(const char *s1, const char *s2)
 
 
 Eastlake & Hansen             Informational                   [Page 123]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -6944,7 +6944,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                   [Page 124]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -7000,7 +7000,7 @@ RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
 Eastlake & Hansen             Informational                   [Page 125]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -7056,7 +7056,7 @@ Appendix: Changes from RFC 4634
 
 
 Eastlake & Hansen             Informational                   [Page 126]
-
+
 RFC 6234                SHAs, HMAC-SHAs, and HKDF               May 2011
 
 
@@ -7112,4 +7112,3 @@ Author's Address
 
 
 Eastlake & Hansen             Informational                   [Page 127]
-

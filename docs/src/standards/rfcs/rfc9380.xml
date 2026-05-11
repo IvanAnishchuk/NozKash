@@ -76,7 +76,7 @@ of the Crypto Forum Research Group (CFRG) in the IRTF.</t>
         <name slugifiedName="name-status-of-this-memo">Status of This Memo</name>
         <t indent="0" pn="section-boilerplate.1-1">
             This document is not an Internet Standards Track specification; it is
-            published for informational purposes.  
+            published for informational purposes.
         </t>
         <t indent="0" pn="section-boilerplate.1-2">
             This document is a product of the Internet Research Task Force
@@ -86,7 +86,7 @@ of the Crypto Forum Research Group (CFRG) in the IRTF.</t>
             Research Group of the Internet Research Task Force (IRTF).
             Documents approved for publication by the IRSG are not
             candidates for any level of Internet Standard; see Section 2 of RFC
-            7841.   
+            7841.
         </t>
         <t indent="0" pn="section-boilerplate.1-3">
             Information about the current status of this document, any
@@ -1259,7 +1259,7 @@ It takes three arguments:</t>
 with a wide range of hash functions, including SHA-2 <xref target="FIPS180-4" format="default" sectionFormat="of" derivedContent="FIPS180-4"/>, SHA-3
 <xref target="FIPS202" format="default" sectionFormat="of" derivedContent="FIPS202"/>, BLAKE2 <xref target="RFC7693" format="default" sectionFormat="of" derivedContent="RFC7693"/>, and others.</li>
           <li pn="section-5.3-4.2">expand_message_xof (<xref target="hashtofield-expand-xof" format="default" sectionFormat="of" derivedContent="Section 5.3.2"/>) is appropriate for use
-with extendable-output functions (XOFs), including functions in the SHAKE 
+with extendable-output functions (XOFs), including functions in the SHAKE
 <xref target="FIPS202" format="default" sectionFormat="of" derivedContent="FIPS202"/> or BLAKE2X <xref target="BLAKE2X" format="default" sectionFormat="of" derivedContent="BLAKE2X"/> families.</li>
         </ul>
         <t indent="0" pn="section-5.3-5">These variants should suffice for the vast majority of use cases, but other

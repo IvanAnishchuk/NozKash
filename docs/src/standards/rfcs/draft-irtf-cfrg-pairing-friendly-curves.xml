@@ -62,32 +62,32 @@ Pairings are fundamental in the construction of several cryptographic algorithms
       <section anchor="applications-of-pairing-based-cryptography" numbered="true" toc="default">
         <name>Applications of Pairing-based Cryptography</name>
         <t>Several applications using pairing-based cryptography have already been standardized and deployed. We list here some examples of applications available in the real world.</t>
-        <t>IETF published RFCs for pairing-based cryptography such as Identity-Based Cryptography <xref target="RFC5091" format="default"/>, Sakai-Kasahara Key Encryption (SAKKE) <xref target="RFC6508" format="default"/>, and Identity-Based Authenticated Key Exchange (IBAKE) <xref target="RFC6539" format="default"/>. 
+        <t>IETF published RFCs for pairing-based cryptography such as Identity-Based Cryptography <xref target="RFC5091" format="default"/>, Sakai-Kasahara Key Encryption (SAKKE) <xref target="RFC6508" format="default"/>, and Identity-Based Authenticated Key Exchange (IBAKE) <xref target="RFC6539" format="default"/>.
 SAKKE is applied to Multimedia Internet KEYing (MIKEY) <xref target="RFC6509" format="default"/> and used in 3GPP <xref target="SAKKE" format="default"/>.</t>
         <t>Pairing-based key agreement protocols are standardized in ISO/IEC <xref target="ISOIEC11770-3" format="default"/>.
 In <xref target="ISOIEC11770-3" format="default"/>, a key agreement scheme by Joux <xref target="Joux00" format="default"/>, identity-based key agreement schemes by Smart-Chen-Cheng <xref target="CCS07" format="default"/> and Fujioka-Suzuki-Ustaoglu <xref target="FSU10" format="default"/> are specified.</t>
         <t>MIRACL implements M-Pin, a multi-factor authentication protocol <xref target="M-Pin" format="default"/>.
 The M-Pin protocol includes a type of zero-knowledge proof, where pairings are used for its construction.</t>
-        <t>The Trusted Computing Group (TCG) specified the Elliptic Curve Direct Anonymous Attestation (ECDAA) in the specification of a Trusted Platform Module (TPM) <xref target="TPM" format="default"/>. 
+        <t>The Trusted Computing Group (TCG) specified the Elliptic Curve Direct Anonymous Attestation (ECDAA) in the specification of a Trusted Platform Module (TPM) <xref target="TPM" format="default"/>.
 ECDAA is a protocol for proving the attestation held by a TPM to a verifier without revealing the attestation held by that TPM. Pairings are used in the construction of ECDAA. FIDO Alliance <xref target="FIDO" format="default"/> and W3C <xref target="W3C" format="default"/> also published an ECDAA algorithm similar to TCG.</t>
 
 <t>Intel introduced Intel Enhanced Privacy ID (EPID) that enables remote attestation of a hardware device while preserving the privacy of the device as part of the functionality of Intel Software Guard Extensions (SGX) <xref target="EPID" format="default"/>. They extended TPM ECDAA to realize such functionality. A pairing-based EPID was proposed <xref target="BL10" format="default"/> and distributed along with Intel SGX applications.</t>
 
 <t>Zcash implemented their own zero-knowledge proof algorithm named Zero-Knowledge Succinct Non-Interactive Argument of Knowledge (zk-SNARKs) <xref target="Zcash" format="default"/>. zk-SNARKs are used for protecting the privacy of transactions of Zcash. They use pairings to construct zk-SNARKs.</t>
 <t>Cloudflare introduced Geo Key Manager <xref target="Cloudflare" format="default"/> to restrict distribution of customers' private keys to a subset of their data centers. To achieve this functionality, ABE is used, and pairings take a role as a building block. In addition, Cloudflare published a new cryptographic library, the Cloudflare Interoperable, Reusable Cryptographic Library (CIRCL) <xref target="CIRCL" format="default"/> in 2019. They plan to include securely implemented subroutines for pairing computations on certain secure pairing-friendly curves in CIRCL.</t>
-        <t>Currently, Boneh-Lynn-Shacham (BLS) signature schemes are being standardized 
-<xref target="I-D.boneh-bls-signature" format="default"/> and utilized in several blockchain projects 
-such as Ethereum <xref target="Ethereum" format="default"/>, Algorand <xref target="Algorand" format="default"/>, Chia Network <xref target="Chia" format="default"/>, and DFINITY <xref target="DFINITY" format="default"/>. 
+        <t>Currently, Boneh-Lynn-Shacham (BLS) signature schemes are being standardized
+<xref target="I-D.boneh-bls-signature" format="default"/> and utilized in several blockchain projects
+such as Ethereum <xref target="Ethereum" format="default"/>, Algorand <xref target="Algorand" format="default"/>, Chia Network <xref target="Chia" format="default"/>, and DFINITY <xref target="DFINITY" format="default"/>.
 The aggregation functionality of BLS signatures is effective for their applications of decentralization and scalability.</t>
       </section>
 
 
       <section anchor="goal" numbered="true" toc="default">
         <name>Motivation and Contribution</name>
-<t> At CRYPTO 2016, Kim and Barbulescu proposed an efficient number field sieve (NFS) algorithm for the discrete logarithm problem in a finite field GF(p^k) <xref target="KB16" format="default"/>. 
+<t> At CRYPTO 2016, Kim and Barbulescu proposed an efficient number field sieve (NFS) algorithm for the discrete logarithm problem in a finite field GF(p^k) <xref target="KB16" format="default"/>.
 The attack improves the polynomial selection that is the first step in the number field sieve algorithm for discrete logarithms in GF(p^k).
 The idea is applicable when the embedding degree k is a composite that satisfies k = i*j (gcd (i, j) = 1, i, j> 1).
-The basic idea is based on the equality GF(p^k) = (GF(p^i)^j) and one of the improvement for reducing the amount of cost for solving the discrete logarithm problem is using sub-field calculation. 
+The basic idea is based on the equality GF(p^k) = (GF(p^i)^j) and one of the improvement for reducing the amount of cost for solving the discrete logarithm problem is using sub-field calculation.
 Several types of pairing-friendly curves such as Barreto-Naehrig curves (BN curves)<xref target="BN05" format="default"/> and Barreto-Lynn-Scott curves (BLS curves)<xref target="BLS02" format="default"/> are affected by the attack, since a pairing-friendly curve suitable for cryptographic applications requires that the discrete logarithm problem is sufficiently difficult.
 Please refer to <xref target="KB16" format="default"/> for detailed ideas and calculation algorithms of the attack by Kim.
 In particular, BN254, which is a BN curve with a 254-bit characteristic effective for pairing calculations, was adopted by a lot of cryptographic libraries as a parameter of the 128-bit security level, however, BN254 ensures no more than the 100-bit security level due to the effect of the attack, where the security levels described in this memo correspond to the security strength of NIST recommendation <xref target="NIST" format="default"/>.
@@ -95,7 +95,7 @@ In particular, BN254, which is a BN curve with a 254-bit characteristic effectiv
 
 <t>To resolve this effect immediately, several research groups and implementers re-evaluated the security of pairing-friendly curves and they respectively proposed various curves that are secure against the attack <xref target="BD18" format="default"/> <xref target="BLS12-381" format="default"/>.</t>
 
-<t>In this memo, we list the security levels of certain pairing-friendly curves, and motivate our choices of curves. First, we summarize the adoption status of pairing-friendly curves in international standards, libraries and applications, and classify them in the 128-bit, 192-bit, and 256-bit security levels. Then, from the viewpoints of "security" and "widely used", pairing-friendly curves corresponding to each security level are selected in accordance with the security evaluation by Barbulescu and Duquesne <xref target="BD18" format="default"/>. </t> 
+<t>In this memo, we list the security levels of certain pairing-friendly curves, and motivate our choices of curves. First, we summarize the adoption status of pairing-friendly curves in international standards, libraries and applications, and classify them in the 128-bit, 192-bit, and 256-bit security levels. Then, from the viewpoints of "security" and "widely used", pairing-friendly curves corresponding to each security level are selected in accordance with the security evaluation by Barbulescu and Duquesne <xref target="BD18" format="default"/>. </t>
 
 <t> As a result, we recommend the BLS curve with 381-bit characteristic of embedding degree 12 and the BN curve with the 462-bit characteristic for the 128-bit security level, and the BLS curves of embedding degree 48 with the 581-bit characteristic for the 256-bit security level. This memo shows their specific test vectors.</t>
       </section>
@@ -156,7 +156,7 @@ satisfying the following properties:</t>
 
           <dt>b:</dt>
           <dd>
-  a primitive element of the multiplicative group (GF(p))^*.</dd>        
+  a primitive element of the multiplicative group (GF(p))^*.</dd>
 
           <dt>O_E:</dt>
           <dd>
@@ -194,7 +194,7 @@ The characteristic p and the order r are parameterized by</t>
 ]]></artwork>
         <t>for an integer t.</t>
         <t>The elliptic curve E has an equation of the form E: y^2 = x^3 + b, where b is a primitive element of the multiplicative group (GF(p))^* of order (p - 1).</t>
-        <t>In the case of BN curves, we can use twists of the degree 6. If m is an element that is neither a square nor a cube in an extension field GF(p^2), the twist E' of E is defined over an extension field GF(p^2) by the equation E': y^2 = x^3 + b' with b' = b / m or b' = b * m. 
+        <t>In the case of BN curves, we can use twists of the degree 6. If m is an element that is neither a square nor a cube in an extension field GF(p^2), the twist E' of E is defined over an extension field GF(p^2) by the equation E': y^2 = x^3 + b' with b' = b / m or b' = b * m.
 BN curves are called D-type if b' = b / m, and M-type if b' = b * m.
 The embedding degree k is 12.</t>
         <t>A pairing e is defined by taking G_1 as a subgroup of E(GF(p)) of order r, G_2 as a subgroup of E'(GF(p^2)), and G_T as a subgroup of a multiplicative group (GF(p^12))^* of order r.</t>
@@ -204,7 +204,7 @@ The embedding degree k is 12.</t>
         <t>A BLS curve <xref target="BLS02" format="default"/> is a another family of pairing-frinedly curves proposed in 2002. Similar to BN curves, a pairing over BLS curves constructs optimal Ate pairings.</t>
         <t>A BLS curve is defined by elliptic curves E and E' parameterized by a well-chosen integer t.
 E is defined over a finite field GF(p) by an equation of the form E: y^2 = x^3 + b,
-and its twist E': y^2 = x^3 + b', is defined in the same way as BN curves. 
+and its twist E': y^2 = x^3 + b', is defined in the same way as BN curves.
 In contrast to BN curves, E(GF(p)) does not have a prime order.
 Instead, its order is divisible by a large parameterized prime r and denoted by h * r with cofactor h.
 The pairing is defined on the r-torsion points.
@@ -222,10 +222,10 @@ In the same way as BN curves, BLS curves can be categorized as D-type and M-type
         <t>for a well chosen integer t where t must be 1 (mod 3).</t>
         <t>A pairing e is defined by taking G_1 as a subgroup of E(GF(p)) of order r, G_2 as an order r subgroup of E'(GF(p^2)) for BLS12 and of E'(GF(p^8)) for BLS48, and G_T as an order r subgroup of a multiplicative group (GF(p^12))^* for BLS12 and of a multiplicative group (GF(p^48))^* for BLS48.</t>
       </section>
-      
+
       <section anchor="representation-convention-for-an-extension-field" numbered="true" toc="default">
         <name>Representation Convention for an Extension Field</name>
-        <t>Pairing-friendly curves use a tower of some extension fields. 
+        <t>Pairing-friendly curves use a tower of some extension fields.
 In order to encode an element of an extension field, focusing on interoperability, we adopt the representation convention shown in Appendix J.4 of <xref target="I-D.ietf-lwig-curve-representations" format="default"/> as a standard and effective method. Note that the big-endian encoding is used for an element in GF(p) which follows to mcl <xref target="mcl" format="default"/>, ISO/IEC 15946-5 <xref target="ISOIEC15946-5" format="default"/> and etc.
 </t>
         <t>Let GF(p) be a finite field of characteristic p and GF(p^d) = GF(p)(i) be an extension field of GF(p) of degree d.</t>
@@ -239,7 +239,7 @@ In order to encode an element of an extension field, focusing on interoperabilit
         <t>In general, one can define encoding between integer and an element of any finite field tower by inductively applying the above convention.</t>
         <t>The parameters and test vectors of extension fields described in this memo are encoded by this convention and represented in an octet stream.</t>
 <t>
-When applications communicate elements in an extension field, using the compression method <xref target="MP04" format="default"/> may be more effective. 
+When applications communicate elements in an extension field, using the compression method <xref target="MP04" format="default"/> may be more effective.
 In that case, care for interoperability must be taken.
 </t>
 </section>
@@ -256,7 +256,7 @@ In that case, care for interoperability must be taken.
         <t>There are other hard problems over pairing-friendly curves used for proving the security of pairing-based cryptography. Such problems include the computational bilinear Diffie-Hellman (CBDH) problem, the bilinear Diffie-Hellman (BDH) problem, the decision bilinear Diffie-Hellman (DBDH) problem, the gap DBDH problem, etc. <xref target="ECRYPT" format="default"/>.
 Almost all of these variants are reduced to the hardness of discrete logarithm problems described above and are believed to be easier than the discrete logarithm problems.</t>
         <t>Although it would be sufficient to attack any of these problems to attack pairing-based crytography, the only known attacks thus far attack the discrete logarithm problem directly, so we focus on the discrete logarithm in this memo.</t>
-        <t>The security levels of pairing-friendly curves are estimated by the computational cost of the most efficient algorithm for solving the above discrete logarithm problems. The best-known algorithms for solving the discrete logarithm problems are based on Pollard's rho algorithm <xref target="Pollard78" format="default"/> and Index Calculus <xref target="HR83" format="default"/>. 
+        <t>The security levels of pairing-friendly curves are estimated by the computational cost of the most efficient algorithm for solving the above discrete logarithm problems. The best-known algorithms for solving the discrete logarithm problems are based on Pollard's rho algorithm <xref target="Pollard78" format="default"/> and Index Calculus <xref target="HR83" format="default"/>.
         To make index calculus algorithms more efficient, number field sieve (NFS) algorithms are utilized.</t>
       </section>
       <section anchor="impact" numbered="true" toc="default">
@@ -265,7 +265,7 @@ Almost all of these variants are reduced to the hardness of discrete logarithm p
 The exTNFS improves the polynomial selection that is the first step in the number field sieve algorithm for discrete logarithms in GF(p^k).
 The idea is applicable when the embedding degree k is a composite  that satisfies k = i * j (gcd (i, j) = 1, i, j> 1).
 Since the above condition is satisfied especially when k = 2^n*3^m (n, m> 1), BN curves and BLS curves whose embedding degree is divisible by 6 are affected by the exTNFS.
-The basic idea of the exTNFS is based on the equality GF(p^k) = (GF(p^i)^j) and one of the improvement for reducing the amount of cost for solving FFDLP is using sub-field calculation. 
+The basic idea of the exTNFS is based on the equality GF(p^k) = (GF(p^i)^j) and one of the improvement for reducing the amount of cost for solving FFDLP is using sub-field calculation.
 Please refer to <xref target="KB16" format="default"/> for detailed ideas and calculation algorithms of exTNFS.
 
 Due to exTNFS, the security levels of certain pairing-friendly curves asymptotically dropped down.
@@ -276,8 +276,8 @@ For 128-bit security, Barbulescu and Duquesne estimated the minimum bit length o
 For 256-bit security, Kiyomura et al. estimated the minimum bit length of p^k of BLS48 curves as 27,410 bits, which indicated 572 bits of p <xref target="KIK17" format="default"/>.</t>
       </section>
     </section>
-    
-    
+
+
     <section anchor="secure_params" numbered="true" toc="default">
       <name>Selection of Pairing-Friendly Curves</name>
 <t>
@@ -288,7 +288,7 @@ First, we show the adoption status of pairing-friendly curves in standards, libr
 Then, from the viewpoints of "security" and "widely used", pairing-friendly curves corresponding to each security level are selected and their parameters are indicated.
 </t>
 <t>
-In our selection policy, it is important that selected curves are shown in peer-reviewed papers for security and that they are widely used in cryptographic libraries. 
+In our selection policy, it is important that selected curves are shown in peer-reviewed papers for security and that they are widely used in cryptographic libraries.
 In addition, "efficiency" is one of the important aspects but greatly dependant on implementations, so we choose to prioritize "security" and "widely used" over "efficiency" in consideration of future interconnections and interoperability over the internet. </t>
 
     <section anchor="impl" numbered="true" toc="default">
@@ -299,7 +299,7 @@ The details are described as the following subsections. A BN curve with a XXX-bi
 </t>
 <t>
 <xref target="adoption" format="default"/> omits parameters with security levels below the "Arnd 128-bit" range due to space limitations and viewpoints of secure usage of parameters.
-On the other hand, indicating which standards, libraries, and applications use these lower security level parameters would be useful information for implementers, therefore <xref target="adoption_status_100bit_security" format="default"/> shows these parameters. In addition, the full version of <xref target="adoption" format="default"/> is available at <eref target="https://lepidum.co.jp/blog/2020-03-27/ietf-draft-pfc/" brackets="none"/>. 
+On the other hand, indicating which standards, libraries, and applications use these lower security level parameters would be useful information for implementers, therefore <xref target="adoption_status_100bit_security" format="default"/> shows these parameters. In addition, the full version of <xref target="adoption" format="default"/> is available at <eref target="https://lepidum.co.jp/blog/2020-03-27/ietf-draft-pfc/" brackets="none"/>.
 </t>
 <t>
 In <xref target="adoption" format="default"/>, the security level for each curve is evaluated in accordance with <xref target="BD18" format="default"/>,<xref target="GMT19" format="default"/>, <xref target="MAF19" format="default"/> and <xref target="FK18" format="default"/>. Note that the Freeman curves and MNT curves are not included in this table because <xref target="BD18" format="default"/> does not show the security levels of these curves.
@@ -321,7 +321,7 @@ In <xref target="adoption" format="default"/>, the security level for each curve
             <td align="left"> ~ </td>
             <td align="left"> Arnd 192 </td>
             <td align="left"> ~ </td>
-            <td align="left"> Arnd 256 </td>            
+            <td align="left"> Arnd 256 </td>
           </tr>
         </thead>
         <tbody>
@@ -342,7 +342,7 @@ In <xref target="adoption" format="default"/>, the security level for each curve
             <td align="left">&nbsp;</td>
             <td align="left">&nbsp;</td>
             <td align="left">&nbsp;</td>
-          </tr>         
+          </tr>
           <tr>
             <td align="left" >TCG</td>
             <td align="left">BN638</td>
@@ -451,7 +451,7 @@ In <xref target="adoption" format="default"/>, the security level for each curve
             <td align="left">&nbsp;</td>
             <td align="left">&nbsp;</td>
             <td align="left">&nbsp;</td>
-          </tr>    
+          </tr>
           <tr>
             <td align="left">BN446</td>
             <td align="left">X</td>
@@ -459,7 +459,7 @@ In <xref target="adoption" format="default"/>, the security level for each curve
             <td align="left">&nbsp;</td>
             <td align="left">&nbsp;</td>
             <td align="left">&nbsp;</td>
-          </tr> 
+          </tr>
           <tr>
             <td align="left">BN638</td>
             <td align="left">&nbsp;</td>
@@ -467,7 +467,7 @@ In <xref target="adoption" format="default"/>, the security level for each curve
             <td align="left">&nbsp;</td>
             <td align="left">&nbsp;</td>
             <td align="left">&nbsp;</td>
-          </tr> 
+          </tr>
           <tr>
             <td align="left">CP8_544</td>
             <td align="left">X</td>
@@ -475,7 +475,7 @@ In <xref target="adoption" format="default"/>, the security level for each curve
             <td align="left">&nbsp;</td>
             <td align="left">&nbsp;</td>
             <td align="left">&nbsp;</td>
-          </tr> 
+          </tr>
           <tr>
             <td align="left">K54_569</td>
             <td align="left">&nbsp;</td>
@@ -483,7 +483,7 @@ In <xref target="adoption" format="default"/>, the security level for each curve
             <td align="left">&nbsp;</td>
             <td align="left">&nbsp;</td>
             <td align="left">X</td>
-          </tr> 
+          </tr>
           <tr>
             <td align="left">KSS18_508</td>
             <td align="left">&nbsp;</td>
@@ -491,7 +491,7 @@ In <xref target="adoption" format="default"/>, the security level for each curve
             <td align="left">&nbsp;</td>
             <td align="left">&nbsp;</td>
             <td align="left">&nbsp;</td>
-          </tr> 
+          </tr>
           <tr>
             <td align="left">OT8_511</td>
             <td align="left">X</td>
@@ -499,7 +499,7 @@ In <xref target="adoption" format="default"/>, the security level for each curve
             <td align="left">&nbsp;</td>
             <td align="left">&nbsp;</td>
             <td align="left">&nbsp;</td>
-          </tr> 
+          </tr>
           <tr>
             <td align="left" rowspan="6">AMCL</td>
             <td align="left">BLS12_381</td>
@@ -717,7 +717,7 @@ In <xref target="adoption" format="default"/>, the security level for each curve
 
       <section anchor="standardization" numbered="true" toc="default">
         <name>International Standards</name>
-        <t>ISO/IEC 15946 series specifies public-key cryptographic techniques based on elliptic curves. ISO/IEC 15946-5 <xref target="ISOIEC15946-5" format="default"/> shows numerical examples of MNT curves<xref target="MNT01" format="default"/> with 160-bit p and 256-bit p, Freeman curves <xref target="Freeman06" format="default"/> with 224-bit p and 256-bit p, and BN curves with 160-bit p, 192-bit p, 224-bit p, 256-bit p, 384-bit p, and 512-bit p. These parameters do not take into account the effects of the exTNFS. On the other hand, the parameters may be revised in future versions since ISO/IEC 15946-5 is currently under development.   
+        <t>ISO/IEC 15946 series specifies public-key cryptographic techniques based on elliptic curves. ISO/IEC 15946-5 <xref target="ISOIEC15946-5" format="default"/> shows numerical examples of MNT curves<xref target="MNT01" format="default"/> with 160-bit p and 256-bit p, Freeman curves <xref target="Freeman06" format="default"/> with 224-bit p and 256-bit p, and BN curves with 160-bit p, 192-bit p, 224-bit p, 256-bit p, 384-bit p, and 512-bit p. These parameters do not take into account the effects of the exTNFS. On the other hand, the parameters may be revised in future versions since ISO/IEC 15946-5 is currently under development.
 As described below, BN curves with 256-bit p and 512-bit p specified in ISO/IEC 15946-5 used by other standards and libraries, these curves are especially denoted as BN256I and BN512I. The suffix 'I' of BN256I and BN512I are given from the initials of the standard name ISO.
 </t>
 
@@ -733,7 +733,7 @@ As described below, BN curves with 256-bit p and 512-bit p specified in ISO/IEC 
         <t>mcl<xref target="mcl" format="default"/> is a library for pairing-based cryptography that supports four BN curves and BLS12_381 <xref target="GMT19" format="default"/>. These BN curves include BN254 proposed by Nogami et al. <xref target="NASKM08" format="default"/> (named BN254N), BN_SNARK1 suitable for SNARK applications<xref target="libsnark" format="default"/>, BN382M, and BN462. The suffix 'N' of BN256N and the suffix 'M' of BN382M are respectively given from the initials of the first author's name of the proposed paper and the library's name mcl. Kyushu University published a library that supports the BLS48_581 <xref target="BLS48" format="default"/>. The University of Tsukuba Elliptic Curve and Pairing Library (TEPLA) <xref target="TEPLA" format="default"/> supports two BN curves, BN254N and BN254 proposed by Beuchat et al. <xref target="BGMORT10" format="default"/> (named BN254B). The suffix 'B' of BN254B is given from the initials of the first author's name of the proposed paper. Intel published a cryptographic library named Intel Integrated Performance Primitives (Intel-IPP) <xref target="Intel-IPP" format="default"/> and the library supports BN256I.</t>
         <t>RELIC <xref target="RELIC" format="default"/> uses various types of pairing-friendly curves including six BN curves (BN158, BN254R, BN256R, BN382R, BN446, and BN638), where BN254R, BN256R, and BN382R are RELIC specific parameters that are different from BN254N, BN254B, BN256I, BN256D, and BN382M. The suffix 'R' of BN382R is given from the initials of the library's name RELIC. In addition, RELIC supports six BLS curves (BLS12_381, BLS12_446, BLS12_445, BLS12_638, BLS24_477, and BLS48_575 <xref target="MAF19" format="default"/>), Cocks-Pinch curves of embedding degree 8 with 544-bit p<xref target="GMT19" format="default"/>, pairing-friendly curves constructed by Scott et al. <xref target="SG19" format="default"/> based on Kachisa-Scott-Schaefer curves with embedding degree 54 with 569-bit p (named K54_569)<xref target="MAF19" format="default"/>, a KSS curve <xref target="KSS08" format="default"/> of embedding degree 18 with 508-bit p (named KSS18_508) <xref target="AFKMR12" format="default"/>, Optimal TNFS-secure curve <xref target="FM19" format="default"/> of embedding degree 8 with 511-bit p(OT8_511), and a supersingular curve <xref target="S86" format="default"/> with 1536-bit p (SS_1536).</t>
        <t>Apache Milagro Crypto Library (AMCL)<xref target="AMCL" format="default"/> supports four BLS curves (BLS12_381, BLS12_461, BLS24_479 and BLS48_556) and four BN curves (BN254N, BN254CX proposed by CertiVox, BN256I, and BN512I). In addition to AMCL's supported curves, MIRACL <xref target="MIRACL" format="default"/> supports BN462 and BLS48_581.</t>
-<t>Adjoint published a library that supports the BLS12_381 and six BN curves (BN_SNARK1, BN254B, BN254N, BN254S1, BN254S2, and BN462) <xref target="AdjointLib" format="default"/>, where BN254S1 and BN254S2 are BN curves adopted by an old version of AMCL <xref target="AMCLv2" format="default"/>. The suffix 'S' of BN254S1 and BN254S2 are given from the initials of developper's name because he proposed these parameters. 
+<t>Adjoint published a library that supports the BLS12_381 and six BN curves (BN_SNARK1, BN254B, BN254N, BN254S1, BN254S2, and BN462) <xref target="AdjointLib" format="default"/>, where BN254S1 and BN254S2 are BN curves adopted by an old version of AMCL <xref target="AMCLv2" format="default"/>. The suffix 'S' of BN254S1 and BN254S2 are given from the initials of developper's name because he proposed these parameters.
 </t>
 <t>The Celo foundation published the bls12377js library <xref target="bls12377js" format="default"/>. The supported curve is the BLS12_377 curve which is shown in <xref target="BCGMMW20" format="default"/>.
 </t>
@@ -748,15 +748,15 @@ In response to the exTNFS attacks, they proposed new parameters using BLS12_381 
 
       </section>
  </section>
-           
-      <section anchor="for-128-bits-of-security" numbered="true" toc="default">      
+
+      <section anchor="for-128-bits-of-security" numbered="true" toc="default">
         <name>For 128-bit Security</name>
 <t>
 <xref target="adoption" format="default"/> shows a lot of cases of adopting BN and BLS curves. Among them, BLS12_381 and BN462 match our selection policy.
-Especially, the one that best matches the policy is BLS12_381 from the viewpoint of "widely used" and "efficiency", so we introduce the parameters of BLS12_381 in this memo. 
+Especially, the one that best matches the policy is BLS12_381 from the viewpoint of "widely used" and "efficiency", so we introduce the parameters of BLS12_381 in this memo.
 </t>
 <t>
-On the other hand, from the viewpoint of the future use, the parameter of BN462 is also introduced. 
+On the other hand, from the viewpoint of the future use, the parameter of BN462 is also introduced.
 As shown in recent security evaluations for BLS12_381<xref target="BD18" format="default"/> <xref target="GMT19" format="default"/>, its security level close to 128-bit but it is less than 128-bit.
 If the attack is improved even a little, BLS12_381 will not be suitable for the curve of the 128-bit security level.
 As curves of 128-bit security level are currently the most widely used, we recommend both BLS12-381 and BN462 in this memo in order to have a more efficient and a more prudent option respectively.
@@ -769,7 +769,7 @@ As curves of 128-bit security level are currently the most widely used, we recom
       </t>
           <t>The BLS12_381 curve is shown in <xref target="BLS12-381" format="default"/> and it is defined by the parameter</t>
           <artwork name="" type="" align="left" alt=""><![CDATA[
-    t = -2^63 - 2^62 - 2^60 - 2^57 - 2^48 - 2^16 
+    t = -2^63 - 2^62 - 2^60 - 2^57 - 2^48 - 2^16
 ]]></artwork>
           <t>where the size of p becomes 381-bit length.</t>
           <t>For the finite field GF(p), the towers of extension field GF(p^2), GF(p^6) and GF(p^12) are defined by indeterminates u, v, and w as follows:</t>
@@ -778,7 +778,7 @@ As curves of 128-bit security level are currently the most widely used, we recom
     GF(p^6) = GF(p^2)[v] / (v^3 - u - 1)
     GF(p^12) = GF(p^6)[w] / (w^2 - v).
 ]]></artwork>
-          <t>Defined by t, the elliptic curve E and its twist E' are represented 
+          <t>Defined by t, the elliptic curve E and its twist E' are represented
 by E: y^2 = x^3 + 4 and E': y^2 = x^3 + 4(u + 1). BLS12_381 is categorized as M-type.</t>
           <t>We have to note that the security level of this pairing is expected to be 126 rather than 128 bits <xref target="GMT19" format="default"/>.
 </t>
@@ -855,7 +855,7 @@ by E: y^2 = x^3 + 4 and E': y^2 = x^3 + 4(u + 1). BLS12_381 is categorized as M-
             <dd>
   4 * (u + 1)</dd>
           </dl>
-          
+
           <t>
           As mentioned above, BLS12_381 is adopted in a lot of applications. Since it is expected that BLS12_381 will continue to be widely used more and more in the future, <xref target="zcash_rep_bls12_381" format="default"/> shows the serialization format of points on an elliptic curve as useful information. This serialization format is also adopted in <xref target="I-D.boneh-bls-signature" format="default"/> <xref target="zkcrypto" format="default"/>.
           </t>
@@ -863,14 +863,14 @@ by E: y^2 = x^3 + 4 and E': y^2 = x^3 + 4(u + 1). BLS12_381 is categorized as M-
           In addition, many pairing-based cryptographic applications use a hashing to an elliptic curve procedure that outputs a rational point on an elliptic curve from an arbitrary input. A standard specification of ciphersuites for a hashing to an elliptic curve, including BLS12-381, is under discussion in the IETF <xref target="I-D.irtf-cfrg-hash-to-curve" format="default"/> and it will be valuable information for implementers.
           </t>
 	    </section>
-	    
+
 
         <section anchor="bn-curves" numbered="true" toc="default">
           <name>BN Curves for the 128-bit security level</name>
-          <t>A BN curve with the 128-bit security level is shown in <xref target="BD18" format="default"/>, which we call BN462. 
+          <t>A BN curve with the 128-bit security level is shown in <xref target="BD18" format="default"/>, which we call BN462.
 BN462 is defined by the parameter</t>
           <artwork name="" type="" align="left" alt=""><![CDATA[
-    t = 2^114 + 2^101 - 2^14 - 1 
+    t = 2^114 + 2^101 - 2^14 - 1
 ]]></artwork>
           <t>for the definition in <xref target="BNdef" format="default"/>.</t>
           <t>For the finite field GF(p), the towers of extension field GF(p^2), GF(p^6) and GF(p^12) are defined by indeterminates u, v, and w as follows:</t>
@@ -963,17 +963,17 @@ BN462 is defined by the parameter</t>
         <name>For 192-bit Security</name>
         <t>As shown in <xref target="adoption" format="default"/>, there are only two candidates of pairing-friendly curves for the 192-bit security level, BLS24_477 and BLS24_479. BLS24_477 has only one implementation and BLS24_479 is an experimental parameter that is not shown in any peer-reviewed paper. Therefore, because neither match our selection policy, we do not show the parameters for 192-bit security here.</t>
       </section>
-      
-      
+
+
       <section anchor="for-256-bits-of-security" numbered="true" toc="default">
         <name>For 256-bit Security</name>
-        
+
         <t>As shown in <xref target="adoption" format="default"/>, there are three candidates of pairing-friendly curves for 256-bit security. According to our selection policy, we select BLS48_581, as it is the most widely adopted by cryptographic libraries.
 		</t>
-        
+
         <t>The selected BLS48 curve is shown in <xref target="KIK17" format="default"/> and it is defined by the parameter</t>
         <artwork name="" type="" align="left" alt=""><![CDATA[
-    t = -1 + 2^7 - 2^10 - 2^30 - 2^32. 
+    t = -1 + 2^7 - 2^10 - 2^30 - 2^32.
 ]]></artwork>
 <t>In this case, the size of p becomes 581-bit. </t>
         <t>For the finite field GF(p), the towers of extension field GF(p^2), GF(p^4), GF(p^8), GF(p^24) and GF(p^48) are defined by indeterminates u, v, w, z, and s as follows:</t>
@@ -984,7 +984,7 @@ BN462 is defined by the parameter</t>
     GF(p^24) = GF(p^8)[z] / (z^3 + w)
     GF(p^48)= GF(p^24)[s] / (s^2 + z).
 ]]></artwork>
-        <t>The elliptic curve E and its twist E' are represented by E: y^2 = x^3 + 1 
+        <t>The elliptic curve E and its twist E' are represented by E: y^2 = x^3 + 1
 and E': y^2 = x^3 - 1 / w. BLS48-581 is categorized as D-type.</t>
         <t>We then give the parameters for BLS48-581 as follows.</t>
         <ul spacing="normal">
@@ -1109,8 +1109,8 @@ and E': y^2 = x^3 - 1 / w. BLS48-581 is categorized as D-type.</t>
         </dl>
       </section>
     </section>
-    
-    
+
+
     <section anchor="security-considerations" numbered="true" toc="default">
       <name>Security Considerations</name>
       <t>The recommended pairing-friendly curves are selected by considering the exTNFS proposed by Kim et al. in 2016 <xref target="KB16" format="default"/> and they are categorized in each security level in accordance with <xref target="BD18" format="default"/>.
@@ -1121,7 +1121,7 @@ As of 2020, as far as we've investigated the top cryptographic conferences in th
 Note that the security level of BLS12-381, which is adopted by a lot of libraries and applications, is slightly below 128 bits because a 381-bit characteristic is used <xref target="BD18" format="default"/> <xref target="GMT19" format="default"/>.
 </t>
       <t> BN254 is used in most of the existing implementations as shown in <xref target="impl" format="default"/> ( and <xref target="adoption_status_100bit_security" format="default"/>), however, BN curves that were estimated as the 128-bit security level before exTNFS including BN254 ensure no more than the 100-bit security level by the effect of exTNFS.
-</t>      
+</t>
 <t>In addition, implementors should be aware of the following points when they implement pairing-based cryptographic applications using recommended curves. Regarding the use case and applications of pairing-based cryptographic applications, please refer <xref target="applications-of-pairing-based-cryptography" format="default"/>.</t>
 
 <t>In applications such as key agreement protocols, users exchange the elements in G_1 and G_2 as public keys. To check these elements are so-called sub-group secure <xref target="BCM15" format="default"/>, implementors should validate if the elements have the correct order r. Specifically, for public keys P in G_1 and Q in G_2, a receiver should calculate scalar multiplications [r]P and [r]Q, and check the results become points at infinity.
@@ -1291,7 +1291,7 @@ The authors would also like to acknowledge Kim Taechan, Hoeteck Wee, Sergey Gorb
         <xi:include href="https://xml2rfc.tools.ietf.org/public/rfc/bibxml/reference.RFC.6539.xml"/>
         <xi:include href="https://xml2rfc.tools.ietf.org/public/rfc/bibxml/reference.RFC.6509.xml"/>
         <xi:include href="https://xml2rfc.tools.ietf.org/public/rfc/bibxml/reference.RFC.8017.xml"/>
-        
+
         <reference anchor="CF06">
           <front>
             <title>Handbook of Elliptic and Hyperelliptic Curve Cryptography</title>
@@ -1333,7 +1333,7 @@ The authors would also like to acknowledge Kim Taechan, Hoeteck Wee, Sergey Gorb
             <date year="2020"/>
           </front>
         </reference>
-        
+
         <reference anchor="bls12377js" target="https://github.com/celo-org/bls12377js">
           <front>
             <title>bls12377js</title>
@@ -1539,7 +1539,7 @@ The authors would also like to acknowledge Kim Taechan, Hoeteck Wee, Sergey Gorb
             <date>n.d.</date>
           </front>
         </reference>
-        
+
 <reference anchor="IEEE1363" >
   <front>
     <title>IEEE Standard Specifications for Public-Key Cryptography</title>
@@ -1609,7 +1609,7 @@ The authors would also like to acknowledge Kim Taechan, Hoeteck Wee, Sergey Gorb
             <date year="1983"/>
           </front>
         </reference>
-        
+
         <reference anchor="mcl" target="https://github.com/herumi/mcl">
           <front>
             <title>mcl - A portable and fast pairing-based cryptography library</title>
@@ -1648,7 +1648,7 @@ The authors would also like to acknowledge Kim Taechan, Hoeteck Wee, Sergey Gorb
             <date year="2019"/>
           </front>
         </reference>
-        
+
         <reference anchor="libsnark" target="https://github.com/zcash/libsnark">
           <front>
             <title>libsnark: a C++ library for zkSNARK proofs</title>
@@ -1713,7 +1713,7 @@ The authors would also like to acknowledge Kim Taechan, Hoeteck Wee, Sergey Gorb
             <date year="2013"/>
           </front>
         </reference>
-        
+
         <reference anchor="AMCL" target="https://github.com/apache/incubator-milagro-crypto">
           <front>
             <title>The Apache Milagro Cryptographic Library (AMCL)</title>
@@ -1742,7 +1742,7 @@ The authors would also like to acknowledge Kim Taechan, Hoeteck Wee, Sergey Gorb
             <date year="2017"/>
           </front>
         </reference>
-        
+
         <reference anchor="NASKM08">
           <front>
             <title>Integer Variable X-Based Ate Pairing</title>
@@ -1762,7 +1762,7 @@ The authors would also like to acknowledge Kim Taechan, Hoeteck Wee, Sergey Gorb
             </author>
             <author initials="Y." surname="Morikawa" fullname="Yoshitaka Morikawa">
               <organization/>
-            </author>  
+            </author>
             <date year="2008"/>
           </front>
         </reference>
@@ -2049,8 +2049,8 @@ The authors would also like to acknowledge Kim Taechan, Hoeteck Wee, Sergey Gorb
     </references>
     <section anchor="comp_pairing" numbered="true" toc="default">
       <name>Computing the Optimal Ate Pairing</name>
-      <t>Before presenting the computation of the optimal Ate pairing e(P, Q) 
-satisfying the properties shown in <xref target="pairing" format="default"/>, 
+      <t>Before presenting the computation of the optimal Ate pairing e(P, Q)
+satisfying the properties shown in <xref target="pairing" format="default"/>,
 we give the subfunctions used for the pairing computation.</t>
       <t>The following algorithm, Line_Function shows the computation of the line function.
 It takes A = (A[1], A[2]), B = (B[1], B[2]) in G_2, and P = ((P[1], P[2])) in G_1 as input, and outputs an element of G_T.</t>
@@ -2094,7 +2094,7 @@ It takes P in G_1, Q in G_2, an integer c, c_0, ...,c_L in {-1,0,1} such that th
         <name>Optimal Ate Pairings over Barreto-Lynn-Scott Curves</name>
         <t>Let c = t for a parameter t and c_0, c_1, ... , c_L in {-1,0,1} such that the sum of c_i * 2^i (i = 0, 1, ..., L) equals c.
 The following algorithm shows the computation of optimal Ate pairing over Barreto-Lynn-Scott curves.
-It takes P in G_1, Q in G_2, a parameter c, c_0, c_1, ..., c_L in {-1,0,1} such that the sum of c_i * 2^i (i = 0, 1, ..., L), 
+It takes P in G_1, Q in G_2, a parameter c, c_0, c_1, ..., c_L in {-1,0,1} such that the sum of c_i * 2^i (i = 0, 1, ..., L),
 and an order r as input, and outputs e(P, Q).</t>
         <artwork name="" type="" align="left" alt=""><![CDATA[
     f := 1; T := Q;
@@ -2125,9 +2125,9 @@ Here, the inputs P = (x, y) and Q = (x', y') are the corresponding base points B
       <t>where u is a indeterminate and x'_0, x'_1, y'_0, y'_1 are elements of GF(p).</t>
       <t>For BLS48-581, Q = (x', y') is given by</t>
       <artwork name="" type="" align="left" alt=""><![CDATA[
-    x' = x'_0 + x'_1 * u + x'_2 * v + x'_3 * u * v 
-        + x'_4 * w + x'_5 * u * w + x'_6 * v * w + x'_7 * u * v * w and 
-    y' = y'_0 + y'_1 * u + y'_2 * v + y'_3 * u * v 
+    x' = x'_0 + x'_1 * u + x'_2 * v + x'_3 * u * v
+        + x'_4 * w + x'_5 * u * w + x'_6 * v * w + x'_7 * u * v * w and
+    y' = y'_0 + y'_1 * u + y'_2 * v + y'_3 * u * v
         + y'_4 * w + y'_5 * u * w + y'_6 * v * w + y'_7 * u * v * w,
 ]]></artwork>
       <t>where u, v and w are indeterminates and x'_0, ..., x'_7 and y'_0, ..., y'_7 are elements of GF(p).
@@ -2599,7 +2599,7 @@ The following notation is used in the rest of this section:
     sign_GF_p(y) := { 1 if y > (p - 1) / 2, else
                    { 0 otherwise.
 ]]></artwork>
-          <ul spacing="normal">          
+          <ul spacing="normal">
             <li> The function sign_GF_p^2(y') returns one bit representing the sign of an element in GF(p^2). This function is defined as follows:
             </li>
           </ul>
@@ -2709,7 +2709,7 @@ Output s_string.
 
 <section anchor="zcash_rep_bls12_381_deseri_procedure" numbered="true" toc="default">
       <name>Point deserialization procedure</name>
-      
+
       <t>The deserialization procedure is defined as follows for a string s_string. This procedure uses the OS2IP function defined in <xref target="RFC8017" format="default"/>.
       </t>
       <ol spacing="normal" type="1">
@@ -2914,10 +2914,10 @@ BN curves including BN254 that were estimated as the 128-bit security level befo
           <tr>
             <td align="left" rowspan="2">RELIC</td>
             <td align="left">BN254N</td>
-          </tr>    
+          </tr>
           <tr>
             <td align="left">BN256D</td>
-          </tr> 
+          </tr>
           <tr>
             <td align="left" rowspan="3">AMCL</td>
             <td align="left">BN254N</td>

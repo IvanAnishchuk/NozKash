@@ -104,7 +104,7 @@ What is the gap between current reality and required latency to make PIR RPCs vi
 
 
 <a href="https://ethereum-magicians.org/u/privacycaviar" itemprop="url" rel="nofollow">privacycaviar</a>   April 11, 2025,
-2:02am 
+2:02am
 
 3
 
@@ -115,7 +115,7 @@ curious why it’s not mentioned here. Is it being excluded mainly due to compli
 
 
 <a href="https://ethereum-magicians.org/u/Sofianel5" itemprop="url" rel="nofollow">Sofianel5</a>   April 11, 2025,
-2:17am 
+2:17am
 
 4
 
@@ -125,7 +125,7 @@ No reason to have compliance concerns anymore, we won the case.
 
 
 <a href="https://ethereum-magicians.org/u/Designer-F" itemprop="url" rel="nofollow">Designer-F</a>   April 11, 2025,
-2:18am 
+2:18am
 
 5
 
@@ -136,7 +136,7 @@ not needed
 
 
 <a href="https://ethereum-magicians.org/u/NelsonMcKey" itemprop="url" rel="nofollow">NelsonMcKey</a>   April 11, 2025,
-3:13am 
+3:13am
 
 6
 
@@ -184,7 +184,7 @@ Two possible answers:
 
 
 <a href="https://ethereum-magicians.org/u/MacBudkowski" itemprop="url" rel="nofollow">MacBudkowski</a>   April 11, 2025,
-7:48am 
+7:48am
 
 9
 
@@ -227,7 +227,7 @@ described here</a> and lately also noted by
 
 
 <a href="https://ethereum-magicians.org/u/kdenhartog" itemprop="url" rel="nofollow">kdenhartog</a>   April 11, 2025,
-8:52am 
+8:52am
 
 10
 
@@ -255,7 +255,7 @@ enable support for it though.
 
 
 <a href="https://ethereum-magicians.org/u/kdenhartog" itemprop="url" rel="nofollow">kdenhartog</a>   April 11, 2025,
-9:03am 
+9:03am
 
 11
 
@@ -264,7 +264,7 @@ by default.
 
 
 <a href="https://ethereum-magicians.org/u/Styliann" itemprop="url" rel="nofollow">Styliann</a>   April 11, 2025,
-12:14pm 
+12:14pm
 
 15
 
@@ -277,7 +277,7 @@ party? Any thoughts on the confidential ERC20 standard?
 
 
 <a href="https://ethereum-magicians.org/u/iAmMichaelConnor" itemprop="url" rel="nofollow">iAmMichaelConnor</a>   April 11,
-2025, 12:37pm 
+2025, 12:37pm
 
 16
 
@@ -347,7 +347,7 @@ keep pace with Ethereum’s privacy needs. I have some questions / comments.
 
 
 <a href="https://ethereum-magicians.org/u/jimjim.eth" itemprop="url" rel="nofollow">jimjim.eth</a>   April 11, 2025,
-12:41pm 
+12:41pm
 
 17
 
@@ -396,7 +396,7 @@ the direction of light clients could yield actually better privacy long-term.
 
 
 <a href="https://ethereum-magicians.org/u/h4x3rotab" itemprop="url" rel="nofollow">h4x3rotab</a>   April 11, 2025,
-5:41pm 
+5:41pm
 
 20
 
@@ -421,7 +421,7 @@ Links:
 
 
 <a href="https://ethereum-magicians.org/u/SCBuergel" itemprop="url" rel="nofollow">SCBuergel</a>   April 11, 2025,
-9:51pm 
+9:51pm
 
 21
 
@@ -467,10 +467,10 @@ revealed, ongoing UX goals for
 
 ``` lang-auto
 Bot: @Bob sent a proposal. // public commitment & signed by Bob and trusted server holding nullifier
-Bot: @Alice sent a proposal. 
+Bot: @Alice sent a proposal.
 Bot: @Georg hurry up!
 Bot: @Georg sent a proposal.
-Bot: New proposals: A;B;C; // Server reveals & nullifies pool of proposals 
+Bot: New proposals: A;B;C; // Server reveals & nullifies pool of proposals
 // Voting phase begins <..>
 // Tally, posts proofs of data integrity
 Bot: Winning proposal was C, it was sent by @Bob

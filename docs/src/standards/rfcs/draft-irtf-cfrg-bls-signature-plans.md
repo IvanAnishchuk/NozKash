@@ -7,7 +7,7 @@ We outline our plans for the next iteration of the draft.
 * Refer to hash-to-curve spec.
 
 * Ciphersuite for BLS signatures will include (i) ciphersuite for
-  hash-to-curve which specifies the curve and which groups the 
+  hash-to-curve which specifies the curve and which groups the
   public keys and signatures live in, as well as the underlying
   "data hash" (i.e. SHA256, etc), (ii) rogue-key protection
   mechanism (POP vs AUG). E.g. BLS12381G2-SHA256-SSWU-RO-AUG,

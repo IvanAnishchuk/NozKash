@@ -1679,6 +1679,7 @@ documents:
     generated_md: somsen-2020-bdhke.md
     venue: "gist"
     url: https://gist.github.com/RubenSomsen/be7a4760dd4596d06963d67baf140406
+    raw_url: https://gist.githubusercontent.com/RubenSomsen/be7a4760dd4596d06963d67baf140406/raw/Blind-DH-ecash.md
     latex_source: false
     provenance: forward-citation
     abstract: "Describes the Blind Diffie-Hellman Key Exchange (BDHKE) construction that became the foundation for Cashu eCash — a simpler alternative to BLS blind signatures using standard ECDH."
@@ -1805,4 +1806,3 @@ documents:
     abstract: "Comprehensive survey covering identity privacy, transaction privacy, and smart contract privacy on blockchains, with taxonomy and comparison of approaches."
     relevance: "Broadest privacy survey in the collection — covers identity, transaction, and smart contract dimensions. Useful for positioning NozKash's privacy guarantees."
     keywords: [privacy survey, identity privacy, transaction privacy, smart contract privacy, taxonomy, comprehensive]
-

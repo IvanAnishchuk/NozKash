@@ -1849,7 +1849,7 @@ Table of Contents
    [DGSTV18]  Davidson, A., Goldberg, I., Sullivan, N., Tankersley, G.,
               and F. Valsorda, "Privacy Pass: Bypassing Internet
               Challenges Anonymously", Proceedings on Privacy Enhancing
-              Technologies, vol. 2018, no. 3, pp. 164-180, DOI 
+              Technologies, vol. 2018, no. 3, pp. 164-180, DOI
               10.1515/popets-2018-0026, April 2018,
               <https://doi.org/10.1515/popets-2018-0026>.
 

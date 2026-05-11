@@ -109,7 +109,7 @@ Table of Contents
    issuance protocol.
 
    This document does not cover the Privacy Pass architecture, which
-   includes (1) choices that are necessary for deployment and (2) 
+   includes (1) choices that are necessary for deployment and (2)
    application-specific choices for protecting Client privacy.  This
    information is covered in [ARCHITECTURE].
 

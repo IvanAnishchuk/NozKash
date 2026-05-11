@@ -15,7 +15,7 @@ Why do we want PLUMEs? The proliferation of advances in zkSNARK applications has
 <meta name="twitter:image" content="https://blog.aayushg.com/media/default-preview.jpg" />
 <meta name="twitter:site" content="@yush_g" />
 
- 
+
 <meta property="og:image" content="https://blog.aayushg.com/media/default-preview.jpg" />
 
 
@@ -44,7 +44,7 @@ Why do we want PLUMEs? The proliferation of advances in zkSNARK applications has
 
 <link rel="stylesheet" type="text/css" href="/css/style.css" />
 <link rel="stylesheet" type="text/css" href="/css/custom.css" />
- 
+
 <title>PLUME: Unique Pseudonymity with Ethereum</title>
 <script type="application/ld+json">
   {
@@ -68,7 +68,7 @@ Why do we want PLUMEs? The proliferation of advances in zkSNARK applications has
 
   gtag('config', 'AW-11170906656');
 </script>
-      
+
 <link rel="canonical" href="https://blog.aayushg.com/nullifier/" />
 
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-K3VZM7ZJ7M"></script>
@@ -90,40 +90,40 @@ if (!doNotTrack) {
       <div class="noise-layer"></div>
       <div class="noise-container">
         <main><div id="nav-border">
-    <div class="header-content"> 
-        <span class="blog-title">aayush's thoughts</span> 
+    <div class="header-content">
+        <span class="blog-title">aayush's thoughts</span>
         <nav id="nav" class="nav justify-content-center">
-            
+
                  <a class="nav-link" href="/" style="color: #87CEEB;">
-                
-                
-                    
-                    <i data-feather="home" style="color: #87CEEB;"></i> 
-                
-                
+
+
+
+                    <i data-feather="home" style="color: #87CEEB;"></i>
+
+
                 Home
                 </a>
-                
+
                  <a class="nav-link" href="/posts/" style="color: #87CEEB;">
-                
-                
-                    
-                    <i data-feather="pen-tool" style="color: #87CEEB;"></i> 
-                
-                
+
+
+
+                    <i data-feather="pen-tool" style="color: #87CEEB;"></i>
+
+
                 Posts
                 </a>
-                
+
                  <a class="nav-link" href="/tags/" style="color: #87CEEB;">
-                
-                
-                    
-                    <i data-feather="tag" style="color: #87CEEB;"></i> 
-                
-                
+
+
+
+                    <i data-feather="tag" style="color: #87CEEB;"></i>
+
+
                 Tags
                 </a>
-                
+
                 <a href="https://twitter.com/yush_g" class="twitter-link nav-link" target="_blank" aria-label="Follow on Twitter" style="color: #87CEEB; display: flex; align-items: center;">
                     <i data-feather="twitter" style="color: #87CEEB; margin-top: 4px;"></i>
                     <span style="margin-left: 4px; font-size: 0.65em; text-decoration: none;">@yush_g</span>
@@ -134,7 +134,7 @@ if (!doNotTrack) {
 <div class="mainPage">
             <div id="content">
 <div class="post-container">
-    
+
     <div class="table-of-contents desktop-toc">
         <nav id="TableOfContents">
   <ul>
@@ -177,24 +177,24 @@ if (!doNotTrack) {
   </ul>
 </nav>
     </div>
-    
+
     <article>
         <header>
             <h1>PLUME: Unique Pseudonymity with Ethereum</h1>
         </header>
-         
+
 <i data-feather="calendar"></i>
 <time datetime="2022-12-01">Dec 1, 2022</time>
 &nbsp;&nbsp;
 
 <i data-feather="tag"></i>
- 
-<a class="btn btn-sm btn-outline-light tag-btn" href="https://blog.aayushg.com/tags/crypto" style="padding: 0.05rem 0.5rem 0.15rem 0.5rem; border-radius: 12px;">crypto</a>
- 
-<a class="btn btn-sm btn-outline-light tag-btn" href="https://blog.aayushg.com/tags/zk" style="padding: 0.05rem 0.5rem 0.15rem 0.5rem; border-radius: 12px;">zk</a>
- 
 
-        
+<a class="btn btn-sm btn-outline-light tag-btn" href="https://blog.aayushg.com/tags/crypto" style="padding: 0.05rem 0.5rem 0.15rem 0.5rem; border-radius: 12px;">crypto</a>
+
+<a class="btn btn-sm btn-outline-light tag-btn" href="https://blog.aayushg.com/tags/zk" style="padding: 0.05rem 0.5rem 0.15rem 0.5rem; border-radius: 12px;">zk</a>
+
+
+
         <div class="table-of-contents mobile-toc">
             <nav id="TableOfContents">
   <ul>
@@ -237,9 +237,9 @@ if (!doNotTrack) {
   </ul>
 </nav>
         </div>
-        
+
         <section>
-            
+
             <p>Thanks to Kobi Gurkan, Wei Jie Koh, Vivek Bhupatiraju, Remco, Wei Dai, Nalin, gubsheep, ludens, Blaine Bublitz, Prof. Kalai, Prof. Vaikuntanathan, Prof. Boneh, Richard Liu, Piotr Roslaniec, Lily Jordan, Oren Yomtov, and Riad Wahby [and probably tons of other folks I&rsquo;m missing, please dm me if I did!] for making this work possible :)</p>
 <p>View our progress, technical issues, and grant opportunities on <a href="https://github.com/plume-sig/zk-nullifier-sig">our Github</a>.</p>
 <h2 id="why-do-we-want-plumes">Why do we want PLUMEs?</h2>
@@ -362,10 +362,10 @@ the set inclusion check of the public key -->
 <p>Learn more from Blake&rsquo;s post on <a href="https://mirror.xyz/privacy-scaling-explorations.eth/djxf2g9VzUcss1e-gWIL2DSRD4stWggtTOcgsv1RlxY">ZK-ECDSA with PLUME nullifiers</a>.</p>
 <p>Check out a concrete proposal for a ZK voting scheme with PLUME at <a href="https://linktr.ee/zksnap">the ZKSnap whitepaper</a>.</p>
 
-            
+
         </section>
     </article>
-    
+
 
 
 
@@ -384,7 +384,7 @@ the set inclusion check of the public key -->
                   <input type="text" name="entry.1258567013" class="subscribe-feedback" placeholder="Questions / feedback (optional)">
                   <button type="submit">Subscribe</button>
               </form>
-              
+
               <iframe name="subscribe-iframe" id="subscribe-iframe" style="display:none"></iframe>
               <p class="subscribe-success" id="subscribe-success" style="display:none">Thanks for subscribing!</p>
           </div>
@@ -416,9 +416,9 @@ the set inclusion check of the public key -->
         var subForm = document.getElementById('subscribe-form');
         if (subForm) {
           subForm.addEventListener('submit', function() {
-            
-            
-            
+
+
+
             setTimeout(function() {
               subForm.style.display = 'none';
               document.getElementById('subscribe-success').style.display = 'block';
@@ -430,8 +430,8 @@ the set inclusion check of the public key -->
     <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
     <script>
       feather.replace({
-        'width': 14,   
-        'height': 14   
+        'width': 14,
+        'height': 14
       });
     </script>
   </body>

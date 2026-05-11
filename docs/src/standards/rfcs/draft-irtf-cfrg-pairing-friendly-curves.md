@@ -2039,4 +2039,3 @@ BN curves including BN254 that were estimated as the 128-bit security level befo
 | Application | Zcash | BN_SNARK1 |
 | Application | DFINITY | BN254N |
 | Application | DFINITY | BN_SNARK1 |
-

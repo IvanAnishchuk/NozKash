@@ -146,22 +146,22 @@ class TestHashToField:
         assert (
             u[0][0]
             == 0x03DBC2CCE174E91BA93CBB08F26B917F98194A2EA08D1CCE75B2B9CC9F21689D80BD79B594A613D0A68EB807DFDC1CF8
-        )  # noqa: E501
+        )  # noqa: E501 — RFC 9380 test vector hex literal
         # u[0][1]
         assert (
             u[0][1]
             == 0x05A2ACEC64114845711A54199EA339ABD125BA38253B70A92C876DF10598BD1986B739CAD67961EB94F7076511B3B39A
-        )  # noqa: E501
+        )  # noqa: E501 — RFC 9380 test vector hex literal
         # u[1][0]
         assert (
             u[1][0]
             == 0x02F99798E8A5ACDEED60D7E18E9120521BA1F47EC090984662846BC825DE191B5B7641148C0DBC237726A334473EEE94
-        )  # noqa: E501
+        )  # noqa: E501 — RFC 9380 test vector hex literal
         # u[1][1]
         assert (
             u[1][1]
             == 0x145A81E418D4010CC027A68F14391B30074E89E60EE7A22F87217B2F6EB0C4B94C9115B436E6FA4607E95A98DE30A435
-        )  # noqa: E501
+        )  # noqa: E501 — RFC 9380 test vector hex literal
 
 
 # ==============================================================================
@@ -181,7 +181,7 @@ class TestHashToCurve:
         # Expected from RFC 9380 appendix J.10.1
         assert (
             x_c0 == 0x0141EBFBDCA40EB85B87142E130AB689C673CF60F1A3E98D69335266F30D9B8D4AC44C1038E9DCDD5393FAF5C41FB78A
-        )  # noqa: E501
+        )  # noqa: E501 — RFC 9380 test vector hex literal
 
     def test_rfc9380_abc(self):
         """hash_to_curve_G2 for 'abc' with RFC test DST."""
@@ -190,7 +190,7 @@ class TestHashToCurve:
         x_c0 = int(norm[0].coeffs[0])
         assert (
             x_c0 == 0x02C2D18E033B960562AAE3CAB37A27CE00D80CCD5BA4B7FE0E7A210245129DBEC7780CCC7954725F4168AFF2787776E6
-        )  # noqa: E501
+        )  # noqa: E501 — RFC 9380 test vector hex literal
 
     def test_chia_rs_matches_py_ecc(self):
         """AugSchemeMPL.g2_from_message() matches py_ecc hash_to_G2 for AUG DST."""

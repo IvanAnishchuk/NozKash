@@ -101,7 +101,10 @@ function loadConfig(): Config {
     if (!mintBlsPubkey) {
         const skHex = process.env.MINT_BLS_PRIVKEY || '';
         if (skHex) {
-            const sk = BigInt(skHex.startsWith('0x') ? skHex : `0x${skHex}`) % CURVE_ORDER;
+            const sk = BigInt(skHex.startsWith('0x') ? skHex : `0x${skHex}`);
+            if (sk <= 0n || sk >= CURVE_ORDER) {
+                throw new Error('MINT_BLS_PRIVKEY must be in range (0, CURVE_ORDER)');
+            }
             mintBlsPubkey = g1ScalarMul(G1_GEN, sk);
         }
     }

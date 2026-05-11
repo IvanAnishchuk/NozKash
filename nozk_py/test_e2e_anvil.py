@@ -326,17 +326,8 @@ def test_double_spend_reverts(deployed_contract, w3):
     assert receipt["status"] == 1
 
     # Reveal again (should revert with AlreadyRevealed)
-    tx = vault.functions.reveal(spend_pub_coords, s_coords).build_transaction(
-        {
-            "from": depositor.address,
-            "nonce": w3.eth.get_transaction_count(depositor.address),
-            "gas": 500_000,
-            "gasPrice": w3.eth.gas_price,
-        }
-    )
-    signed = depositor.sign_transaction(tx)
-    receipt = w3.eth.wait_for_transaction_receipt(w3.eth.send_raw_transaction(signed.raw_transaction))
-    assert receipt["status"] == 0, "Double-reveal should revert"
+    with pytest.raises(Exception, match="AlreadyRevealed"):
+        vault.functions.reveal(spend_pub_coords, s_coords).call({"from": depositor.address})
 
 
 # ==============================================================================
@@ -434,7 +425,7 @@ def test_refund_after_announce_reverts(deployed_contract, w3):
     depositor = w3.eth.account.from_key(DEPOSITOR_KEY)
 
     secrets = derive_token_secrets(b"refund_after_announce_seed", 11)
-    S, blinded = _deposit_and_announce(w3, vault, depositor, deployer, secrets, MINT_SCALAR)
+    _deposit_and_announce(w3, vault, depositor, deployer, secrets, MINT_SCALAR)
     deposit_id = Web3.to_checksum_address(secrets.deposit_id)
 
     # Refund should fail

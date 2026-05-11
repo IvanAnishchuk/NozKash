@@ -75,10 +75,6 @@ const depositorWallet = createWalletClient({ account: depositor, chain: foundry,
 let vaultAddress: Address
 let abi: Abi
 
-export function getVaultAddress(): Address {
-  return vaultAddress
-}
-
 export function getAbi(): Abi {
   if (!abi) throw new Error('ABI not initialized — call deployVault() first')
   return abi
@@ -126,11 +122,18 @@ async function writeVault(wallet: any, params: Record<string, any>): Promise<`0x
 export async function deployNozkVault(): Promise<Address> {
   // Reset Anvil so deployer nonce is 0 → deterministic contract address.
   // This ensures the app's VITE_NOZK_VAULT_ADDRESS matches the deployed contract.
-  await fetch(ANVIL_RPC, {
+  const resetRes = await fetch(ANVIL_RPC, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'anvil_reset', params: [] }),
   })
+  if (!resetRes.ok) {
+    throw new Error(`anvil_reset failed: HTTP ${resetRes.status} — is Anvil running at ${ANVIL_RPC}?`)
+  }
+  const resetJson = (await resetRes.json()) as { error?: { message: string } }
+  if (resetJson.error) {
+    throw new Error(`anvil_reset RPC error: ${JSON.stringify(resetJson.error)}`)
+  }
 
   const artifactPath = resolve(__dirname, '..', '..', '..', 'sol', 'out', 'NozkVaultV2.sol', 'NozkVaultV2.json')
   const artifact = JSON.parse(readFileSync(artifactPath, 'utf-8'))

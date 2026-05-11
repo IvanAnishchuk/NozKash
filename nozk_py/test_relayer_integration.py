@@ -125,8 +125,10 @@ def relayer_client(deployed_contract, w3):
 
     from fastapi.testclient import TestClient
 
-    yield TestClient(fastapi_app)
-    relayer_server._relayer = prev_relayer
+    try:
+        yield TestClient(fastapi_app)
+    finally:
+        relayer_server._relayer = prev_relayer
 
 
 # ==============================================================================

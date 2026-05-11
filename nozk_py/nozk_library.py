@@ -343,7 +343,7 @@ def generate_mint_keypair() -> MintKeypair:
         A :class:`MintKeypair` with a fresh random secret and corresponding
         G1 public key.
     """
-    sk = Scalar(int.from_bytes(os.urandom(32), "big") % CURVE_ORDER)
+    sk = Scalar(int.from_bytes(os.urandom(64), "big") % CURVE_ORDER)
     pk = g1_scalar_mul(G1_GEN, sk)
     return MintKeypair(sk=sk, pk=pk)
 

@@ -74,7 +74,6 @@ function main() {
     console.log(`    Nullifier ID       : 0x${gl.getNullifierIdHex(secrets)}`);
     console.log(`    Spend pub (compr)  : ${bytesToHex(secrets.spendPubCompressed).slice(0, 20)}...`);
     console.log(`    Deposit ID         : ${gl.getDepositId(secrets)}`);
-    console.log(`    Blinding scalar r  : 0x${secrets.r.toString(16)}`);
     console.log();
 
     // -- 2. Blinding ----------------------------------------------------------

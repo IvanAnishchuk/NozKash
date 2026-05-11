@@ -135,7 +135,8 @@ export function hashToCurve(messageBytes: Uint8Array): G2Point {
 }
 
 export function generateMintKeypair(): MintKeypair {
-    const skBytes = secp256k1.utils.randomSecretKey();
+    const skBytes = new Uint8Array(64);
+    crypto.getRandomValues(skBytes);
     const skMint = BigInt(`0x${bytesToHex(skBytes)}`) % CURVE_ORDER;
 
     // Standard BLS scheme: PK in G1

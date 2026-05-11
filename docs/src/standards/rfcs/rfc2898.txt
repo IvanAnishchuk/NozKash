@@ -56,7 +56,7 @@ Abstract
 
 
 Kaliski                      Informational                      [Page 1]
-
+
 RFC 2898              Password-Based Cryptography         September 2000
 
 
@@ -112,7 +112,7 @@ Table of Contents
 
 
 Kaliski                      Informational                      [Page 2]
-
+
 RFC 2898              Password-Based Cryptography         September 2000
 
 
@@ -168,7 +168,7 @@ RFC 2898              Password-Based Cryptography         September 2000
 
 
 Kaliski                      Informational                      [Page 3]
-
+
 RFC 2898              Password-Based Cryptography         September 2000
 
 
@@ -224,7 +224,7 @@ RFC 2898              Password-Based Cryptography         September 2000
 
 
 Kaliski                      Informational                      [Page 4]
-
+
 RFC 2898              Password-Based Cryptography         September 2000
 
 
@@ -280,7 +280,7 @@ RFC 2898              Password-Based Cryptography         September 2000
 
 
 Kaliski                      Informational                      [Page 5]
-
+
 RFC 2898              Password-Based Cryptography         September 2000
 
 
@@ -336,7 +336,7 @@ RFC 2898              Password-Based Cryptography         September 2000
 
 
 Kaliski                      Informational                      [Page 6]
-
+
 RFC 2898              Password-Based Cryptography         September 2000
 
 
@@ -392,7 +392,7 @@ RFC 2898              Password-Based Cryptography         September 2000
 
 
 Kaliski                      Informational                      [Page 7]
-
+
 RFC 2898              Password-Based Cryptography         September 2000
 
 
@@ -448,7 +448,7 @@ RFC 2898              Password-Based Cryptography         September 2000
 
 
 Kaliski                      Informational                      [Page 8]
-
+
 RFC 2898              Password-Based Cryptography         September 2000
 
 
@@ -504,7 +504,7 @@ RFC 2898              Password-Based Cryptography         September 2000
 
 
 Kaliski                      Informational                      [Page 9]
-
+
 RFC 2898              Password-Based Cryptography         September 2000
 
 
@@ -560,7 +560,7 @@ RFC 2898              Password-Based Cryptography         September 2000
 
 
 Kaliski                      Informational                     [Page 10]
-
+
 RFC 2898              Password-Based Cryptography         September 2000
 
 
@@ -616,7 +616,7 @@ RFC 2898              Password-Based Cryptography         September 2000
 
 
 Kaliski                      Informational                     [Page 11]
-
+
 RFC 2898              Password-Based Cryptography         September 2000
 
 
@@ -672,7 +672,7 @@ RFC 2898              Password-Based Cryptography         September 2000
 
 
 Kaliski                      Informational                     [Page 12]
-
+
 RFC 2898              Password-Based Cryptography         September 2000
 
 
@@ -728,7 +728,7 @@ RFC 2898              Password-Based Cryptography         September 2000
 
 
 Kaliski                      Informational                     [Page 13]
-
+
 RFC 2898              Password-Based Cryptography         September 2000
 
 
@@ -784,7 +784,7 @@ RFC 2898              Password-Based Cryptography         September 2000
 
 
 Kaliski                      Informational                     [Page 14]
-
+
 RFC 2898              Password-Based Cryptography         September 2000
 
 
@@ -840,7 +840,7 @@ RFC 2898              Password-Based Cryptography         September 2000
 
 
 Kaliski                      Informational                     [Page 15]
-
+
 RFC 2898              Password-Based Cryptography         September 2000
 
 
@@ -896,7 +896,7 @@ RFC 2898              Password-Based Cryptography         September 2000
 
 
 Kaliski                      Informational                     [Page 16]
-
+
 RFC 2898              Password-Based Cryptography         September 2000
 
 
@@ -952,7 +952,7 @@ RFC 2898              Password-Based Cryptography         September 2000
 
 
 Kaliski                      Informational                     [Page 17]
-
+
 RFC 2898              Password-Based Cryptography         September 2000
 
 
@@ -1008,7 +1008,7 @@ A.2   PBKDF2
 
 
 Kaliski                      Informational                     [Page 18]
-
+
 RFC 2898              Password-Based Cryptography         September 2000
 
 
@@ -1064,7 +1064,7 @@ RFC 2898              Password-Based Cryptography         September 2000
 
 
 Kaliski                      Informational                     [Page 19]
-
+
 RFC 2898              Password-Based Cryptography         September 2000
 
 
@@ -1120,7 +1120,7 @@ A.4 PBES2
 
 
 Kaliski                      Informational                     [Page 20]
-
+
 RFC 2898              Password-Based Cryptography         September 2000
 
 
@@ -1176,7 +1176,7 @@ A.5 PBMAC1
 
 
 Kaliski                      Informational                     [Page 21]
-
+
 RFC 2898              Password-Based Cryptography         September 2000
 
 
@@ -1232,7 +1232,7 @@ B.1.1 HMAC-SHA-1
 
 
 Kaliski                      Informational                     [Page 22]
-
+
 RFC 2898              Password-Based Cryptography         September 2000
 
 
@@ -1288,7 +1288,7 @@ B.2.1 DES-CBC-Pad
 
 
 Kaliski                      Informational                     [Page 23]
-
+
 RFC 2898              Password-Based Cryptography         September 2000
 
 
@@ -1344,7 +1344,7 @@ B.2.3 RC2-CBC-Pad
 
 
 Kaliski                      Informational                     [Page 24]
-
+
 RFC 2898              Password-Based Cryptography         September 2000
 
 
@@ -1400,7 +1400,7 @@ B.2.4 RC5-CBC-Pad
 
 
 Kaliski                      Informational                     [Page 25]
-
+
 RFC 2898              Password-Based Cryptography         September 2000
 
 
@@ -1456,7 +1456,7 @@ C. ASN.1 Module
 
 
 Kaliski                      Informational                     [Page 26]
-
+
 RFC 2898              Password-Based Cryptography         September 2000
 
 
@@ -1512,7 +1512,7 @@ RFC 2898              Password-Based Cryptography         September 2000
 
 
 Kaliski                      Informational                     [Page 27]
-
+
 RFC 2898              Password-Based Cryptography         September 2000
 
 
@@ -1568,7 +1568,7 @@ RFC 2898              Password-Based Cryptography         September 2000
 
 
 Kaliski                      Informational                     [Page 28]
-
+
 RFC 2898              Password-Based Cryptography         September 2000
 
 
@@ -1624,7 +1624,7 @@ RFC 2898              Password-Based Cryptography         September 2000
 
 
 Kaliski                      Informational                     [Page 29]
-
+
 RFC 2898              Password-Based Cryptography         September 2000
 
 
@@ -1680,7 +1680,7 @@ Revision history
 
 
 Kaliski                      Informational                     [Page 30]
-
+
 RFC 2898              Password-Based Cryptography         September 2000
 
 
@@ -1736,7 +1736,7 @@ References
 
 
 Kaliski                      Informational                     [Page 31]
-
+
 RFC 2898              Password-Based Cryptography         September 2000
 
 
@@ -1792,7 +1792,7 @@ RFC 2898              Password-Based Cryptography         September 2000
 
 
 Kaliski                      Informational                     [Page 32]
-
+
 RFC 2898              Password-Based Cryptography         September 2000
 
 
@@ -1848,7 +1848,7 @@ Contact Information & About PKCS
 
 
 Kaliski                      Informational                     [Page 33]
-
+
 RFC 2898              Password-Based Cryptography         September 2000
 
 
@@ -1904,4 +1904,3 @@ Acknowledgement
 
 
 Kaliski                      Informational                     [Page 34]
-

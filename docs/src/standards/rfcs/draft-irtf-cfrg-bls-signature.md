@@ -357,15 +357,15 @@ and storage requirements.
 The following comparison assumes BLS signatures with curve BLS12-381, targeting
 126 bits of security [@GMT19].
 
-<!-- ISSUE(ZZ): earlier version of `pairing friendly curves` uses the following 
+<!-- ISSUE(ZZ): earlier version of `pairing friendly curves` uses the following
 estimations:
   * [@MSS17] state that BLS12-381
   achieves 127-bit security level evaluated by the computational cost
   of Pollard's rho;
   * NCC group estimated in [@NCCG] that the security level
-  of BLS12-381 is between 117 and 120 bits at most.  
+  of BLS12-381 is between 117 and 120 bits at most.
 
-It is then updated to the [@GMT19] version as stated here. 
+It is then updated to the [@GMT19] version as stated here.
 We are useing [@GMT19] estimation to be consistent with `pairing friendly curves`
 -->
 
@@ -840,7 +840,7 @@ Precondition: n >= 1, otherwise return INVALID.
 
 Procedure:
 1  Group the n input messages into l distinct messages, denoted by m_1, ... m_l
-2. Aggregate the public keys of the same message to l sets of public keys QK_set_1 = {QK_1_1, ...,QK_1_m}, QK_set_2 = {QK_2_1,..., QK_2_p}, ..., QK_set_l = {QK_l_1,...,QK_l_q}   
+2. Aggregate the public keys of the same message to l sets of public keys QK_set_1 = {QK_1_1, ...,QK_1_m}, QK_set_2 = {QK_2_1,..., QK_2_p}, ..., QK_set_l = {QK_l_1,...,QK_l_q}
 3. R = signature_to_point(signature)
 4. If R is INVALID, return INVALID
 5. If signature_subgroup_check(R) is INVALID, return INVALID
@@ -853,7 +853,7 @@ Procedure:
 9.          next = pubkey_to_point(QK_i_j)
 10.         aggregate = aggregate + next
 11.      RK_i = point_to_pubkey(aggregate)
-12.      If len(QK_set_i) > 1: 
+12.      If len(QK_set_i) > 1:
 13.         If KeyValidate(RK_i) is INVALID, return INVALID
 14.      xP = pubkey_to_point(RK_i)
 15.      Q = hash_to_point(m_i)
@@ -1486,4 +1486,3 @@ of possession scheme of (#schemepop).
 
 [@BDN18] prove the security of another rogue key defense; this
 defense is not standardized in this document.
-

@@ -2806,7 +2806,7 @@ Table of Contents
               <https://standards.ieee.org/standard/1363_2-2008.html>.
 
    [p1363a]   IEEE, "IEEE Standard Specifications for Public-Key
-              Cryptography - Amendment 1: Additional Techniques", IEEE 
+              Cryptography - Amendment 1: Additional Techniques", IEEE
               1363a-2004, March 2004,
               <https://standards.ieee.org/standard/1363a-2004.html>.
 

@@ -20,30 +20,30 @@
 <meta property="article:author" content="Conduition">
 <meta property="article:tag" content="bitcoin scriptless smart contracts blockchain crypto cryptography lightning network">
 <meta name="twitter:card" content="summary">
-    
 
-    
-      
+
+
+
         <link rel="manifest" href="/meta/manifest.json">
-      
-    
-    
-      
-        
+
+
+
+
+
           <link rel="shortcut icon" href="/images/flash-circuit-512.png">
-        
-      
-      
-        
+
+
+
+
           <link rel="icon" type="image/png" href="/images/flash-circuit-192.png" sizes="192x192">
-        
-      
-      
-        
+
+
+
+
           <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-180.png">
-        
-      
-    
+
+
+
     <!-- title -->
     <title>Vulnerabilities in the Cashu ECash Protocol</title>
     <!-- async scripts -->
@@ -54,23 +54,23 @@
 
 
     <!-- styles -->
-    
+
 <link rel="stylesheet" href="/css/style.css">
 
-    
-      
-        
+
+
+
 <link rel="stylesheet" href="/css/global.css">
 
-      
-    
+
+
     <!-- persian styles -->
-    
+
     <!-- rss -->
-    
-    
+
+
 	<!-- mathjax -->
-	
+
 <meta name="generator" content="Hexo 6.3.0"><style>mjx-container[jax="SVG"] {
   direction: ltr;
 }
@@ -188,7 +188,7 @@ mjx-container[display="true"] + br {
 </head>
 
 <body class="max-width mx-auto px3 ltr">
-    
+
       <div id="header-post">
   <a id="menu-icon" href="#" aria-label="Menu"><i class="fa-solid fa-bars fa-lg"></i></a>
   <a id="menu-icon-tablet" href="#" aria-label="Menu"><i class="fa-solid fa-bars fa-lg"></i></a>
@@ -212,12 +212,12 @@ mjx-container[display="true"] + br {
     <br/>
     <span id="actions">
       <ul>
-        
+
         <li><a class="icon" aria-label="Previous post" href="/code/fast-slh-dsa-verification/"><i class="fa-solid fa-chevron-left" aria-hidden="true" onmouseover="$('#i-prev').toggle();" onmouseout="$('#i-prev').toggle();"></i></a></li>
-        
-        
+
+
         <li><a class="icon" aria-label="Next post" href="/code/fast-slh-dsa/"><i class="fa-solid fa-chevron-right" aria-hidden="true" onmouseover="$('#i-next').toggle();" onmouseout="$('#i-next').toggle();"></i></a></li>
-        
+
         <li><a class="icon" aria-label="Back to top" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fa-solid fa-chevron-up" aria-hidden="true" onmouseover="$('#i-top').toggle();" onmouseout="$('#i-top').toggle();"></i></a></li>
         <li><a class="icon" aria-label="Share post" href="#"><i class="fa-solid fa-share-alt" aria-hidden="true" onmouseover="$('#i-share').toggle();" onmouseout="$('#i-share').toggle();" onclick="$('#share').toggle();return false;"></i></a></li>
       </ul>
@@ -243,21 +243,21 @@ mjx-container[display="true"] + br {
 </ul>
 
     </div>
-    
-    
+
+
       <div id="toc">
         <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#Prerequisite-Knowledge"><span class="toc-number">1.</span> <span class="toc-text">Prerequisite Knowledge</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Notation"><span class="toc-number">2.</span> <span class="toc-text">Notation</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Ecash"><span class="toc-number">3.</span> <span class="toc-text">Ecash</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#How-it-works"><span class="toc-number">3.1.</span> <span class="toc-text">How it works</span></a></li></ol></li></ol></li><li class="toc-item toc-level-1"><a class="toc-link" href="#The-Vulnerability"><span class="toc-number"></span> <span class="toc-text">The Vulnerability</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#NUT-13"><span class="toc-number">1.</span> <span class="toc-text">NUT-13</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-Flaw"><span class="toc-number">2.</span> <span class="toc-text">The Flaw</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Example"><span class="toc-number">2.1.</span> <span class="toc-text">Example</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Keyset-ID-Verification"><span class="toc-number">2.2.</span> <span class="toc-text">Keyset ID Verification</span></a></li></ol></li></ol></li><li class="toc-item toc-level-1"><a class="toc-link" href="#The-Exploit"><span class="toc-number"></span> <span class="toc-text">The Exploit</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#Method"><span class="toc-number">1.</span> <span class="toc-text">Method</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Airdropping"><span class="toc-number">1.1.</span> <span class="toc-text">Airdropping</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Swapping"><span class="toc-number">1.2.</span> <span class="toc-text">Swapping</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Restoring"><span class="toc-number">1.3.</span> <span class="toc-text">Restoring</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Swap-Response"><span class="toc-number">1.4.</span> <span class="toc-text">Swap Response</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Unblinding"><span class="toc-number">1.5.</span> <span class="toc-text">Unblinding</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Spending"><span class="toc-number">1.6.</span> <span class="toc-text">Spending</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Stealing"><span class="toc-number">1.7.</span> <span class="toc-text">Stealing</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Final-Response"><span class="toc-number">1.8.</span> <span class="toc-text">Final Response</span></a></li></ol></li></ol></li><li class="toc-item toc-level-1"><a class="toc-link" href="#Analysis"><span class="toc-number"></span> <span class="toc-text">Analysis</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#Affected-Software"><span class="toc-number">1.</span> <span class="toc-text">Affected Software</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Practicality"><span class="toc-number">2.</span> <span class="toc-text">Practicality</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Visibility"><span class="toc-number">3.</span> <span class="toc-text">Visibility</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Mitigations"><span class="toc-number">4.</span> <span class="toc-text">Mitigations</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Long-Term-Fix"><span class="toc-number">4.1.</span> <span class="toc-text">Long Term Fix</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Short-Term-Fix"><span class="toc-number">4.2.</span> <span class="toc-text">Short Term Fix</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Conclusion"><span class="toc-number">5.</span> <span class="toc-text">Conclusion</span></a></li></ol>
       </div>
-    
+
   </span>
 </div>
 
-    
+
     <div class="content index py4 ">
-        
+
         <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
   <header>
-    
+
     <a class="u-url u-uid" href="/">
         <img id="logo" alt class="u-logo" src="/images/flash-circuit-512.png" />
     </a>
@@ -271,27 +271,27 @@ mjx-container[display="true"] + br {
       <span class="author p-author h-card" itemprop="author" itemscope itemtype="http://schema.org/Person">
         <span class="p-name" itemprop="name">Conduition</span>
       </span>
-      
+
     <div class="postdate">
-      
+
         <time datetime="2026-01-10T00:00:00.000Z" class="dt-published" itemprop="datePublished">2026-01-10</time>
-        
-      
+
+
     </div>
 
 
-      
+
     <div class="article-category">
         <i class="fa-solid fa-archive"></i>
         <a class="category-link" href="/categories/code/">code</a>
     </div>
 
 
-      
+
 
     </div>
   </header>
-  
+
 
   <div class="content e-content" itemprop="articleBody">
     <p>In July 2025 I discovered vulnerabilities in the <a target="_blank" rel="noopener" href="https://cashu.space/">Cashu protocol</a> and some Cashu wallets, and reported them to select Cashu developers. I sent an early draft of this article to them, and we worked together to discuss and address the vulnerability. We agreed on a long term and a short term fix, both of which I believe successfully mitigate any exploits. I was paid a $500 bug bounty for finding it and reporting it responsibly.</p>
@@ -502,32 +502,32 @@ mjx-container[display="true"] + br {
 
 
 
-        
+
           <div id="footer-post-container">
   <div id="footer-post">
 
     <div id="nav-footer" style="display: none">
       <ul>
-        
+
           <li><a href="/">Home</a></li>
-        
+
           <li><a href="/archives/">Scribblings</a></li>
-        
+
           <li><a href="/categories/">Categories</a></li>
-        
+
           <li><a href="/code/cassandra/">Oracle</a></li>
-        
+
           <li><a target="_blank" rel="noopener" href="https://github.com/conduition">Projects</a></li>
-        
+
       </ul>
     </div>
 
-    
-    
+
+
       <div id="toc-footer" style="display: none">
         <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#Prerequisite-Knowledge"><span class="toc-number">1.</span> <span class="toc-text">Prerequisite Knowledge</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Notation"><span class="toc-number">2.</span> <span class="toc-text">Notation</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Ecash"><span class="toc-number">3.</span> <span class="toc-text">Ecash</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#How-it-works"><span class="toc-number">3.1.</span> <span class="toc-text">How it works</span></a></li></ol></li></ol></li><li class="toc-item toc-level-1"><a class="toc-link" href="#The-Vulnerability"><span class="toc-number"></span> <span class="toc-text">The Vulnerability</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#NUT-13"><span class="toc-number">1.</span> <span class="toc-text">NUT-13</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-Flaw"><span class="toc-number">2.</span> <span class="toc-text">The Flaw</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Example"><span class="toc-number">2.1.</span> <span class="toc-text">Example</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Keyset-ID-Verification"><span class="toc-number">2.2.</span> <span class="toc-text">Keyset ID Verification</span></a></li></ol></li></ol></li><li class="toc-item toc-level-1"><a class="toc-link" href="#The-Exploit"><span class="toc-number"></span> <span class="toc-text">The Exploit</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#Method"><span class="toc-number">1.</span> <span class="toc-text">Method</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Airdropping"><span class="toc-number">1.1.</span> <span class="toc-text">Airdropping</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Swapping"><span class="toc-number">1.2.</span> <span class="toc-text">Swapping</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Restoring"><span class="toc-number">1.3.</span> <span class="toc-text">Restoring</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Swap-Response"><span class="toc-number">1.4.</span> <span class="toc-text">Swap Response</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Unblinding"><span class="toc-number">1.5.</span> <span class="toc-text">Unblinding</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Spending"><span class="toc-number">1.6.</span> <span class="toc-text">Spending</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Stealing"><span class="toc-number">1.7.</span> <span class="toc-text">Stealing</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Final-Response"><span class="toc-number">1.8.</span> <span class="toc-text">Final Response</span></a></li></ol></li></ol></li><li class="toc-item toc-level-1"><a class="toc-link" href="#Analysis"><span class="toc-number"></span> <span class="toc-text">Analysis</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#Affected-Software"><span class="toc-number">1.</span> <span class="toc-text">Affected Software</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Practicality"><span class="toc-number">2.</span> <span class="toc-text">Practicality</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Visibility"><span class="toc-number">3.</span> <span class="toc-text">Visibility</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Mitigations"><span class="toc-number">4.</span> <span class="toc-text">Mitigations</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Long-Term-Fix"><span class="toc-number">4.1.</span> <span class="toc-text">Long Term Fix</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Short-Term-Fix"><span class="toc-number">4.2.</span> <span class="toc-text">Short Term Fix</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Conclusion"><span class="toc-number">5.</span> <span class="toc-text">Conclusion</span></a></li></ol>
       </div>
-    
+
 
     <div id="share-footer" style="display: none">
       <ul>
@@ -548,9 +548,9 @@ mjx-container[display="true"] + br {
 
     <div id="actions-footer">
         <a id="menu" class="icon" href="#" onclick="$('#nav-footer').toggle();return false;"><i class="fa-solid fa-bars fa-lg" aria-hidden="true"></i> Menu</a>
-        
+
           <a id="toc" class="icon" href="#" onclick="$('#toc-footer').toggle();return false;"><i class="fa-solid fa-list fa-lg" aria-hidden="true"></i> TOC</a>
-        
+
         <a id="share" class="icon" href="#" onclick="$('#share-footer').toggle();return false;"><i class="fa-solid fa-share-alt fa-lg" aria-hidden="true"></i> Share</a>
         <a id="top" style="display:none" class="icon" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fa-solid fa-chevron-up fa-lg" aria-hidden="true"></i> Top</a>
     </div>
@@ -558,12 +558,12 @@ mjx-container[display="true"] + br {
   </div>
 </div>
 
-        
+
         <footer id="footer">
   <div class="footer-left">
     Copyright &copy;
-    
-    
+
+
     2023-2026
     Conduition
   </div>
@@ -590,7 +590,7 @@ mjx-container[display="true"] + br {
     <!-- styles -->
 
 
- 
+
   <link
     rel="preload"
     href="/lib/font-awesome/css/all.min.css"
@@ -606,7 +606,7 @@ mjx-container[display="true"] + br {
 
     <!-- jquery -->
 
-  
+
 <script src="/lib/jquery/jquery.min.js"></script>
 
 
@@ -615,11 +615,11 @@ mjx-container[display="true"] + br {
 
 <!-- clipboard -->
 
-  
-    
+
+
 <script src="/lib/clipboard/clipboard.min.js"></script>
 
-  
+
   <script type="text/javascript">
   $(function() {
     // copy-btn HTML

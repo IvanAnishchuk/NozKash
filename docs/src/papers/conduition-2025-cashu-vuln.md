@@ -5,7 +5,7 @@ generated: true
 ---
 
 onclick="$(&#39;html, body&#39;).animate({ scrollTop: 0 }, &#39;fast&#39;);"
-style="display:none;"><em></em></a>   
+style="display:none;"><em></em></a>
 
 - [Home](/)
 - [Scribblings](/archives/)
@@ -14,7 +14,7 @@ style="display:none;"><em></em></a>
 
 
 \
- 
+
 
 
   onclick="$(&#39;html, body&#39;).animate({ scrollTop: 0 }, &#39;fast&#39;);"><em></em></a>
@@ -96,7 +96,7 @@ class="u-logo" /></a>
 
 # Vulnerabilities in the Cashu ECash Protocol
 
- Conduition 
+ Conduition
 
 2026-01-10
 

@@ -834,8 +834,17 @@ def cmd_reveal(
         result = resp.json()
         tx_hex = result["tx_hash"]
         kv("Transaction hash", tx_hex, style="hash")
-        kv("Confirmed at block", str(result["block_number"]))
-        kv("Gas used", str(result["gas_used"]))
+
+        # Verify on-chain before persisting state — don't trust relayer alone
+        info("Verifying transaction on-chain…")
+        w3 = build_web3(config)
+        receipt = w3.eth.wait_for_transaction_receipt(tx_hex, timeout=30)
+        if receipt["status"] != 1:
+            err(f"Relayed reveal tx reverted on-chain: {tx_hex}")
+            raise typer.Exit(code=1)
+
+        kv("Confirmed at block", str(receipt["blockNumber"]))
+        kv("Gas used", str(receipt["gasUsed"]))
     else:
         w3 = build_web3(config)
         contract = w3.eth.contract(
@@ -1111,8 +1120,17 @@ def cmd_redeem(
         result = resp.json()
         tx_hex = result["tx_hash"]
         kv("Transaction hash", tx_hex, style="hash")
-        kv("Confirmed at block", str(result["block_number"]))
-        kv("Gas used", str(result["gas_used"]))
+
+        # Verify on-chain before persisting state — don't trust relayer alone
+        info("Verifying transaction on-chain…")
+        w3 = build_web3(config)
+        receipt = w3.eth.wait_for_transaction_receipt(tx_hex, timeout=30)
+        if receipt["status"] != 1:
+            err(f"Relayed redeem tx reverted on-chain: {tx_hex}")
+            raise typer.Exit(code=1)
+
+        kv("Confirmed at block", str(receipt["blockNumber"]))
+        kv("Gas used", str(receipt["gasUsed"]))
     else:
         section("Step 5 · Broadcast Directly", "📡")
         wallet = Web3.to_checksum_address(config.wallet_address)

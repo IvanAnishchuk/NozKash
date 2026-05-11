@@ -491,7 +491,21 @@ async function cmdReveal(config: Config, tokenIndex: number, relayerUrl?: string
         }
 
         const result = (await resp.json()) as any;
-        rec.reveal_tx = result.tx_hash;
+        const txHash = result.tx_hash as `0x${string}`;
+
+        // Verify on-chain before persisting state — don't trust relayer alone
+        log('Verifying transaction on-chain...');
+        const { publicClient } = await buildClients(config);
+        const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash, timeout: 30_000 });
+        if (receipt.status !== 'success') {
+            err(`Relayed reveal tx reverted on-chain: ${txHash}`);
+            process.exit(1);
+        }
+
+        kv('Confirmed block', String(receipt.blockNumber));
+        kv('Gas used', String(receipt.gasUsed));
+
+        rec.reveal_tx = txHash;
         saveWalletState(state);
         ok(`Nullifier registered. Token ${tokenIndex} -> REVEALED.`);
     } else {
@@ -630,7 +644,21 @@ async function cmdRedeem(config: Config, tokenIndex: number, recipient: string, 
         }
 
         const result = (await resp.json()) as any;
-        rec.redeem_tx = result.tx_hash;
+        const txHash = result.tx_hash as `0x${string}`;
+
+        // Verify on-chain before persisting state — don't trust relayer alone
+        log('Verifying transaction on-chain...');
+        const { publicClient } = await buildClients(config);
+        const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash, timeout: 30_000 });
+        if (receipt.status !== 'success') {
+            err(`Relayed redeem tx reverted on-chain: ${txHash}`);
+            process.exit(1);
+        }
+
+        kv('Confirmed block', String(receipt.blockNumber));
+        kv('Gas used', String(receipt.gasUsed));
+
+        rec.redeem_tx = txHash;
         rec.spent = true;
         saveWalletState(state);
         ok(`Redemption complete. Token ${tokenIndex} is now spent.`);

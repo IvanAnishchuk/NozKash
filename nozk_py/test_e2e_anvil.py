@@ -325,8 +325,8 @@ def test_double_spend_reverts(deployed_contract, w3):
     receipt = w3.eth.wait_for_transaction_receipt(w3.eth.send_raw_transaction(signed.raw_transaction))
     assert receipt["status"] == 1
 
-    # Reveal again (should revert with AlreadyRevealed)
-    with pytest.raises(Exception, match="AlreadyRevealed"):
+    # Reveal again (should revert with AlreadyRevealed — selector 0xa89ac151)
+    with pytest.raises(Exception, match="AlreadyRevealed|0xa89ac151"):
         vault.functions.reveal(spend_pub_coords, s_coords).call({"from": depositor.address})
 
 

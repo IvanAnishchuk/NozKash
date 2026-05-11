@@ -220,7 +220,8 @@ def kv_hex(label: str, value: str) -> None:
 
 # ── Wallet state ───────────────────────────────────────────────────────────────
 
-WALLET_STATE_FILE = Path(__file__).resolve().parent / ".." / ".nozk_wallet.json"
+_DEFAULT_WALLET_STATE_FILE = Path(__file__).resolve().parent / ".." / ".nozk_wallet.json"
+WALLET_STATE_FILE = Path(os.environ.get("NOZK_WALLET_PATH", str(_DEFAULT_WALLET_STATE_FILE)))
 
 
 @dataclass

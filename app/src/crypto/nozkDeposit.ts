@@ -63,9 +63,13 @@ export function parseNozkVaultDepositCalldataArgs(data: `0x${string}`): {
   depositId: string
 } {
   const h = data.replace(/^0x/i, '')
-  // selector(8) + address(64) + 8×uint256(512) = 584 hex chars
-  if (h.length < 8 + 64 + 512) {
-    throw new Error('NozkVault deposit calldata too short')
+  const expectedLen = 8 + 64 + 512 // selector + address + 8×uint256
+  const expectedSelector = NOZK_VAULT_DEPOSIT_SELECTOR_HEX.slice(2)
+  if (h.length !== expectedLen) {
+    throw new Error(`NozkVault deposit calldata has invalid length (expected ${expectedLen}, got ${h.length})`)
+  }
+  if (!h.startsWith(expectedSelector)) {
+    throw new Error('NozkVault deposit calldata has invalid selector')
   }
   const body = h.slice(8)
   const word0 = body.slice(0, 64)

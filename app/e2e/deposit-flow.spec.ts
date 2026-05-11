@@ -173,7 +173,8 @@ test.describe('Deposit flow', () => {
     await expect(page.locator('#splash')).toBeHidden({ timeout: 15_000 })
 
     // The deposit modal should be visible (opened by the route)
-    await expect(page.getByRole('dialog').or(page.locator('.modal-overlay'))).toBeVisible({ timeout: 5_000 })
+    await expect(page).toHaveURL(/\/$/)
+    await expect(page.getByRole('dialog').or(page.locator('.modal-overlay')).first()).toBeVisible({ timeout: 5_000 })
     // Dashboard should still be visible underneath
     await expect(page.getByText('PRIVATE BALANCE')).toBeVisible({ timeout: 5_000 })
   })

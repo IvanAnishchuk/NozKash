@@ -21,6 +21,7 @@ import time
 import pytest
 from py_ecc.bls.g2_primitives import signature_to_G2
 from web3 import Web3
+from web3.exceptions import ContractCustomError, ContractLogicError
 
 from bls12_381_crypto import (
     Scalar,
@@ -325,8 +326,8 @@ def test_double_spend_reverts(deployed_contract, w3):
     receipt = w3.eth.wait_for_transaction_receipt(w3.eth.send_raw_transaction(signed.raw_transaction))
     assert receipt["status"] == 1
 
-    # Reveal again (should revert with AlreadyRevealed — selector 0xa89ac151)
-    with pytest.raises(Exception, match="AlreadyRevealed|0xa89ac151"):
+    # Reveal again (should revert with AlreadyRevealed)
+    with pytest.raises((ContractCustomError, ContractLogicError)):
         vault.functions.reveal(spend_pub_coords, s_coords).call({"from": depositor.address})
 
 

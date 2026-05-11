@@ -402,7 +402,8 @@ describe('NozkVaultV2 E2E on Anvil', () => {
             args: [depositId, [...serializeG2Sol(blinded.B)]],
             value: DENOMINATION,
         });
-        await publicClient.waitForTransactionReceipt({ hash: depHash });
+        const depReceipt = await publicClient.waitForTransactionReceipt({ hash: depHash });
+        expect(depReceipt.status).toBe('success');
 
         // Announce with WRONG key
         const wrongSk = 999n;
@@ -411,7 +412,8 @@ describe('NozkVaultV2 E2E on Anvil', () => {
             functionName: 'announce',
             args: [depositId, [...serializeG2Sol(sPrimeWrong)]],
         });
-        await publicClient.waitForTransactionReceipt({ hash: annHash });
+        const annReceipt = await publicClient.waitForTransactionReceipt({ hash: annHash });
+        expect(annReceipt.status).toBe('success');
 
         // Reveal should fail (BLS pairing mismatch)
         const S_wrong = unblindSignature(sPrimeWrong, secrets.r);

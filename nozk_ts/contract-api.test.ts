@@ -117,6 +117,24 @@ describe('correct arg counts encode', () => {
         });
         expect(data).toMatch(/^0x/);
     });
+
+    it('revealAggregated(uint256[4][], uint256[8])', () => {
+        const data = encodeFunctionData({
+            abi: NOZK_VAULT_ABI,
+            functionName: 'revealAggregated',
+            args: [[[...ZERO_G1]], [...ZERO_G2]],
+        });
+        expect(data).toMatch(/^0x/);
+    });
+
+    it('revealBatch(uint256[4][], uint256[8][])', () => {
+        const data = encodeFunctionData({
+            abi: NOZK_VAULT_ABI,
+            functionName: 'revealBatch',
+            args: [[[...ZERO_G1]], [[...ZERO_G2]]],
+        });
+        expect(data).toMatch(/^0x/);
+    });
 });
 
 // ==============================================================================

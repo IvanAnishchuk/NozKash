@@ -81,14 +81,19 @@ export async function startMintServer(opts: {
 
   // Wait for the mint server to initialize (no HTTP health endpoint)
   // Race: either 2s startup delay succeeds, or spawn error rejects immediately
-  await Promise.race([
-    new Promise(r => setTimeout(r, 2000)),
-    new Promise((_, reject) => proc.once('error', (err) =>
-      reject(new Error(`Mint server failed to spawn: ${err.message} (see ${logPath})`))
-    )),
-  ])
-  if (proc.exitCode !== null) {
-    throw new Error(`Mint server exited immediately with code ${proc.exitCode} (see ${logPath})`)
+  try {
+    await Promise.race([
+      new Promise(r => setTimeout(r, 2000)),
+      new Promise((_, reject) => proc.once('error', (err) =>
+        reject(new Error(`Mint server failed to spawn: ${err.message} (see ${logPath})`))
+      )),
+    ])
+    if (proc.exitCode !== null) {
+      throw new Error(`Mint server exited immediately with code ${proc.exitCode} (see ${logPath})`)
+    }
+  } catch (err) {
+    await stopService(proc, logStream)
+    throw err
   }
 
   return {
@@ -141,10 +146,15 @@ export async function startRelayerServer(opts: {
   const spawnError = new Promise<never>((_, reject) => proc.once('error', (err) =>
     reject(new Error(`Relayer failed to spawn: ${err.message} (see ${logPath})`))
   ))
-  await Promise.race([
-    waitForHealth(`http://127.0.0.1:${port}/health`, proc),
-    spawnError,
-  ])
+  try {
+    await Promise.race([
+      waitForHealth(`http://127.0.0.1:${port}/health`, proc),
+      spawnError,
+    ])
+  } catch (err) {
+    await stopService(proc, logStream)
+    throw err
+  }
 
   return {
     process: proc,

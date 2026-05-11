@@ -364,6 +364,9 @@ export function verifyBlsSpendSignature(proof: RedemptionProof): boolean {
  * Mirrors Python's aggregate_reveal_sigma().
  */
 export function aggregateRevealSigma(unblindedSigs: G2Point[]): G2Point {
+    if (unblindedSigs.length === 0) {
+        throw new VerificationError('unblindedSigs must not be empty');
+    }
     return aggregateG2(unblindedSigs);
 }
 
@@ -377,6 +380,9 @@ export function aggregateRevealSigma(unblindedSigs: G2Point[]): G2Point {
  * Mirrors Python's verify_aggregated_reveal().
  */
 export function verifyAggregatedReveal(sigma: G2Point, spendPubs: G1Point[], pkMint: G1Point): boolean {
+    if (spendPubs.length === 0) {
+        return false;
+    }
     const ys = spendPubs.map((pub) => hashToG2(abiEncodeG1(pub)));
     const yAgg = aggregateG2(ys);
     return verifyMintPairing(sigma, yAgg, pkMint);
@@ -390,6 +396,9 @@ export function verifyAggregatedReveal(sigma: G2Point, spendPubs: G1Point[], pkM
  * @returns Aggregated compressed G2 signature (96 bytes).
  */
 export function aggregateRedeemSigma(sigs: Uint8Array[]): Uint8Array {
+    if (sigs.length === 0) {
+        throw new VerificationError('sigs must not be empty');
+    }
     return aggregateSignatures(sigs);
 }
 
@@ -403,5 +412,8 @@ export function verifyAggregatedRedeem(
     msgHash: Uint8Array,
     spendPksCompressed: Uint8Array[],
 ): boolean {
+    if (spendPksCompressed.length === 0) {
+        return false;
+    }
     return blsAggregateVerify(sigma, msgHash, spendPksCompressed);
 }

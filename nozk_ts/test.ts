@@ -54,7 +54,10 @@ function main() {
         throw new Error('Missing MINT_BLS_PRIVKEY and/or MASTER_SEED in .env. Run generate_keys.py first.');
     }
 
-    const skMint = BigInt(skHex.startsWith('0x') ? skHex : `0x${skHex}`) % CURVE_ORDER;
+    const skMint = BigInt(skHex.startsWith('0x') ? skHex : `0x${skHex}`);
+    if (skMint <= 0n || skMint >= CURVE_ORDER) {
+        throw new Error('MINT_BLS_PRIVKEY must be in range (0, CURVE_ORDER)');
+    }
 
     // Derive PK_mint = sk * G1_gen (standard BLS: PK in G1)
     const pkMint = g1ScalarMul(G1_GEN, skMint);

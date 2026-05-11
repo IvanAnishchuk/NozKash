@@ -13,6 +13,20 @@ import { fileURLToPath } from 'node:url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 const REPO_ROOT = resolve(__dirname, '..', '..', '..')
+
+async function waitForHealth(url: string, timeoutMs = 15_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch(url)
+      if (res.ok) return
+    } catch {
+      // server not ready yet
+    }
+    await new Promise(r => setTimeout(r, 250))
+  }
+  throw new Error(`Service at ${url} did not become healthy within ${timeoutMs}ms`)
+}
 const LOG_DIR = resolve(__dirname, '..', '..', 'test-results', 'service-logs')
 
 export interface ServiceHandle {
@@ -62,8 +76,11 @@ export async function startMintServer(opts: {
   proc.stdout?.pipe(logStream)
   proc.stderr?.pipe(logStream)
 
-  // Wait a moment for the server to start
+  // Wait for the mint server to initialize (no HTTP health endpoint)
   await new Promise(r => setTimeout(r, 2000))
+  if (proc.exitCode !== null) {
+    throw new Error(`Mint server exited immediately with code ${proc.exitCode} (see ${logPath})`)
+  }
 
   return {
     process: proc,
@@ -111,8 +128,8 @@ export async function startRelayerServer(opts: {
   proc.stdout?.pipe(logStream)
   proc.stderr?.pipe(logStream)
 
-  // Wait for the server to start
-  await new Promise(r => setTimeout(r, 3000))
+  // Poll /health until the relayer is ready
+  await waitForHealth(`http://127.0.0.1:${port}/health`)
 
   return {
     process: proc,

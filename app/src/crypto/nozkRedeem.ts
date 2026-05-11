@@ -136,7 +136,7 @@ export function redemptionDraftMatchesSecrets(
     const secrets = deriveTokenSecrets(masterSeed, draft.tokenIndex)
     return (
       getDepositId(secrets).toLowerCase() === draft.depositId.toLowerCase() &&
-      getNullifierIdHex(secrets) === draft.nullifierIdHex.replace(/^0x/i, '')
+      getNullifierIdHex(secrets).toLowerCase() === draft.nullifierIdHex.replace(/^0x/i, '').toLowerCase()
     )
   } catch {
     return false

@@ -63,6 +63,7 @@ export async function injectMockWallet(
               return [account]
             case 'wallet_switchEthereumChain':
             case 'wallet_addEthereumChain':
+              return null
             case 'wallet_getPermissions':
               return [{ parentCapability: 'eth_accounts' }]
             case 'wallet_requestPermissions':

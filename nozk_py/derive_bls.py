@@ -9,6 +9,9 @@ if len(sys.argv) != 2:
     sys.exit(1)
 
 sk = int(sys.argv[1], 16) % CURVE_ORDER
+if sk == 0:
+    print("Error: private key reduces to zero mod CURVE_ORDER", file=sys.stderr)
+    sys.exit(1)
 pk = g1_scalar_mul(G1_GEN, Scalar(sk))
 
 x_hi, x_lo, y_hi, y_lo = serialize_g1_sol(pk)

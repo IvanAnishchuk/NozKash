@@ -289,10 +289,13 @@ test.describe('Aggregated reveal + aggregated redeem', () => {
   })
 
   test('aggregated redeem 3 tokens to single recipient — 0.003 ETH total', async () => {
-    // Tokens 0-2 were revealed in the previous test
+    // Self-contained: deposit, announce, and reveal fresh tokens
+    const tokens = await depositAndAnnounceMany(SEED, [3, 4, 5])
+    await revealAggregated(SEED, tokens.map(t => ({ index: t.index, S: t.S })))
+
     const balBefore = await getBalance(ACCT4)
 
-    const { nullifierIds } = await redeemAggregated(SEED, [0, 1, 2], ACCT4)
+    const { nullifierIds } = await redeemAggregated(SEED, [3, 4, 5], ACCT4)
 
     const balAfter = await getBalance(ACCT4)
     expect(balAfter - balBefore).toBe(DENOMINATION * 3n)

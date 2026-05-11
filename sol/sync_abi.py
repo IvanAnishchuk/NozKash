@@ -21,8 +21,8 @@ for sol_file, contract_name, abi_filename in CONTRACTS:
     abi_out = REPO_ROOT / "abi" / abi_filename
 
     if not artifact.exists():
-        print(f"skip: {artifact.name} not found (run `forge build` first)", file=sys.stderr)
-        continue
+        print(f"error: {artifact.name} not found (run `forge build` first)", file=sys.stderr)
+        sys.exit(1)
 
     with open(artifact) as f:
         abi = json.load(f)["abi"]

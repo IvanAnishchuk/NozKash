@@ -58,6 +58,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Full lifecycle automation script (`nozk_flow.sh` with `--mock`, `--dry-run`, `--relayer` modes)
 - GitHub Pages deployment for frontend
 
+### Removed
+
+- BN254/mcl-wasm crypto (replaced by BLS12-381/noble-curves in TypeScript, chia_rs in Python)
+- NozkVault V1 contract and V1 ABI
+- Legacy BN254 test vectors
+- ECDSA redemption proofs (replaced by BLS AugSchemeMPL spend signatures)
+
 ### Security
 
 - Upgrade vite 8.0.1 -> 8.0.11 in nozk_ts/ and app/ (fixes CVE: server.fs.deny bypass, WebSocket arbitrary file read, optimized deps path traversal)

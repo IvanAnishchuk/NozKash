@@ -8,9 +8,6 @@
 import { readFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
 import {
   type Abi,
   type Address,
@@ -25,13 +22,14 @@ import { foundry } from 'viem/chains'
 import { bls12_381 } from '@noble/curves/bls12-381.js'
 // Import nozk crypto from compiled nozk_ts dist (recompile with:
 //   cd nozk_ts && npx tsc --outDir dist --noEmit false --declaration false)
+// @ts-ignore -- compiled JS, no .d.ts
 import {
   G1_GEN,
   g1ScalarMul,
   serializeG1Sol,
   serializeG2Sol,
-  // @ts-ignore -- compiled JS, no .d.ts
 } from '../../../nozk_ts/dist/bls12-381-crypto.js'
+// @ts-ignore -- compiled JS, no .d.ts
 import {
   aggregateRedeemSigma,
   aggregateRevealSigma,
@@ -40,8 +38,10 @@ import {
   generateRedemptionProof,
   mintBlindSign,
   unblindSignature,
-  // @ts-ignore -- compiled JS, no .d.ts
 } from '../../../nozk_ts/dist/nozk-library.js'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 
 // ==============================================================================
 // CONSTANTS

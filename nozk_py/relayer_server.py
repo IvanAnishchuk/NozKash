@@ -40,6 +40,7 @@ from typing import Optional
 import typer
 import uvicorn
 from dotenv import load_dotenv
+from eth_utils import keccak
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from rich import box
@@ -169,9 +170,10 @@ class RelayerConfig:
 def _parse_mint_bls_pubkey(raw: str) -> G1Point | None:
     if raw:
         parts = [p.strip() for p in raw.split(",")]
-        if len(parts) == 4:
-            x_hi, x_lo, y_hi, y_lo = (int(p, 16) for p in parts)
-            return parse_g1_sol(x_hi, x_lo, y_hi, y_lo)
+        if len(parts) != 4:
+            raise ValueError(f"MINT_BLS_PUBKEY must have exactly 4 comma-separated hex limbs, got {len(parts)}")
+        x_hi, x_lo, y_hi, y_lo = (int(p, 16) for p in parts)
+        return parse_g1_sol(x_hi, x_lo, y_hi, y_lo)
 
     sk_hex = os.getenv("MINT_BLS_PRIVKEY", "").strip() or os.getenv("MINT_BLS_PRIVKEY_INT", "").strip()
     if sk_hex:
@@ -338,11 +340,11 @@ class Relayer:
         # Parse G1 spend pubkey and G2 signature from request
         try:
             spend_pub = parse_g1_sol(*[int(c, 16) for c in req.spend_pub_g1])
-        except Exception as exc:
+        except (ValueError, TypeError) as exc:
             raise HTTPException(status_code=400, detail=f"Invalid G1 spend pubkey: {exc}")
         try:
             S = parse_g2_sol(*[int(c, 16) for c in req.s_g2])
-        except Exception as exc:
+        except (ValueError, TypeError) as exc:
             raise HTTPException(status_code=400, detail=f"Invalid G2 signature: {exc}")
 
         # BLS pairing pre-check (if we have the pubkey)
@@ -355,8 +357,6 @@ class Relayer:
                 raise HTTPException(status_code=400, detail=f"Invalid BLS point: {exc}")
 
         # Compute nullifier ID
-        from eth_utils import keccak
-
         nullifier_id = keccak(abi_encode_g1(spend_pub))
         state_val = self.contract.functions.nullifierState(nullifier_id).call()
         if state_val != 0:
@@ -404,8 +404,9 @@ class Relayer:
         tx_builder = self.contract.functions.reveal(spend_pub_coords, s_coords)
         tx_hash, block, gas = self._send_tx(tx_builder)
 
-        nid = req.spend_pub_g1[0][:10]  # short display
-        self._log_tx("reveal", nid, tx_hash, block, gas)
+        spend_pub = parse_g1_sol(*spend_pub_coords)
+        nid = keccak(abi_encode_g1(spend_pub)).hex()
+        self._log_tx("reveal", nid[:10], tx_hash, block, gas)
         return TxResponse(tx_hash=tx_hash, block_number=block, gas_used=gas, nullifier=nid)
 
     def submit_reveal_batch(self, items: list[RevealRequest]) -> BatchTxResponse:

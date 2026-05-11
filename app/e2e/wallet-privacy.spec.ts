@@ -76,8 +76,8 @@ test.describe('Wallet and privacy', () => {
     const dropdown = page.locator('.wallet-dropdown')
     await expect(dropdown).not.toHaveClass(/hidden/)
 
-    // Click an area outside the dropdown that it doesn't cover (bottom of page)
-    await page.mouse.click(10, 600)
+    // Dismiss the dropdown by pressing Escape
+    await page.keyboard.press('Escape')
     await expect(dropdown).toHaveClass(/hidden/, { timeout: 3_000 })
   })
 

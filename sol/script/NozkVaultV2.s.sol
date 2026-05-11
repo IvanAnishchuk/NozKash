@@ -5,7 +5,7 @@ import {Script} from "forge-std/Script.sol";
 import {NozkVaultV2} from "../src/NozkVaultV2.sol";
 
 contract NozkVaultV2Script is Script {
-    function run() public {
+    function run() external {
         uint256[4] memory pkMint = [
             vm.envOr("PK_MINT_X_HI", uint256(0)),
             vm.envOr("PK_MINT_X_LO", uint256(0)),

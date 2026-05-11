@@ -62,7 +62,7 @@ def _wait_for_rpc(url: str, timeout: float = 10.0) -> bool:
     w3 = Web3(Web3.HTTPProvider(url))
     while time.monotonic() < deadline:
         try:
-            w3.eth.block_number  # noqa: B018
+            w3.eth.block_number  # noqa: B018 — bare access to check RPC connectivity
             return True
         except Exception:
             time.sleep(0.1)
@@ -176,8 +176,8 @@ def test_full_lifecycle(deployed_contract, w3):
         }
     )
     signed = depositor.sign_transaction(tx)
-    receipt = w3.eth.wait_for_transaction_receipt(w3.eth.send_raw_transaction(signed.raw_transaction))
-    assert receipt["status"] == 1, f"Deposit failed: {receipt}"
+    deposit_receipt = w3.eth.wait_for_transaction_receipt(w3.eth.send_raw_transaction(signed.raw_transaction))
+    assert deposit_receipt["status"] == 1, f"Deposit failed: {deposit_receipt}"
     assert vault.functions.depositPending(deposit_id).call() is True
 
     # -- 4. Announce (mint authority blind-signs) --
@@ -216,8 +216,8 @@ def test_full_lifecycle(deployed_contract, w3):
         }
     )
     signed = depositor.sign_transaction(tx)
-    receipt = w3.eth.wait_for_transaction_receipt(w3.eth.send_raw_transaction(signed.raw_transaction))
-    assert receipt["status"] == 1, f"Reveal failed (gas used: {receipt['gasUsed']})"
+    reveal_receipt = w3.eth.wait_for_transaction_receipt(w3.eth.send_raw_transaction(signed.raw_transaction))
+    assert reveal_receipt["status"] == 1, f"Reveal failed (gas used: {reveal_receipt['gasUsed']})"
 
     # Verify nullifier state
     nid = vault.functions.nullifierId(spend_pub_coords).call()
@@ -254,8 +254,8 @@ def test_full_lifecycle(deployed_contract, w3):
         }
     )
     signed = depositor.sign_transaction(tx)
-    receipt = w3.eth.wait_for_transaction_receipt(w3.eth.send_raw_transaction(signed.raw_transaction))
-    assert receipt["status"] == 1, f"Redeem failed (gas used: {receipt['gasUsed']})"
+    redeem_receipt = w3.eth.wait_for_transaction_receipt(w3.eth.send_raw_transaction(signed.raw_transaction))
+    assert redeem_receipt["status"] == 1, f"Redeem failed (gas used: {redeem_receipt['gasUsed']})"
 
     # -- 8. Verify final state --
     state = vault.functions.nullifierState(nid).call()
@@ -264,9 +264,9 @@ def test_full_lifecycle(deployed_contract, w3):
     recipient_balance_after = w3.eth.get_balance(RECIPIENT)
     assert recipient_balance_after - recipient_balance_before == DENOMINATION
 
-    print(f"\n  Deposit gas:  {receipt['gasUsed']:,}")
-    print("  Reveal gas:   (see above)")
-    print(f"  Redeem gas:   {receipt['gasUsed']:,}")
+    print(f"\n  Deposit gas:  {deposit_receipt['gasUsed']:,}")
+    print(f"  Reveal gas:   {reveal_receipt['gasUsed']:,}")
+    print(f"  Redeem gas:   {redeem_receipt['gasUsed']:,}")
     print(f"  Recipient received: {Web3.from_wei(DENOMINATION, 'ether')} ETH")
 
 

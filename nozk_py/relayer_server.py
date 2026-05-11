@@ -10,7 +10,7 @@ convenience layer, not an enforcement layer.
 
 Endpoints:
     POST /reveal           Submit a BLS signature to register a nullifier
-    POST /redeem           Submit an ECDSA signature to redeem a revealed token
+    POST /redeem           Submit a BLS spend signature to redeem a revealed token
     GET  /status/{nullifier}  Query nullifier lifecycle state
     GET  /health           Relayer health / balance check
 

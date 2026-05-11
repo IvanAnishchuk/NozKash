@@ -10,7 +10,7 @@ See [Security Research](../security-research.md) for the comprehensive threat mo
 - **Unforgeability:** BLS signatures are verified on-chain via pairing check
 - **Non-custodial:** Funds are held by the smart contract, not the mint
 - **Double-spend prevention:** Nullifier uniqueness enforced on-chain
-- **MEV protection:** ECDSA in `redeem()` binds nullifier to specific recipient
+- **MEV protection:** BLS spend signature in `redeem()` binds nullifier to specific recipient via EIP-712
 
 ## Trust Assumptions
 

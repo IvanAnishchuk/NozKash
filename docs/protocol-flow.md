@@ -88,8 +88,8 @@ sequenceDiagram
 ```
 
 The relayer is gas-only — it cannot forge spend signatures or redirect
-funds. MEV protection is enforced by the ECDSA-bound recipient address
-in the EIP-712 redeem message.
+funds. MEV protection is enforced by the BLS spend signature over an
+EIP-712 message binding the recipient address and deadline.
 
 ## Aggregation
 

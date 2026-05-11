@@ -17,9 +17,9 @@ batch aggregation -- all without zero-knowledge proofs.
   ``S = S' * r^{-1}``.
 - Redemption: an AugSchemeMPL (chia_rs) signature over the EIP-712 redemption
   hash binds the nullifier to a recipient address, preventing MEV front-running.
-- Verification: on-chain ``ecPairing`` checks ``e(PK_mint, Y) == e(G1_gen, S)``
-  and ``ecrecover`` validates the ECDSA spend proof (for the secp256k1 deposit
-  ID path) or BLS verify for the spend signature.
+- Verification: on-chain BLS12-381 pairing (EIP-2537) checks
+  ``e(pkMint, Y) == e(G1_gen, S)`` for reveal, and AugSchemeMPL BLS verify
+  for the spend signature in redeem.
 
 Source of truth: this module (``nozk_library.py``) is the canonical
 implementation. The TypeScript port (``nozk_ts/nozk-library.ts``) must produce

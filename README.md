@@ -74,9 +74,9 @@ Client                     NozkVault (on-chain)          Mint Server
 
 **Signing:** The mint computes `S' = sk · B` without knowing what it signed. The client removes the blinding: `S = S' · r⁻¹ = sk · H(spendAddress)`.
 
-**Verification:** The contract checks `e(S, G2) == e(H(nullifier), PK_mint)` using the EVM `ecPairing` precompile (0x08). This is a single pairing check — no SNARK verification, no Groth16, no circuit compilation.
+**Verification:** The contract checks `e(pkMint, H_G2(spendPub)) == e(G1gen, S)` using the EIP-2537 BLS12-381 precompiles (Pectra). This is a single pairing check — no SNARK verification, no Groth16, no circuit compilation.
 
-**MEV protection:** Redemption includes an ECDSA signature over `keccak256("Pay to RAW: " || recipient_address)`. A front-runner cannot redirect funds without the spend private key.
+**MEV protection:** Redemption requires a BLS spend signature (AugSchemeMPL) over an EIP-712 message binding the recipient address and deadline. A front-runner cannot redirect funds without the spend private key.
 
 **Stateless recovery:** All secrets derive deterministically from a master seed + token index. Lose your device, recover from seed.
 

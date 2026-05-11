@@ -313,7 +313,7 @@ VITE_NOZK_MASTER_SEED_HEX   # dev only
 - **Limited refund:** Depositors can reclaim ETH only before `announce()`. Once announced, redemption is the only exit
 - **Stateless mint:** The mint daemon stores nothing — all state is on-chain
 - **Stateless recovery:** Every wallet secret is re-derivable from `(masterSeed, index)` via scan
-- **MEV protection:** ECDSA in `redeem()` binds the nullifier to a specific recipient
+- **MEV protection:** BLS spend signature in `redeem()` binds the nullifier to a specific recipient via EIP-712
 - **Token lifecycle:** `FRESH -> AWAITING_MINT -> READY_TO_REDEEM -> SPENT` (tracked in `.nozk_wallet.json`)
 
 ## Verification

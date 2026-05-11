@@ -19,12 +19,14 @@
  *   npx tsx client.ts balance
  */
 
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { config as dotenvConfig } from 'dotenv';
 
-dotenvConfig({ path: resolve('..', '.env') });
+const __dirname = dirname(fileURLToPath(import.meta.url));
+dotenvConfig({ path: resolve(__dirname, '..', '.env') });
 
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import {
     type Address,
     createPublicClient,
@@ -56,8 +58,8 @@ import * as gl from './nozk-library.js';
 // ==============================================================================
 
 const DENOMINATION = parseEther('0.001');
-const WALLET_STATE_FILE = process.env.NOZK_WALLET_STATE_FILE || resolve('..', '.nozk_wallet.json');
-const ABI_PATH = process.env.NOZK_VAULT_ABI_PATH || resolve('..', 'abi', 'nozk_vault_v2_abi.json');
+const WALLET_STATE_FILE = process.env.NOZK_WALLET_STATE_FILE || resolve(__dirname, '..', '.nozk_wallet.json');
+const ABI_PATH = process.env.NOZK_VAULT_ABI_PATH || resolve(__dirname, '..', 'abi', 'nozk_vault_v2_abi.json');
 
 interface Config {
     masterSeed: Uint8Array;
@@ -395,7 +397,8 @@ async function cmdScan(config: Config, indexFrom: number, indexTo: number) {
             if (blsOk) {
                 ok('BLS pairing verified locally');
             } else {
-                err('BLS pairing FAILED - check MINT_BLS_PUBKEY');
+                err('BLS pairing FAILED - skipping recovery for this token');
+                continue;
             }
         }
 

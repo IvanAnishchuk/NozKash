@@ -372,8 +372,8 @@ class Relayer:
 
         # Parse BLS spend signature (compressed G2) and spend pubkey (compressed G1)
         try:
-            sigma = G2Element.from_bytes(bytes.fromhex(req.spend_sigma_compressed))
-            spend_pk = G1Element.from_bytes(bytes.fromhex(req.spend_pk_compressed))
+            sigma = G2Element.from_bytes(bytes.fromhex(req.spend_sigma_compressed.removeprefix("0x")))
+            spend_pk = G1Element.from_bytes(bytes.fromhex(req.spend_pk_compressed.removeprefix("0x")))
         except (ValueError, TypeError) as exc:
             raise HTTPException(status_code=400, detail=f"Invalid BLS signature or pubkey: {exc}")
 
@@ -447,11 +447,11 @@ class Relayer:
         recipient = Web3.to_checksum_address(req.recipient)
 
         # Decompress BLS spend sig: compressed G2 (96 bytes) → EIP-2537 (8 uint256)
-        sigma_chia = G2Element.from_bytes(bytes.fromhex(req.spend_sigma_compressed))
+        sigma_chia = G2Element.from_bytes(bytes.fromhex(req.spend_sigma_compressed.removeprefix("0x")))
         spend_sig_pyecc = G2Point(signature_to_G2(sigma_chia.to_bytes()))
         spend_sig_coords = list(serialize_g2_sol(spend_sig_pyecc))
 
-        nid_bytes = bytes.fromhex(req.nullifier_id)
+        nid_bytes = bytes.fromhex(req.nullifier_id.removeprefix("0x"))
 
         tx_builder = self.contract.functions.redeem(recipient, spend_sig_coords, nid_bytes, req.deadline)
         tx_hash, block, gas = self._send_tx(tx_builder)

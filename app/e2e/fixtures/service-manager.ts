@@ -176,6 +176,13 @@ async function stopService(proc: ChildProcess, logStream: WriteStream): Promise<
       resolve()
     })
 
+    // Re-check in case process exited between initial check and listener registration
+    if (proc.exitCode !== null) {
+      logStream.end()
+      resolve()
+      return
+    }
+
     proc.kill('SIGTERM')
 
     // Force kill after 5 seconds

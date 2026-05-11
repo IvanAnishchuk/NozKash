@@ -111,8 +111,8 @@ function decompressSigToCoords(
   return [xC0Hi, xC0Lo, xC1Hi, xC1Lo, yC0Hi, yC0Lo, yC1Hi, yC1Lo] as const
 }
 
-async function writeVault(wallet: any, params: Record<string, any>): Promise<`0x${string}`> {
-  return wallet.writeContract({ ...params, address: vaultAddress, abi, chain: foundry })
+async function writeVault(wallet: ReturnType<typeof createWalletClient>, params: Record<string, any>): Promise<`0x${string}`> {
+  return (wallet as any).writeContract({ ...params, address: getVaultAddress(), abi: getAbi(), chain: foundry })
 }
 
 // ==============================================================================
@@ -269,13 +269,13 @@ export async function getBalance(address: Address): Promise<bigint> {
 /**
  * Verify nullifier state: 0=UNREVEALED, 1=REVEALED, 2=SPENT
  */
-export async function getNullifierState(nullifierId: `0x${string}`): Promise<number> {
+export async function getNullifierState(nullifierId: `0x${string}`): Promise<bigint> {
   return publicClient.readContract({
     address: vaultAddress,
     abi,
     functionName: 'nullifierState',
     args: [nullifierId],
-  }) as Promise<number>
+  }) as Promise<bigint>
 }
 
 /**

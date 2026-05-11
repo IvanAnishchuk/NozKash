@@ -1084,7 +1084,7 @@ def cmd_redeem(
     # Step 5: dry-run or broadcast
     if is_dry_run():
         section("Step 5 · DRY-RUN Simulation", "🔵")
-        dry("redeem(recipient, spendSigG2, spendPkG1, nullifierId, deadline)")
+        dry("redeem(recipient, spendSigG2, nullifierId, deadline)")
         dry(f"recipient    = {recipient_checksum}")
         dry(f"nullifier_id = {nullifier_id}")
         dry(f"deadline     = {deadline}")

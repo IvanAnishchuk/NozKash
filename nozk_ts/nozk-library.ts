@@ -135,9 +135,12 @@ export function hashToCurve(messageBytes: Uint8Array): G2Point {
 }
 
 export function generateMintKeypair(): MintKeypair {
-    const skBytes = new Uint8Array(64);
-    crypto.getRandomValues(skBytes);
-    const skMint = BigInt(`0x${bytesToHex(skBytes)}`) % CURVE_ORDER;
+    let skMint = 0n;
+    while (skMint === 0n) {
+        const skBytes = new Uint8Array(64);
+        crypto.getRandomValues(skBytes);
+        skMint = BigInt(`0x${bytesToHex(skBytes)}`) % CURVE_ORDER;
+    }
 
     // Standard BLS scheme: PK in G1
     const pkMint = g1ScalarMul(G1_GEN, skMint);
@@ -236,8 +239,8 @@ export function blindToken(spendPub: G1Point, r: bigint): BlindedPoints {
 }
 
 export function unblindSignature(S_prime: G2Point, r: bigint): G2Point {
-    if (r === 0n) {
-        throw new VerificationError('Invalid blinding factor r = 0');
+    if (r <= 0n || r >= CURVE_ORDER) {
+        throw new VerificationError(`blinding factor r must be in [1, CURVE_ORDER), got ${r}`);
     }
     const r_inv = modInverse(r);
     return g2ScalarMul(S_prime, r_inv);

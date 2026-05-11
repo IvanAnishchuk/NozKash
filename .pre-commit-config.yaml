@@ -95,7 +95,7 @@ repos:
         entry: bash -c 'cd app && npx tsc -b --noEmit'
         language: system
         pass_filenames: false
-        files: ^app/src/.*\.tsx?$
+        files: ^app/
 
   # ── Solidity: forge fmt ────────────────────────────────
   - repo: local

@@ -128,7 +128,15 @@ beforeAll(async () => {
         stdio: 'ignore',
     });
 
+    let spawnError: Error | null = null;
+    anvilProcess.once('error', (e) => {
+        spawnError = e;
+    });
+
     const ready = await waitForRpc();
+    if (spawnError) {
+        throw new Error(`anvil failed to start: ${(spawnError as Error).message}`);
+    }
     if (!ready) {
         anvilProcess.kill();
         throw new Error('anvil did not start within 10s');
@@ -221,7 +229,7 @@ describe('NozkVaultV2 E2E on Anvil', () => {
             functionName: 'nullifierState',
             args: [nid],
         });
-        expect(state1).toBe(1);
+        expect(state1).toBe(1n);
 
         // Redeem
         const deadline = (1n << 256n) - 1n;
@@ -250,7 +258,7 @@ describe('NozkVaultV2 E2E on Anvil', () => {
             functionName: 'nullifierState',
             args: [nid],
         });
-        expect(state2).toBe(2);
+        expect(state2).toBe(2n);
         const balAfter = await publicClient.getBalance({ address: RECIPIENT });
         expect(balAfter - balBefore).toBe(DENOMINATION);
     });
@@ -491,7 +499,7 @@ describe('NozkVaultV2 E2E on Anvil', () => {
                 functionName: 'nullifierState',
                 args: [nid],
             }),
-        ).toBe(0);
+        ).toBe(0n);
 
         // Deposit + announce + reveal
         const { S } = await depositAndAnnounce(seed, 50);
@@ -510,7 +518,7 @@ describe('NozkVaultV2 E2E on Anvil', () => {
                 functionName: 'nullifierState',
                 args: [nid],
             }),
-        ).toBe(1);
+        ).toBe(1n);
 
         // Redeem
         const deadline = (1n << 256n) - 1n;
@@ -538,7 +546,7 @@ describe('NozkVaultV2 E2E on Anvil', () => {
                 functionName: 'nullifierState',
                 args: [nid],
             }),
-        ).toBe(2);
+        ).toBe(2n);
     });
 
     it('eip712 hash matches solidity', async () => {

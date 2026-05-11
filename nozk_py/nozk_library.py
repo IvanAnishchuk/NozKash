@@ -336,14 +336,17 @@ def _derive_blind_keypair(base_material: bytes) -> TokenKeypair:
 def generate_mint_keypair() -> MintKeypair:
     """Generate a random BLS12-381 mint keypair (standard scheme: PK in G1).
 
-    Samples 32 random bytes, reduces mod ``CURVE_ORDER`` to obtain the secret
+    Samples 64 random bytes, reduces mod ``CURVE_ORDER`` to obtain the secret
     scalar ``sk``, and computes the public key ``pk = sk * G1_gen``.
 
     Returns:
         A :class:`MintKeypair` with a fresh random secret and corresponding
         G1 public key.
     """
-    sk = Scalar(int.from_bytes(os.urandom(64), "big") % CURVE_ORDER)
+    sk_int = 0
+    while sk_int == 0:
+        sk_int = int.from_bytes(os.urandom(64), "big") % CURVE_ORDER
+    sk = Scalar(sk_int)
     pk = g1_scalar_mul(G1_GEN, sk)
     return MintKeypair(sk=sk, pk=pk)
 
@@ -438,7 +441,8 @@ def blind_token(spend_bls_pub: G1Point, r: int) -> BlindedPoints:
     Performs two operations:
 
     1. **Hash-to-G2:** ABI-encodes the spend public key (G1) and hashes it to a
-       G2 point using try-and-increment:
+       G2 point using RFC 9380 (SHA-256 + MAP_FP2_TO_G2) with DST
+       ``BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_AUG_``:
        ``Y = H_G2(abi_encode_g1(spend_bls_pub))``.
     2. **Blind:** Multiplies by the blinding scalar: ``B = r * Y``.
 

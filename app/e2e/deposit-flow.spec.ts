@@ -110,10 +110,12 @@ test.describe('Deposit flow', () => {
     await expect(page.locator('.modal-overlay')).toBeVisible()
 
     // The modal body should contain the abbreviated paying account address
-    const addrShort = `${MOCK_ACCOUNT_ADDRESS.slice(0, 6)}` // e.g. "0xf39F"
+    const addrPrefix = MOCK_ACCOUNT_ADDRESS.slice(0, 6)
+    const addrSuffix = MOCK_ACCOUNT_ADDRESS.slice(-4)
     const modalSheet = page.locator('.modal-sheet')
     const text = await modalSheet.textContent()
-    expect(text).toContain(addrShort.slice(0, 6))
+    expect(text).toContain(addrPrefix)
+    expect(text).toContain(addrSuffix)
   })
 
   test('cancel button closes modal', async ({ page }) => {

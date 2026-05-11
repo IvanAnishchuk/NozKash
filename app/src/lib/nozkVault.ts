@@ -141,10 +141,17 @@ function lastUsedFromVaultActivityRows(rows: VaultTx[]): number {
   return last
 }
 
-type ScanCacheEntry = { at: number; rows: VaultTx[] }
+type ScanCacheEntry = {
+  at: number
+  rows: VaultTx[]
+  lastBlock: number   // highest block number seen across all rows
+  batchCount: number  // number of non-empty batches in last scan
+}
 const vaultActivityCache = new Map<string, ScanCacheEntry>()
 let inflightActivityKey: string | null = null
 let inflightActivityPromise: Promise<VaultTx[]> | null = null
+/** Bumped on stale-mark; if it changed during flight, don't cache the result. */
+let cacheGeneration = 0
 
 /** Dev or `VITE_NOZK_DEBUG=true` — enables {@link nozkVaultActivityDebug}. */
 export function isNozkVaultActivityDebug(): boolean {
@@ -157,10 +164,22 @@ export function nozkVaultActivityDebug(...args: unknown[]): void {
 }
 
 /**
- * Invalidates the `fetchVaultActivityForFirstTokens` cache (e.g. after a confirmed deposit).
+ * Marks all cache entries as stale so the next fetch bypasses TTL,
+ * but keeps existing rows intact for incremental use.
  */
-export function invalidateVaultActivityCache(): void {
-  nozkVaultActivityDebug('invalidateVaultActivityCache: cleared')
+export function markVaultActivityCacheStale(): void {
+  nozkVaultActivityDebug('markVaultActivityCacheStale')
+  cacheGeneration++
+  for (const entry of vaultActivityCache.values()) {
+    entry.at = 0
+  }
+}
+
+/**
+ * Fully clears the cache (e.g. on account switch where the seed changes).
+ */
+export function clearVaultActivityCache(): void {
+  nozkVaultActivityDebug('clearVaultActivityCache')
   vaultActivityCache.clear()
 }
 
@@ -175,26 +194,23 @@ export type NozkVaultOptimisticPendingDetail = {
   networkLabel: string
 }
 
-let nozkVaultLiveActive = false
-
 /**
- * When vault live (WebSocket incremental updates) is active, we avoid clearing
- * the HTTP activity cache on deposit/redeem so the app doesn’t immediately
- * re-scan large log ranges and trigger 429s.
+ * No-op kept for API compatibility with useNozkVaultActivityLive.
  */
-export function setNozkVaultLiveActive(active: boolean): void {
-  nozkVaultLiveActive = active
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function setNozkVaultLiveActive(_active: boolean): void {
+  // no-op
 }
 
 let vaultActivityRefreshDebounce: number | null = null
 
 /**
  * Notifies listeners (e.g. Dashboard) to refetch soon (debounced to avoid
- * duplicate scans). When live updates are active we skip clearing the HTTP
- * cache to keep the app stable on public RPC.
+ * duplicate scans). Marks the cache as stale so the next fetch bypasses TTL
+ * but keeps existing rows for incremental scanning.
  */
 export function requestVaultActivityRefresh(): void {
-  if (!nozkVaultLiveActive) invalidateVaultActivityCache()
+  markVaultActivityCacheStale()
   if (vaultActivityRefreshDebounce != null) {
     window.clearTimeout(vaultActivityRefreshDebounce)
   }
@@ -611,18 +627,13 @@ async function fetchLogsForDepositIds(
     return out
   }
 
-  let logs: RpcLog[] = []
   try {
-    logs = await ethGetLogsAutoChunk(rpc, partialOr, fromBlock, 'latest')
+    const logs = await ethGetLogsAutoChunk(rpc, partialOr, fromBlock, 'latest')
+    return Array.isArray(logs) ? logs : []
   } catch {
-    logs = []
+    // OR filter not supported by this RPC — fall back to one query per depositId
+    return fetchPerTopic1()
   }
-  if (!Array.isArray(logs)) logs = []
-
-  if (logs.length === 0 && topic1List.length > 0) {
-    logs = await fetchPerTopic1()
-  }
-  return logs
 }
 
 function latestLogByDepositId(
@@ -933,18 +944,17 @@ export async function fetchVaultActivityForFirstTokens(
   const ttl = scanCacheTtlMs()
   const now = Date.now()
 
-  if (!options?.skipCache && ttl > 0) {
-    const hit = vaultActivityCache.get(cacheKey)
-    if (hit && now - hit.at < ttl) {
-      nozkVaultActivityDebug('cache hit', {
-        ageMs: now - hit.at,
-        ttlMs: ttl,
-        rowCount: hit.rows.length,
-        tokenIndices: hit.rows.map((r) => r.tokenIndex),
-      })
-      options?.onProgress?.(hit.rows)
-      return hit.rows
-    }
+  const existing = vaultActivityCache.get(cacheKey)
+
+  if (!options?.skipCache && ttl > 0 && existing && now - existing.at < ttl) {
+    nozkVaultActivityDebug('cache hit', {
+      ageMs: now - existing.at,
+      ttlMs: ttl,
+      rowCount: existing.rows.length,
+      tokenIndices: existing.rows.map((r) => r.tokenIndex),
+    })
+    options?.onProgress?.(existing.rows)
+    return existing.rows
   }
 
   if (inflightActivityKey === cacheKey && inflightActivityPromise) {
@@ -952,25 +962,51 @@ export async function fetchVaultActivityForFirstTokens(
     return inflightActivityPromise
   }
 
+  // Incremental scan if we have stale cached data
+  const isIncremental = existing != null && existing.lastBlock > 0
+  const scanFromBlock = isIncremental
+    ? '0x' + (existing.lastBlock + 1).toString(16)
+    : fromBlock
+  const incrementalParams = isIncremental
+    ? { minBatches: existing.batchCount + 1 }
+    : undefined
+
   nozkVaultActivityDebug('fetch start', {
     skipCache: options?.skipCache ?? false,
     ttlMs: ttl,
     vault,
-    fromBlock,
-    cacheKeyPrefix: `${vault.slice(0, 10)}…|${fromBlock}`,
+    scanFromBlock,
+    incremental: isIncremental,
+    cachedRows: existing?.rows.length ?? 0,
   })
 
+  const genAtStart = cacheGeneration
   inflightActivityKey = cacheKey
   inflightActivityPromise = fetchVaultActivityForFirstTokensImpl(
     masterSeed,
     options,
     vault,
-    fromBlock
-  ).then((rows) => {
-    if (!options?.skipCache && ttl > 0) {
-      vaultActivityCache.set(cacheKey, { at: Date.now(), rows })
+    scanFromBlock,
+    incrementalParams
+  ).then(({ rows: newRows, batchCount: newBatchCount }) => {
+    // Merge incremental results with cached rows
+    const finalRows = isIncremental && existing
+      ? mergeIncrementalRows(existing.rows, newRows)
+      : newRows
+    const lastBlock = Math.max(
+      existing?.lastBlock ?? 0,
+      ...finalRows.map((r) => r.blockNumber ?? 0)
+    )
+    // Only cache if no stale-mark happened during this fetch
+    if (!options?.skipCache && ttl > 0 && cacheGeneration === genAtStart) {
+      vaultActivityCache.set(cacheKey, {
+        at: Date.now(),
+        rows: finalRows,
+        lastBlock,
+        batchCount: Math.max(existing?.batchCount ?? 0, newBatchCount),
+      })
     }
-    return rows
+    return finalRows
   })
 
   try {
@@ -984,6 +1020,21 @@ export async function fetchVaultActivityForFirstTokens(
 type VaultRowDraft = {
   row: Omit<VaultTx, 'dateIso' | 'time'>
   blockHex?: string
+}
+
+/**
+ * Merge incremental scan results into cached rows.
+ * New rows override cached rows with the same tokenIndex.
+ */
+function mergeIncrementalRows(cached: VaultTx[], incremental: VaultTx[]): VaultTx[] {
+  const merged = new Map<number, VaultTx>()
+  for (const r of cached) {
+    if (r.tokenIndex != null) merged.set(r.tokenIndex, r)
+  }
+  for (const r of incremental) {
+    if (r.tokenIndex != null) merged.set(r.tokenIndex, r)
+  }
+  return Array.from(merged.values()).sort(sortVaultRowsCompare)
 }
 
 function sortVaultRowsCompare(a: VaultTx, b: VaultTx): number {
@@ -1023,12 +1074,15 @@ async function finalizeDraftsToRows(
   }))
 }
 
+type ScanResult = { rows: VaultTx[]; batchCount: number }
+
 async function fetchVaultActivityForFirstTokensImpl(
   masterSeed: Uint8Array,
   options: NozkVaultFetchOptions | undefined,
   vault: string,
-  fromBlock: string
-): Promise<VaultTx[]> {
+  fromBlock: string,
+  incremental?: { minBatches: number }
+): Promise<ScanResult> {
   const netLabel = options?.networkLabel ?? TARGET_NETWORK_LABEL
   const rpc = createVaultScanRpcLimiter(
     NOZK_VAULT_SCAN_RPC_BURST,
@@ -1039,18 +1093,26 @@ async function fetchVaultActivityForFirstTokensImpl(
       ? Math.min(options.maxBatches, NOZK_VAULT_ACTIVITY_MAX_BATCHES)
       : NOZK_VAULT_ACTIVITY_MAX_BATCHES
 
+  const effectiveMaxBatches = incremental
+    ? Math.min(incremental.minBatches, NOZK_VAULT_ACTIVITY_MAX_BATCHES)
+    : maxBatches
+
   nozkVaultActivityDebug('scan batches', {
     burst: NOZK_VAULT_SCAN_RPC_BURST,
     pauseMs: NOZK_VAULT_SCAN_RPC_PAUSE_MS,
     batchSize: NOZK_VAULT_TOKEN_BATCH_SIZE,
-    maxBatches,
-    note: 'stop after first empty batch (contiguous index assumption)',
+    maxBatches: effectiveMaxBatches,
+    incremental: !!incremental,
+    note: incremental
+      ? `incremental: scan ${effectiveMaxBatches} batches, no early stop`
+      : 'stop after first empty batch (contiguous index assumption)',
   })
 
   let mergedRows: VaultTx[] = []
+  let nonEmptyBatchCount = 0
   /** Stop at first empty batch under contiguous index assumption. */
 
-  for (let b = 0; b < maxBatches; b++) {
+  for (let b = 0; b < effectiveMaxBatches; b++) {
     const indices = batchTokenIndices(b)
     // On-chain match: derived depositId ⇔ log topic1 (see `latestLogByDepositId`).
     // Debug: `vaultDerivedAddressesForIndices(masterSeed, indices)`.
@@ -1293,10 +1355,14 @@ async function fetchVaultActivityForFirstTokensImpl(
       fulfilledById,
       refundedById
     )
+    if (batchAny) nonEmptyBatchCount++
 
     // Progressive loading: update UI after each batch, even if it yielded no new rows.
     options?.onBatchProgress?.(b, mergedRows, indices)
-    if (!batchAny) {
+
+    // In incremental mode, scan all requested batches (don't stop early).
+    // In full-scan mode, stop at first empty batch (contiguous index assumption).
+    if (!incremental && !batchAny) {
       nozkVaultActivityDebug(
         'scan stop: first empty batch (no DepositLocked / MintFulfilled / Refunded)',
         { batchIndex: b, tokenIndices: indices }
@@ -1304,9 +1370,10 @@ async function fetchVaultActivityForFirstTokensImpl(
       break
     }
 
-    if (b === maxBatches - 1) {
-      nozkVaultActivityDebug('scan stop: reached maxBatches cap', {
-        maxBatches,
+    if (b === effectiveMaxBatches - 1) {
+      nozkVaultActivityDebug('scan stop: reached batch cap', {
+        maxBatches: effectiveMaxBatches,
+        incremental: !!incremental,
         lastBatchTokenIndices: indices,
       })
     }
@@ -1321,7 +1388,7 @@ async function fetchVaultActivityForFirstTokensImpl(
     })),
   })
 
-  return mergedRows
+  return { rows: mergedRows, batchCount: nonEmptyBatchCount }
 }
 
 /**

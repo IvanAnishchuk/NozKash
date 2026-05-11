@@ -42,6 +42,7 @@ import uvicorn
 from dotenv import load_dotenv
 from eth_utils import keccak
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from rich import box
 from rich.panel import Panel
@@ -481,6 +482,12 @@ class Relayer:
 # ── FastAPI app ───────────────────────────────────────────────────────────────
 
 fastapi_app = FastAPI(title="Nozk Relayer", version="0.1.0")
+fastapi_app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # TODO: make it narrow for production
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 _relayer: Optional[Relayer] = None
 

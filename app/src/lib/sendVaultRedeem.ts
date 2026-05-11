@@ -8,9 +8,8 @@ import { isNozkVaultDebugEnabled } from './nozkDebug'
 import {
   fetchMintFulfilledSPrime,
   NOZK_VAULT_ADDRESS,
-  requestVaultActivityRefresh,
 } from './nozkVault'
-import { TARGET_CHAIN_ID_DECIMAL } from './ethereum'
+import { TARGET_CHAIN_ID_DECIMAL, waitForTransactionReceipt } from './ethereum'
 
 function redeemDebug(msg: string, data?: Record<string, unknown>) {
   if (!isNozkVaultDebugEnabled()) return
@@ -65,7 +64,7 @@ export async function sendRelayerRevealTransaction(params: {
   })
 
   redeemDebug('reveal relayer response', result as unknown as Record<string, unknown>)
-  requestVaultActivityRefresh()
+  await waitForTransactionReceipt(result.tx_hash)
   return { txHash: result.tx_hash }
 }
 
@@ -96,7 +95,7 @@ export async function sendRelayerRedeemTransaction(params: {
   })
 
   redeemDebug('redeem relayer response', result as unknown as Record<string, unknown>)
+  await waitForTransactionReceipt(result.tx_hash)
   clearRedemptionDraft()
-  requestVaultActivityRefresh()
   return { txHash: result.tx_hash }
 }

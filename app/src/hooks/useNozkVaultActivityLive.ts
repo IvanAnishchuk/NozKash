@@ -156,8 +156,6 @@ export function useNozkVaultActivityLive(params: {
       }
 
       prioritizeOptimisticTickRef.current = true
-      // Keep previous behavior when WS is active: avoid full snapshot overwrite.
-      if (wsEnabled) return
       void (async () => {
         try {
           const snap = await fetchVaultActivityForFirstTokens(seed, {
@@ -172,7 +170,6 @@ export function useNozkVaultActivityLive(params: {
     }, NOZK_VAULT_RPC_POLL_MS)
 
     const onRefresh = () => {
-      if (wsEnabled) return
       void (async () => {
         try {
           const snap = await fetchVaultActivityForFirstTokens(seed, {

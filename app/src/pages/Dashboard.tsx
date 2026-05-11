@@ -22,6 +22,7 @@ import {
   filterVaultActivity,
   formatTxAmountDisplay,
 } from '../lib/historyQuery'
+import { requestVaultActivityRefresh } from '../lib/nozkVault'
 import { sendRelayerRedeemTransaction, sendRelayerRevealTransaction } from '../lib/sendVaultRedeem'
 import { sendVaultRefundTransaction } from '../lib/sendVaultRefund'
 import { mergeVaultRowsWithRedeemDraft } from '../lib/vaultRedeemMerge'
@@ -173,7 +174,7 @@ function BatchRedeemSection({
 
   // Default reveal to all available; default redeem to 1; clamp when counts change
   useEffect(() => {
-    setRevealCount((c) => c === 0 && maxRevealable > 0 ? maxRevealable : Math.min(c, Math.max(0, maxRevealable)))
+    setRevealCount(maxRevealable)
   }, [maxRevealable])
   useEffect(() => {
     setRedeemCount((c) => c === 0 && maxRedeemable > 0 ? Math.min(1, maxRedeemable) : Math.min(c, Math.max(0, maxRedeemable)))
@@ -208,6 +209,8 @@ function BatchRedeemSection({
       }
       if (successCount > 0) {
         requestWalletBalanceRefresh()
+        requestVaultActivityRefresh()
+        setRevealCount(0)
         showToast(`${successCount} token(s) revealed via relayer`, 'success')
       }
     } finally {
@@ -240,6 +243,9 @@ function BatchRedeemSection({
       }
       if (successCount > 0) {
         requestWalletBalanceRefresh()
+        requestVaultActivityRefresh()
+        setRedeemCount(0)
+        setRecipient('')
         showToast(
           `${successCount} token(s) redeemed (${(successCount * VAULT_DENOMINATION_ETH).toFixed(3)} ETH) to ${recipient.trim().slice(0, 8)}...`,
           'success'
@@ -474,7 +480,7 @@ export function Dashboard() {
 
   const homeStats = useMemo(() => {
     const revealedCount = vaultChainRows.filter((r) => r.type === 'Revealed').length
-    const pendingCount = vaultChainRows.filter((r) => r.type === 'Deposit').length
+    const pendingCount = vaultChainRows.filter((r) => r.type === 'Pending' || r.type === 'Deposit').length
     const spentCount = vaultChainRows.filter((r) => r.type === 'Redeem').length
     return {
       revealedCount,
@@ -516,6 +522,7 @@ export function Dashboard() {
         tokenIndex: item.tokenIndex,
       })
       requestWalletBalanceRefresh()
+      requestVaultActivityRefresh()
       showToast('Reveal confirmed · nullifier registered on-chain', 'success')
     } catch (err: unknown) {
       const e = err as { code?: number; message?: string }

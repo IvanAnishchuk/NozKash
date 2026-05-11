@@ -15,7 +15,7 @@ import {
   weiHexToNativeLabel,
 } from '../lib/ethereum'
 import {
-  invalidateVaultActivityCache,
+  clearVaultActivityCache,
   requestVaultActivityRefresh,
 } from '../lib/nozkVault'
 import type { LayoutOutletContext } from '../layoutOutletContext'
@@ -164,7 +164,7 @@ export function Layout() {
       prev !== prep &&
       curr === prep
     ) {
-      invalidateVaultActivityCache()
+      clearVaultActivityCache()
       requestVaultActivityRefresh()
     }
 

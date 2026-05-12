@@ -6,7 +6,6 @@ import {
 import { chainRpcCall } from './chainPublicRpc'
 import {
   NOZK_VAULT_ADDRESS,
-  requestVaultActivityRefresh,
 } from './nozkVault'
 
 export type EthereumRequester = {
@@ -81,6 +80,5 @@ export async function sendVaultRefundTransaction(params: {
     throw new Error('Transaction reverted')
   }
 
-  requestVaultActivityRefresh()
   return { txHash: hash }
 }

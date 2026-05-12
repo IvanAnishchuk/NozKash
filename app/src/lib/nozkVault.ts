@@ -6,6 +6,7 @@ import {
 } from '@nozk/nozk-library'
 import { bytesToHex } from '@nozk/bls12-381-crypto'
 import { TARGET_NETWORK_LABEL } from './ethereum'
+import type { ActivityKind } from '../types/activity'
 import { chainRpcCall } from './chainPublicRpc'
 import { isNozkVaultDebugEnabled } from './nozkDebug'
 import type { VaultTx } from '../types/activity'
@@ -181,6 +182,94 @@ export function markVaultActivityCacheStale(): void {
 export function clearVaultActivityCache(): void {
   nozkVaultActivityDebug('clearVaultActivityCache')
   vaultActivityCache.clear()
+  clearAllPersistedVaultActivity()
+}
+
+// ---------------------------------------------------------------------------
+// localStorage persistence — instant reload without full chain re-scan.
+// Implemented in Phase 4; stubs here so Phase 1 compiles.
+// ---------------------------------------------------------------------------
+
+const PERSIST_DEBOUNCE_MS = 1000
+let persistDebounceTimer: number | null = null
+
+/** Schema for localStorage entries. */
+type PersistedVaultActivity = {
+  v: 1
+  rows: VaultTx[]
+  lastBlock: number
+  savedAt: number
+}
+
+/** localStorage key prefix. The suffix is seed-derived so data is unusable without login. */
+const LS_VAULT_ACTIVITY_PREFIX = 'nozk:vault-activity:'
+
+function vaultActivityLsKey(masterSeed: Uint8Array): string {
+  return LS_VAULT_ACTIVITY_PREFIX + bytesToHex(keccak256(masterSeed)).slice(0, 16)
+}
+
+/** Tracks the current seed key so `debouncedPersistAllCaches` knows which LS key to write. */
+let currentSeedKey: string | null = null
+let currentMasterSeed: Uint8Array | null = null
+
+/** Called during fetch to register which seed we're operating with. */
+export function setVaultActivitySeedContext(masterSeed: Uint8Array): void {
+  currentSeedKey = vaultActivityLsKey(masterSeed)
+  currentMasterSeed = masterSeed
+}
+
+function persistVaultActivity(seedKey: string, rows: VaultTx[], lastBlock: number): void {
+  try {
+    const data: PersistedVaultActivity = { v: 1, rows, lastBlock, savedAt: Date.now() }
+    localStorage.setItem(seedKey, JSON.stringify(data))
+    nozkVaultActivityDebug('persisted to localStorage', { seedKey, rowCount: rows.length, lastBlock })
+  } catch {
+    // localStorage full or unavailable — non-critical
+  }
+}
+
+export function loadPersistedVaultActivity(masterSeed: Uint8Array): PersistedVaultActivity | null {
+  try {
+    const key = vaultActivityLsKey(masterSeed)
+    const raw = localStorage.getItem(key)
+    if (!raw) return null
+    const data = JSON.parse(raw) as PersistedVaultActivity
+    if (data?.v !== 1 || !Array.isArray(data.rows)) return null
+    nozkVaultActivityDebug('loaded from localStorage', { key, rowCount: data.rows.length, lastBlock: data.lastBlock })
+    return data
+  } catch {
+    return null
+  }
+}
+
+function clearAllPersistedVaultActivity(): void {
+  try {
+    const keys: string[] = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (k?.startsWith(LS_VAULT_ACTIVITY_PREFIX)) keys.push(k)
+    }
+    for (const k of keys) localStorage.removeItem(k)
+  } catch {
+    // non-critical
+  }
+}
+
+/** Debounced write of current in-memory cache to localStorage. */
+function debouncedPersistAllCaches(): void {
+  if (!currentSeedKey) return
+  if (persistDebounceTimer != null) window.clearTimeout(persistDebounceTimer)
+  persistDebounceTimer = window.setTimeout(() => {
+    persistDebounceTimer = null
+    if (!currentSeedKey || !currentMasterSeed) return
+    // Find the cache entry for the current seed
+    for (const [key, entry] of vaultActivityCache.entries()) {
+      if (key.endsWith(bytesToHex(keccak256(currentMasterSeed)))) {
+        persistVaultActivity(currentSeedKey, entry.rows, entry.lastBlock)
+        break
+      }
+    }
+  }, PERSIST_DEBOUNCE_MS)
 }
 
 /** Dispatched after deposit/redeem so UIs refetch activity without waiting for the poll interval. */
@@ -226,6 +315,106 @@ export function publishOptimisticPendingDeposit(
   window.dispatchEvent(
     new CustomEvent<NozkVaultOptimisticPendingDetail>(
       NOZK_VAULT_OPTIMISTIC_PENDING_EVENT,
+      { detail }
+    )
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Local state mutations — update UI instantly after user-initiated actions
+// (reveal, redeem, refund) without triggering a full chain re-scan.
+// ---------------------------------------------------------------------------
+
+/** Dispatched after a confirmed user action to update a single row in the UI. */
+export const NOZK_VAULT_ROW_UPDATE_EVENT = 'nozk:vault-row-update'
+
+export type NozkVaultRowUpdateDetail = {
+  tokenIndex: number
+  newType: ActivityKind
+  txHash: string
+  blockNumber?: number
+}
+
+/**
+ * Build an updated `VaultTx` from an existing row after a known state
+ * transition (reveal, redeem, refund). Keeps amount, counterparty,
+ * tokenIndex, and dateIso from the original.
+ */
+export function buildLocalMutatedRow(
+  existingRow: VaultTx,
+  newType: ActivityKind,
+  txHash: string,
+  blockNumber?: number
+): VaultTx {
+  const idx = existingRow.tokenIndex ?? -1
+  const bn = blockNumber ?? existingRow.blockNumber
+  const netLabel = existingRow.historySub.match(/· ([^·]+)$/)?.[1]?.trim() ?? TARGET_NETWORK_LABEL
+
+  let idPrefix: string
+  let label: string
+  let sub: string
+  switch (newType) {
+    case 'Revealed':
+      idPrefix = 'vault-revealed'
+      label = `Revealed · ready to redeem · token #${idx}`
+      sub = `NullifierRevealed · block ${bn || '?'} · ${netLabel}`
+      break
+    case 'Redeem':
+      idPrefix = 'vault-redeemed'
+      label = `Redeem · spent · token #${idx}`
+      sub = `nullifier spent · block ${bn || '?'} · ${netLabel}`
+      break
+    case 'Refunded':
+      idPrefix = 'vault-refunded'
+      label = `Deposit · refunded · token #${idx}`
+      sub = `Refunded · ${txShort(txHash)} · block ${bn || '?'} · ${netLabel}`
+      break
+    case 'Deposit':
+      idPrefix = 'vault-deposit'
+      label = `Deposit · mint fulfilled · token #${idx}`
+      sub = `MintFulfilled · ${txShort(txHash)} · block ${bn || '?'} · ${netLabel}`
+      break
+    default:
+      idPrefix = 'vault-pending'
+      label = `Deposit · pending · token #${idx}`
+      sub = `DepositLocked · ${txShort(txHash)} · block ${bn || '?'} · ${netLabel}`
+      break
+  }
+
+  return {
+    ...existingRow,
+    id: `${idPrefix}-${idx}`,
+    type: newType,
+    txHash,
+    blockNumber: bn,
+    historyLabel: label,
+    historySub: sub,
+  }
+}
+
+/**
+ * Write-through mutation: update the row for `tokenIndex` in every
+ * in-memory cache entry. Does NOT mark cache stale — the data is up-to-date.
+ */
+export function mutateVaultActivityCacheRow(
+  tokenIndex: number,
+  newType: ActivityKind,
+  txHash: string,
+  blockNumber?: number
+): void {
+  for (const entry of vaultActivityCache.values()) {
+    const idx = entry.rows.findIndex((r) => r.tokenIndex === tokenIndex)
+    if (idx === -1) continue
+    entry.rows[idx] = buildLocalMutatedRow(entry.rows[idx]!, newType, txHash, blockNumber)
+  }
+  debouncedPersistAllCaches()
+}
+
+/** Dispatch a row-update event for the hook to apply to React state. */
+export function publishVaultRowUpdate(detail: NozkVaultRowUpdateDetail): void {
+  window.dispatchEvent(
+    new CustomEvent<NozkVaultRowUpdateDetail>(
+      NOZK_VAULT_ROW_UPDATE_EVENT,
       { detail }
     )
   )
@@ -944,6 +1133,28 @@ export async function fetchVaultActivityForFirstTokens(
   const ttl = scanCacheTtlMs()
   const now = Date.now()
 
+  // Register seed context for localStorage persistence
+  setVaultActivitySeedContext(masterSeed)
+
+  // Seed in-memory cache from localStorage if cold (no in-memory entry at all)
+  if (!vaultActivityCache.has(cacheKey)) {
+    const persisted = loadPersistedVaultActivity(masterSeed)
+    if (persisted && persisted.rows.length > 0) {
+      nozkVaultActivityDebug('seeding cache from localStorage', {
+        rowCount: persisted.rows.length,
+        lastBlock: persisted.lastBlock,
+      })
+      vaultActivityCache.set(cacheKey, {
+        at: 0,  // stale — will trigger incremental scan
+        rows: persisted.rows,
+        lastBlock: persisted.lastBlock,
+        batchCount: Math.ceil(persisted.rows.length / NOZK_VAULT_TOKEN_BATCH_SIZE),
+      })
+      // Immediately show persisted rows while incremental scan runs
+      options?.onProgress?.(persisted.rows)
+    }
+  }
+
   const existing = vaultActivityCache.get(cacheKey)
 
   if (!options?.skipCache && ttl > 0 && existing && now - existing.at < ttl) {
@@ -962,7 +1173,7 @@ export async function fetchVaultActivityForFirstTokens(
     return inflightActivityPromise
   }
 
-  // Incremental scan if we have stale cached data
+  // Incremental scan if we have stale cached data (from in-memory or localStorage)
   const isIncremental = existing != null && existing.lastBlock > 0
   const scanFromBlock = isIncremental
     ? '0x' + (existing.lastBlock + 1).toString(16)
@@ -1005,6 +1216,7 @@ export async function fetchVaultActivityForFirstTokens(
         lastBlock,
         batchCount: Math.max(existing?.batchCount ?? 0, newBatchCount),
       })
+      debouncedPersistAllCaches()
     }
     return finalRows
   })

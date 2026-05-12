@@ -20,7 +20,6 @@ import {
   NOZK_VAULT_DEPOSIT_VALUE_WEI_HEX,
   getNextVaultTokenIndexForDeposit,
   publishOptimisticPendingDeposit,
-  requestVaultActivityRefresh,
 } from '../../lib/nozkVault'
 import {
   buildNozkVaultDepositCalldata,
@@ -285,7 +284,6 @@ export function DepositConfirmModal({ open, onClose, onToast }: Props) {
         txHash: hash,
         networkLabel: TARGET_NETWORK_LABEL,
       })
-      requestVaultActivityRefresh()
       requestWalletBalanceRefresh()
       onClose()
       onToast(

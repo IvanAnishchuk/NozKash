@@ -244,6 +244,27 @@ wheels = [
 ]
 
 [[package]]
+name = "chia-rs"
+version = "0.43.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/bd/40/d6333bcdacf0908a7d88b854366c1e511cc3677bd15c1919deb2ce00c3cc/chia_rs-0.43.0.tar.gz", hash = "sha256:cf8641b84316778b5eb5864df73ff39357c4350c954963c9e945b63fec7f9fe8", size = 314945, upload-time = "2026-05-19T12:54:23.166Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c6/50/b06f174dbda346f9d06b54ff6032c1c4aafe5118081a72b0b32c7705c7b3/chia_rs-0.43.0-cp313-cp313-macosx_13_0_arm64.whl", hash = "sha256:70d1a27131209157e6887eefc89723ce9e397778bb6e45ebdd39f186514949ac", size = 3750830, upload-time = "2026-05-19T12:54:04.765Z" },
+    { url = "https://files.pythonhosted.org/packages/2a/b7/1e6683e8d6d3a200a9050a4169e080922d2eccb190f76eb475230877ba13/chia_rs-0.43.0-cp313-cp313-macosx_13_0_x86_64.whl", hash = "sha256:2c55aa8635f717931669f742d8505a94a7ee6a48018ba6b93d98d0a7bbd7ed39", size = 4056235, upload-time = "2026-05-19T12:54:06.775Z" },
+    { url = "https://files.pythonhosted.org/packages/b2/f7/29ee67a45dbd5a576434e08922c1add3bc63b175ce1fe1155c2345838b04/chia_rs-0.43.0-cp313-cp313-manylinux_2_28_aarch64.whl", hash = "sha256:e221e5e5e0b89d40f9cbea686c19e1518a76a6ed26b2ff586eb160797f29fed7", size = 5522442, upload-time = "2026-05-19T12:54:09.261Z" },
+    { url = "https://files.pythonhosted.org/packages/51/bb/b60156152cd0ea902fe9c93dedb421dfc6c09dc339a1922378517e167f9c/chia_rs-0.43.0-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:49a7685a134bac1544e45852e1af9a4abeb3de10a203b672305eaee2d3bc795f", size = 5606939, upload-time = "2026-05-19T12:54:11.097Z" },
+    { url = "https://files.pythonhosted.org/packages/ef/16/31a82c8c6e8bfb4a84969d99c3a6d5907a1d12e9b0792a7c0c99f83a9b7c/chia_rs-0.43.0-cp313-cp313-win_amd64.whl", hash = "sha256:ac396f34ea23d8bd005996a242d7afe9746525d7affde3780d8fb4a5ed3a2d9b", size = 3695753, upload-time = "2026-05-19T12:54:13.302Z" },
+    { url = "https://files.pythonhosted.org/packages/92/aa/4bd76012637fa9e505082455c0c72435a46cf251df4e45e81983427b074e/chia_rs-0.43.0-cp314-cp314-macosx_13_0_arm64.whl", hash = "sha256:a3632b598318060002b3dd9608327e87da91e9e89162e30438f4657c421fd6b0", size = 3766572, upload-time = "2026-05-19T12:54:14.832Z" },
+    { url = "https://files.pythonhosted.org/packages/ab/2d/7503e12c863b145fe338871c15015b724e445eac00cffe4f96f9511be9f1/chia_rs-0.43.0-cp314-cp314-macosx_13_0_x86_64.whl", hash = "sha256:99c7c7c4d860659d1e79f081c01d549dd6ced91c367205d7666c4cd8ba470192", size = 4061035, upload-time = "2026-05-19T12:54:16.395Z" },
+    { url = "https://files.pythonhosted.org/packages/b2/40/210396c8ecd8c6fec03dda4b35cddd4b0976c43b37cd9259a92791145c29/chia_rs-0.43.0-cp314-cp314-manylinux_2_28_aarch64.whl", hash = "sha256:78329d9df58f419a5f68709f0f26093662237bd2aa086d829019aad6a1221d72", size = 5545991, upload-time = "2026-05-19T12:54:17.997Z" },
+    { url = "https://files.pythonhosted.org/packages/f5/63/c832252c90dbdba3f75d9cbb2559c42198b2bea7ad5d29bd9cb456b5d1f5/chia_rs-0.43.0-cp314-cp314-manylinux_2_28_x86_64.whl", hash = "sha256:6b16e2d4660a3ab2a7651286c9e31130f32fb3652828a6047a8f87a87f4c81ed", size = 5620109, upload-time = "2026-05-19T12:54:19.695Z" },
+    { url = "https://files.pythonhosted.org/packages/fc/42/140496bb299741efaca6f25dc85ae6a39504d49bc7cd4f17f5e5cfed9b35/chia_rs-0.43.0-cp314-cp314-win_amd64.whl", hash = "sha256:26d312fee8a12e38721d615e906f86faf5dfaff6df4a3ba50f8ff1a1a5a17dc8", size = 3704866, upload-time = "2026-05-19T12:54:21.504Z" },
+]
+
+[[package]]
 name = "ckzg"
 version = "2.1.7"
 source = { registry = "https://pypi.org/simple" }
@@ -678,11 +699,11 @@ wheels = [
 
 [[package]]
 name = "idna"
-version = "3.13"
+version = "3.15"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/ce/cc/762dfb036166873f0059f3b7de4565e1b5bc3d6f28a414c13da27e442f99/idna-3.13.tar.gz", hash = "sha256:585ea8fe5d69b9181ec1afba340451fba6ba764af97026f92a91d4eef164a242", size = 194210, upload-time = "2026-04-22T16:42:42.314Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/82/77/7b3966d0b9d1d31a36ddf1746926a11dface89a83409bf1483f0237aa758/idna-3.15.tar.gz", hash = "sha256:ca962446ea538f7092a95e057da437618e886f4d349216d2b1e294abfdb65fdc", size = 199245, upload-time = "2026-05-12T22:45:57.011Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/5d/13/ad7d7ca3808a898b4612b6fe93cde56b53f3034dcde235acb1f0e1df24c6/idna-3.13-py3-none-any.whl", hash = "sha256:892ea0cde124a99ce773decba204c5552b69c3c67ffd5f232eb7696135bc8bb3", size = 68629, upload-time = "2026-04-22T16:42:40.909Z" },
+    { url = "https://files.pythonhosted.org/packages/d2/23/408243171aa9aaba178d3e2559159c24c1171a641aa83b67bdd3394ead8e/idna-3.15-py3-none-any.whl", hash = "sha256:048adeaf8c2d788c40fee287673ccaa74c24ffd8dcf09ffa555a2fbb59f10ac8", size = 72340, upload-time = "2026-05-12T22:45:55.733Z" },
 ]
 
 [[package]]
@@ -980,6 +1001,7 @@ name = "nozkash"
 version = "0.1.0"
 source = { editable = "../nozk_py" }
 dependencies = [
+    { name = "chia-rs" },
     { name = "eth-hash", extra = ["pycryptodome"] },
     { name = "eth-keys" },
     { name = "eth-utils" },
@@ -996,23 +1018,25 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "chia-rs", specifier = ">=0.42.1,<1" },
     { name = "eth-hash", extras = ["pycryptodome"], specifier = ">=0.7.1" },
     { name = "eth-keys", specifier = ">=0.7.0" },
     { name = "eth-utils", specifier = ">=5.3.1" },
     { name = "fastapi", specifier = ">=0.115.0" },
     { name = "httpx", specifier = ">=0.28.0" },
-    { name = "py-ecc", specifier = ">=8.0.0" },
+    { name = "py-ecc", specifier = ">=7.0" },
     { name = "pycryptodome", specifier = ">=3.23.0" },
     { name = "pytest", specifier = ">=9.0.3" },
     { name = "python-dotenv", specifier = ">=1.2.2" },
     { name = "typer", specifier = ">=0.24.1" },
     { name = "uvicorn", specifier = ">=0.34.0" },
-    { name = "web3", specifier = ">=7.14.1" },
+    { name = "web3", specifier = ">=7.16.0" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "pre-commit", specifier = ">=4.2.0" },
+    { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "ruff", specifier = ">=0.15.0" },
     { name = "ty", specifier = ">=0.0.7" },
 ]
@@ -1286,15 +1310,15 @@ wheels = [
 
 [[package]]
 name = "pymdown-extensions"
-version = "10.21.2"
+version = "10.21.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "markdown" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/df/08/f1c908c581fd11913da4711ea7ba32c0eee40b0190000996bb863b0c9349/pymdown_extensions-10.21.2.tar.gz", hash = "sha256:c3f55a5b8a1d0edf6699e35dcbea71d978d34ff3fa79f3d807b8a5b3fa90fbdc", size = 853922, upload-time = "2026-03-29T15:01:55.233Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9e/26/d1015444da4d952a1ca487a236b522eb979766f0295a0bd0c5fc089989a9/pymdown_extensions-10.21.3.tar.gz", hash = "sha256:72cfcf55f07aea0d4af2c4f11dd4e52466ddfb1bb819673146398e0bd3a77354", size = 854140, upload-time = "2026-05-13T12:57:32.267Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f7/27/a2fc51a4a122dfd1015e921ae9d22fee3d20b0b8080d9a704578bf9deece/pymdown_extensions-10.21.2-py3-none-any.whl", hash = "sha256:5c0fd2a2bea14eb39af8ff284f1066d898ab2187d81b889b75d46d4348c01638", size = 268901, upload-time = "2026-03-29T15:01:53.244Z" },
+    { url = "https://files.pythonhosted.org/packages/7e/85/545a951eecc270fcd688288c600017e2050a1aacb56c711d208586d3e470/pymdown_extensions-10.21.3-py3-none-any.whl", hash = "sha256:d7a5d08014fc571e80ca21dd6f854e31f94c489800350564d55d15b3c41e76b6", size = 269002, upload-time = "2026-05-13T12:57:30.296Z" },
 ]
 
 [[package]]

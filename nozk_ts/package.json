@@ -29,7 +29,7 @@
         "ethereum-cryptography": "^3.2.0",
         "mcl-wasm": "^2.0.0",
         "tsx": "^4.21.0",
-        "viem": "^2.47.6"
+        "viem": "^2.50.4"
     },
     "devDependencies": {
         "@biomejs/biome": "^2.4.10",

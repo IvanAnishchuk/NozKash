@@ -217,13 +217,19 @@ function vaultActivityLsKey(masterSeed: Uint8Array): string {
 
 /** Tracks the current seed key so `debouncedPersistAllCaches` knows which LS key to write. */
 let currentSeedKey: string | null = null
-/** Cached suffix of the in-memory cache key for the current seed (avoids repeated keccak256). */
-let currentSeedCacheKeySuffix: string | null = null
+/** Exact in-memory cache key for the active (vault, fromBlock, seed) context. */
+let currentActiveCacheKey: string | null = null
 
-/** Called during fetch to register which seed we're operating with. */
-export function setVaultActivitySeedContext(masterSeed: Uint8Array): void {
+/** Called during fetch to register which seed + scan context we're operating with. */
+export function setVaultActivitySeedContext(
+  masterSeed: Uint8Array,
+  vault?: string,
+  fromBlock?: string
+): void {
   currentSeedKey = vaultActivityLsKey(masterSeed)
-  currentSeedCacheKeySuffix = masterSeedCacheKey(masterSeed)
+  const v = vault ?? normalizeAddress(NOZK_VAULT_ADDRESS)
+  const fb = fromBlock ?? NOZK_VAULT_SCAN_FROM_BLOCK_HEX
+  currentActiveCacheKey = getVaultActivityCacheKey(masterSeed, v, fb)
 }
 
 function persistVaultActivity(seedKey: string, rows: VaultTx[], lastBlock: number): void {
@@ -280,13 +286,10 @@ function debouncedPersistAllCaches(): void {
   if (persistDebounceTimer != null) window.clearTimeout(persistDebounceTimer)
   persistDebounceTimer = window.setTimeout(() => {
     persistDebounceTimer = null
-    if (!currentSeedKey || !currentSeedCacheKeySuffix) return
-    // Find the cache entry for the current seed
-    for (const [key, entry] of vaultActivityCache.entries()) {
-      if (key.endsWith(currentSeedCacheKeySuffix)) {
-        persistVaultActivity(currentSeedKey, entry.rows, entry.lastBlock)
-        break
-      }
+    if (!currentSeedKey || !currentActiveCacheKey) return
+    const entry = vaultActivityCache.get(currentActiveCacheKey)
+    if (entry) {
+      persistVaultActivity(currentSeedKey, entry.rows, entry.lastBlock)
     }
   }, PERSIST_DEBOUNCE_MS)
 }
@@ -422,9 +425,10 @@ export function mutateVaultActivityCacheRow(
   txHash: string,
   blockNumber?: number
 ): void {
+  if (!currentActiveCacheKey) return
   for (const [key, entry] of vaultActivityCache.entries()) {
-    // Only mutate the cache entry belonging to the current seed
-    if (currentSeedCacheKeySuffix && !key.endsWith(currentSeedCacheKeySuffix)) continue
+    // Only mutate the cache entry belonging to the active scan context
+    if (key !== currentActiveCacheKey) continue
     const idx = entry.rows.findIndex((r) => r.tokenIndex === tokenIndex)
     if (idx === -1) continue
     entry.rows[idx] = buildLocalMutatedRow(entry.rows[idx]!, newType, txHash, blockNumber)
@@ -1172,7 +1176,7 @@ export async function fetchVaultActivityForFirstTokens(
   const now = Date.now()
 
   // Register seed context for localStorage persistence
-  setVaultActivitySeedContext(masterSeed)
+  setVaultActivitySeedContext(masterSeed, vault, fromBlock)
 
   // Seed in-memory cache from localStorage if cold (no in-memory entry at all)
   if (!vaultActivityCache.has(cacheKey)) {
@@ -1182,11 +1186,18 @@ export async function fetchVaultActivityForFirstTokens(
         rowCount: persisted.rows.length,
         lastBlock: persisted.lastBlock,
       })
+      // Derive batchCount from max tokenIndex so incremental scans cover all indices
+      const maxIdx = persisted.rows.reduce(
+        (m, r) => (r.tokenIndex != null && r.tokenIndex > m ? r.tokenIndex : m), -1
+      )
+      const batchCount = maxIdx >= 0
+        ? Math.floor(maxIdx / NOZK_VAULT_TOKEN_BATCH_SIZE) + 1
+        : Math.ceil(persisted.rows.length / NOZK_VAULT_TOKEN_BATCH_SIZE)
       vaultActivityCache.set(cacheKey, {
         at: 0,  // stale — will trigger incremental scan
         rows: persisted.rows,
         lastBlock: persisted.lastBlock,
-        batchCount: Math.ceil(persisted.rows.length / NOZK_VAULT_TOKEN_BATCH_SIZE),
+        batchCount,
       })
       // Immediately show persisted rows while incremental scan runs
       options?.onProgress?.(persisted.rows)

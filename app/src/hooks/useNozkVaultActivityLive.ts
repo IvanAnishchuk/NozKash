@@ -43,6 +43,7 @@ export function useNozkVaultActivityLive(params: {
   const lastSeedRevisionRef = useRef<number>(seedRevision)
   const optimisticByTokenRef = useRef<Map<number, VaultTx>>(new Map())
   const rowsRef = useRef<VaultTx[]>([])
+  const pollingRef = useRef(false)
 
   useEffect(() => {
     rowsRef.current = rows
@@ -137,7 +138,7 @@ export function useNozkVaultActivityLive(params: {
     // All other transitions (Revealed, Redeemed, Refunded) are user-initiated
     // and handled via publishVaultRowUpdate — no polling needed.
     const intervalId = window.setInterval(() => {
-      if (cancelled) return
+      if (cancelled || pollingRef.current) return
 
       // Collect tokens that need probing — read from ref to avoid updater side-effects
       const optimisticTokens = new Set(optimisticByTokenRef.current.keys())
@@ -151,26 +152,32 @@ export function useNozkVaultActivityLive(params: {
       const tokensToProbe = [...optimisticTokens, ...pendingTokenIndices]
       if (tokensToProbe.length === 0) return // nothing to poll
 
+      pollingRef.current = true
       void (async () => {
-        for (const tokenIndex of tokensToProbe) {
-          if (cancelled) return
-          try {
-            const row = await fetchVaultRowForTokenIndex(seed, tokenIndex, {
-              networkLabel,
-            })
-            if (!row || cancelled) return
-            // If state changed from what we had, update
-            optimisticByTokenRef.current.delete(tokenIndex)
-            setRows((prev) => {
-              const existing = prev.find((r) => r.tokenIndex === tokenIndex)
-              if (existing && existing.id === row.id && existing.type === row.type) return prev // no change
-              const next = prev.filter((r) => r.tokenIndex !== tokenIndex)
-              next.unshift(row)
-              return mergeWithOptimistic(next)
-            })
-          } catch {
-            // Best effort — try next token.
+        try {
+          for (const tokenIndex of tokensToProbe) {
+            if (cancelled) return
+            try {
+              const row = await fetchVaultRowForTokenIndex(seed, tokenIndex, {
+                networkLabel,
+              })
+              if (cancelled) return
+              if (!row) continue
+              // If state changed from what we had, update
+              optimisticByTokenRef.current.delete(tokenIndex)
+              setRows((prev) => {
+                const existing = prev.find((r) => r.tokenIndex === tokenIndex)
+                if (existing && existing.id === row.id && existing.type === row.type) return prev // no change
+                const next = prev.filter((r) => r.tokenIndex !== tokenIndex)
+                next.unshift(row)
+                return mergeWithOptimistic(next)
+              })
+            } catch {
+              // Best effort — try next token.
+            }
           }
+        } finally {
+          pollingRef.current = false
         }
       })()
     }, NOZK_VAULT_RPC_POLL_MS)

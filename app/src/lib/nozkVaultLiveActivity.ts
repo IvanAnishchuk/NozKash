@@ -687,7 +687,7 @@ export function startNozkVaultActivityLive(params: {
     const depositId = tokenIndexToDepositId.get(tokenIndex)
     if (depositId) {
       const st = upsertDepositState(depositId)
-      const blockHex = updatedRow.blockNumber
+      const blockHex = updatedRow.blockNumber && updatedRow.blockNumber < Number.MAX_SAFE_INTEGER
         ? '0x' + updatedRow.blockNumber.toString(16)
         : undefined
       if (updatedRow.type === 'Revealed') {

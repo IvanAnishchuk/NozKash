@@ -249,8 +249,8 @@ export function loadPersistedVaultActivity(masterSeed: Uint8Array): PersistedVau
     if (!raw) return null
     const data = JSON.parse(raw) as PersistedVaultActivity
     if (data?.v !== 1 || !Array.isArray(data.rows)) return null
-    // Validate lastBlock to prevent NaN propagation into eth_getLogs
-    if (typeof data.lastBlock !== 'number' || !Number.isFinite(data.lastBlock)) return null
+    // Validate lastBlock to prevent NaN / negative propagation into eth_getLogs
+    if (typeof data.lastBlock !== 'number' || !Number.isFinite(data.lastBlock) || data.lastBlock < 0) return null
     // Basic row-shape sanity check
     const looksValid = data.rows.every(
       (r) =>

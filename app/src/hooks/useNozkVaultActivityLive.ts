@@ -16,6 +16,13 @@ import {
 import { startNozkVaultActivityLive, getChainWsRpcUrl } from '../lib/nozkVaultLiveActivity'
 import type { VaultTx } from '../types/activity'
 
+function sortRows(a: VaultTx, b: VaultTx): number {
+  const ba = a.blockNumber ?? -1
+  const bb = b.blockNumber ?? -1
+  if (bb !== ba) return bb - ba
+  return b.id.localeCompare(a.id)
+}
+
 export function useNozkVaultActivityLive(params: {
   masterSeed: Uint8Array | undefined | null
   seedRevision: number
@@ -169,7 +176,8 @@ export function useNozkVaultActivityLive(params: {
                 const existing = prev.find((r) => r.tokenIndex === tokenIndex)
                 if (existing && existing.id === row.id && existing.type === row.type) return prev // no change
                 const next = prev.filter((r) => r.tokenIndex !== tokenIndex)
-                next.unshift(row)
+                next.push(row)
+                next.sort(sortRows)
                 return mergeWithOptimistic(next)
               })
             } catch {
@@ -244,7 +252,11 @@ export function useNozkVaultActivityLive(params: {
       const updated = buildLocalMutatedRow(existing, d.newType, d.txHash, d.blockNumber)
       optimisticByTokenRef.current.delete(d.tokenIndex)
       controllerRef.current?.mutateRow(d.tokenIndex, updated)
-      setRows((prev) => prev.map((r) => (r.tokenIndex === d.tokenIndex ? updated : r)))
+      setRows((prev) => {
+        const next = prev.map((r) => (r.tokenIndex === d.tokenIndex ? updated : r))
+        next.sort(sortRows)
+        return next
+      })
     }
     window.addEventListener(
       NOZK_VAULT_ROW_UPDATE_EVENT,

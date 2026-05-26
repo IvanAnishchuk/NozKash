@@ -39,7 +39,7 @@ async function relayerPost<T>(path: string, body: unknown): Promise<T> {
 export async function sendRelayerRevealTransaction(params: {
   masterSeed: Uint8Array
   tokenIndex: number
-}): Promise<{ txHash: string }> {
+}): Promise<{ txHash: string; blockNumber?: number }> {
   const { masterSeed, tokenIndex } = params
   const secrets = deriveTokenSecretsFromSeed(masterSeed, tokenIndex)
 
@@ -65,7 +65,7 @@ export async function sendRelayerRevealTransaction(params: {
 
   redeemDebug('reveal relayer response', result as unknown as Record<string, unknown>)
   await waitForTransactionReceipt(result.tx_hash)
-  return { txHash: result.tx_hash }
+  return { txHash: result.tx_hash, blockNumber: result.block_number }
 }
 
 /**
@@ -75,7 +75,7 @@ export async function sendRelayerRedeemTransaction(params: {
   masterSeed: Uint8Array
   tokenIndex: number
   recipient: string
-}): Promise<{ txHash: string }> {
+}): Promise<{ txHash: string; blockNumber?: number }> {
   const { masterSeed, tokenIndex, recipient } = params
 
   const payload = buildRelayerRedeemPayload({
@@ -97,5 +97,5 @@ export async function sendRelayerRedeemTransaction(params: {
   redeemDebug('redeem relayer response', result as unknown as Record<string, unknown>)
   await waitForTransactionReceipt(result.tx_hash)
   clearRedemptionDraft()
-  return { txHash: result.tx_hash }
+  return { txHash: result.tx_hash, blockNumber: result.block_number }
 }

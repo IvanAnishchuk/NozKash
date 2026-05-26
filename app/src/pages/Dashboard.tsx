@@ -22,7 +22,7 @@ import {
   filterVaultActivity,
   formatTxAmountDisplay,
 } from '../lib/historyQuery'
-import { mutateVaultActivityCacheRow, publishVaultRowUpdate } from '../lib/nozkVault'
+import { applyVaultRowUpdate } from '../lib/nozkVault'
 import { sendRelayerRedeemTransaction, sendRelayerRevealTransaction } from '../lib/sendVaultRedeem'
 import { sendVaultRefundTransaction } from '../lib/sendVaultRefund'
 import { mergeVaultRowsWithRedeemDraft } from '../lib/vaultRedeemMerge'
@@ -197,13 +197,12 @@ function BatchRedeemSection({
       let successCount = 0
       for (const token of selected) {
         try {
-          const { txHash } = await sendRelayerRevealTransaction({
+          const { txHash, blockNumber } = await sendRelayerRevealTransaction({
             masterSeed,
             tokenIndex: token.tokenIndex!,
           })
           successCount++
-          publishVaultRowUpdate({ tokenIndex: token.tokenIndex!, newType: 'Revealed', txHash })
-          mutateVaultActivityCacheRow(token.tokenIndex!, 'Revealed', txHash)
+          applyVaultRowUpdate({ tokenIndex: token.tokenIndex!, newType: 'Revealed', txHash, blockNumber })
         } catch (err: unknown) {
           const msg = (err as { message?: string })?.message ?? 'Reveal failed'
           showToast(`Token #${token.tokenIndex}: ${msg}`, 'error')
@@ -231,14 +230,13 @@ function BatchRedeemSection({
       let successCount = 0
       for (const token of selected) {
         try {
-          const { txHash } = await sendRelayerRedeemTransaction({
+          const { txHash, blockNumber } = await sendRelayerRedeemTransaction({
             masterSeed,
             tokenIndex: token.tokenIndex!,
             recipient: recipient.trim(),
           })
           successCount++
-          publishVaultRowUpdate({ tokenIndex: token.tokenIndex!, newType: 'Redeem', txHash })
-          mutateVaultActivityCacheRow(token.tokenIndex!, 'Redeem', txHash)
+          applyVaultRowUpdate({ tokenIndex: token.tokenIndex!, newType: 'Redeem', txHash, blockNumber })
         } catch (err: unknown) {
           const msg = (err as { message?: string })?.message ?? 'Redeem failed'
           showToast(`Token #${token.tokenIndex}: ${msg}`, 'error')
@@ -519,13 +517,12 @@ export function Dashboard() {
     }
     setRevealingId(item.id)
     try {
-      const { txHash } = await sendRelayerRevealTransaction({
+      const { txHash, blockNumber } = await sendRelayerRevealTransaction({
         masterSeed: effectiveMasterSeed,
         tokenIndex: item.tokenIndex,
       })
       requestWalletBalanceRefresh()
-      publishVaultRowUpdate({ tokenIndex: item.tokenIndex, newType: 'Revealed', txHash })
-      mutateVaultActivityCacheRow(item.tokenIndex, 'Revealed', txHash)
+      applyVaultRowUpdate({ tokenIndex: item.tokenIndex, newType: 'Revealed', txHash, blockNumber })
       showToast('Reveal confirmed · nullifier registered on-chain', 'success')
     } catch (err: unknown) {
       const e = err as { code?: number; message?: string }
@@ -570,10 +567,9 @@ export function Dashboard() {
     try {
       const secrets = deriveTokenSecrets(effectiveMasterSeed, item.tokenIndex)
       const depositId = getDepositId(secrets)
-      const { txHash } = await sendVaultRefundTransaction({ ethereum, depositId })
+      const { txHash, blockNumber } = await sendVaultRefundTransaction({ ethereum, depositId })
       requestWalletBalanceRefresh()
-      publishVaultRowUpdate({ tokenIndex: item.tokenIndex, newType: 'Refunded', txHash })
-      mutateVaultActivityCacheRow(item.tokenIndex, 'Refunded', txHash)
+      applyVaultRowUpdate({ tokenIndex: item.tokenIndex, newType: 'Refunded', txHash, blockNumber })
       showToast('Refund confirmed · ETH returned to this wallet', 'success')
     } catch (err: unknown) {
       const e = err as { code?: number; message?: string }
@@ -619,14 +615,13 @@ export function Dashboard() {
 
     setRedeemingId(item.id)
     try {
-      const { txHash } = await sendRelayerRedeemTransaction({
+      const { txHash, blockNumber } = await sendRelayerRedeemTransaction({
         masterSeed: effectiveMasterSeed,
         tokenIndex: item.tokenIndex,
         recipient,
       })
       requestWalletBalanceRefresh()
-      publishVaultRowUpdate({ tokenIndex: item.tokenIndex, newType: 'Redeem', txHash })
-      mutateVaultActivityCacheRow(item.tokenIndex, 'Redeem', txHash)
+      applyVaultRowUpdate({ tokenIndex: item.tokenIndex, newType: 'Redeem', txHash, blockNumber })
       showToast(`Redeem confirmed · 0.001 ETH sent to ${recipient.slice(0, 8)}…`, 'success')
       setRedeemRecipients((prev) => {
         const next = { ...prev }

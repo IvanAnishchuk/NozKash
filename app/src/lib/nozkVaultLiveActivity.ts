@@ -170,6 +170,7 @@ function buildRow(params: {
     txHash,
     dateIso,
   } = params
+  const networkLabel = netLabel
 
   const bn = blockNumber ?? 0
   const idBase = tokenIndex
@@ -191,6 +192,7 @@ function buildRow(params: {
       } · ${netLabel}`,
       blockNumber: bn,
       tokenIndex,
+      networkLabel,
     }
   }
 
@@ -211,6 +213,7 @@ function buildRow(params: {
       } · ${netLabel}`,
       blockNumber: bn,
       tokenIndex,
+      networkLabel,
     }
   }
 
@@ -231,6 +234,7 @@ function buildRow(params: {
       } · ${netLabel}`,
       blockNumber: bn,
       tokenIndex,
+      networkLabel,
     }
   }
 
@@ -251,6 +255,7 @@ function buildRow(params: {
       } · ${netLabel}`,
       blockNumber: bn,
       tokenIndex,
+      networkLabel,
     }
   }
 
@@ -269,6 +274,7 @@ function buildRow(params: {
     historySub: `nullifier spent · block ${bn || '?'} · ${netLabel}`,
     blockNumber: bn,
     tokenIndex,
+    networkLabel,
   }
 }
 
@@ -695,6 +701,12 @@ export function startNozkVaultActivityLive(params: {
         st.spent = true
       } else if (updatedRow.type === 'Refunded' && blockHex) {
         st.refunded = { blockHex, txHash: updatedRow.txHash }
+      } else if (updatedRow.type === 'Deposit' && blockHex) {
+        st.mintFulfilled = { blockHex, txHash: updatedRow.txHash }
+        if (st.nullifierState === undefined) st.nullifierState = NULLIFIER_UNREVEALED
+        st.spent = false
+      } else if (updatedRow.type === 'Pending' && blockHex) {
+        st.depositLocked = { blockHex, txHash: updatedRow.txHash }
       }
     }
     scheduleEmit()

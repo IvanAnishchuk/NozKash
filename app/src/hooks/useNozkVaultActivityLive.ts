@@ -42,6 +42,11 @@ export function useNozkVaultActivityLive(params: {
   const controllerRef = useRef<ReturnType<typeof startNozkVaultActivityLive> | null>(null)
   const lastSeedRevisionRef = useRef<number>(seedRevision)
   const optimisticByTokenRef = useRef<Map<number, VaultTx>>(new Map())
+  const rowsRef = useRef<VaultTx[]>([])
+
+  useEffect(() => {
+    rowsRef.current = rows
+  }, [rows])
 
   const mergeWithOptimistic = (base: VaultTx[]): VaultTx[] => {
     if (optimisticByTokenRef.current.size === 0) return base
@@ -134,17 +139,14 @@ export function useNozkVaultActivityLive(params: {
     const intervalId = window.setInterval(() => {
       if (cancelled) return
 
-      // Collect tokens that need probing
-      const optimisticTokens = Array.from(optimisticByTokenRef.current.keys())
+      // Collect tokens that need probing — read from ref to avoid updater side-effects
+      const optimisticTokens = new Set(optimisticByTokenRef.current.keys())
       const pendingTokenIndices: number[] = []
-      setRows((prev) => {
-        for (const r of prev) {
-          if (r.type === 'Pending' && r.tokenIndex !== undefined && !optimisticTokens.includes(r.tokenIndex)) {
-            pendingTokenIndices.push(r.tokenIndex)
-          }
+      for (const r of rowsRef.current) {
+        if (r.type === 'Pending' && r.tokenIndex !== undefined && !optimisticTokens.has(r.tokenIndex)) {
+          pendingTokenIndices.push(r.tokenIndex)
         }
-        return prev // no mutation, just reading state
-      })
+      }
 
       const tokensToProbe = [...optimisticTokens, ...pendingTokenIndices]
       if (tokensToProbe.length === 0) return // nothing to poll
@@ -161,7 +163,7 @@ export function useNozkVaultActivityLive(params: {
             optimisticByTokenRef.current.delete(tokenIndex)
             setRows((prev) => {
               const existing = prev.find((r) => r.tokenIndex === tokenIndex)
-              if (existing && existing.type === row.type) return prev // no change
+              if (existing && existing.id === row.id && existing.type === row.type) return prev // no change
               const next = prev.filter((r) => r.tokenIndex !== tokenIndex)
               next.unshift(row)
               return mergeWithOptimistic(next)
@@ -213,6 +215,7 @@ export function useNozkVaultActivityLive(params: {
           historySub: `Submitted · awaiting mint fulfillment · ${d.networkLabel}`,
           blockNumber: Number.MAX_SAFE_INTEGER,
           tokenIndex: d.tokenIndex,
+          networkLabel: d.networkLabel,
         }
         optimisticByTokenRef.current.set(d.tokenIndex, optimistic)
         return [optimistic, ...withoutSameToken]
@@ -223,18 +226,18 @@ export function useNozkVaultActivityLive(params: {
       onOptimisticPending as EventListener
     )
 
-    // Row-update event: instant local state mutation after user actions
+    // Row-update event: instant local state mutation after user actions.
+    // Side effects (controller mutation) run outside the updater to avoid
+    // double-invocation in StrictMode.
     const onRowUpdate = (ev: Event) => {
       const d = (ev as CustomEvent<NozkVaultRowUpdateDetail>).detail
       if (!d || typeof d.tokenIndex !== 'number') return
-      setRows((prev) => {
-        const existing = prev.find((r) => r.tokenIndex === d.tokenIndex)
-        if (!existing) return prev
-        const updated = buildLocalMutatedRow(existing, d.newType, d.txHash, d.blockNumber)
-        optimisticByTokenRef.current.delete(d.tokenIndex)
-        controllerRef.current?.mutateRow(d.tokenIndex, updated)
-        return prev.map((r) => (r.tokenIndex === d.tokenIndex ? updated : r))
-      })
+      const existing = rowsRef.current.find((r) => r.tokenIndex === d.tokenIndex)
+      if (!existing) return
+      const updated = buildLocalMutatedRow(existing, d.newType, d.txHash, d.blockNumber)
+      optimisticByTokenRef.current.delete(d.tokenIndex)
+      controllerRef.current?.mutateRow(d.tokenIndex, updated)
+      setRows((prev) => prev.map((r) => (r.tokenIndex === d.tokenIndex ? updated : r)))
     }
     window.addEventListener(
       NOZK_VAULT_ROW_UPDATE_EVENT,

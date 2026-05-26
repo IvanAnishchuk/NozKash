@@ -34,7 +34,7 @@ export function encodeNozkVaultRefundCalldata(depositId: string): `0x${string}` 
 export async function sendVaultRefundTransaction(params: {
   ethereum: EthereumRequester
   depositId: string
-}): Promise<{ txHash: string }> {
+}): Promise<{ txHash: string; blockNumber?: number }> {
   const { ethereum, depositId } = params
   const id = depositId.trim()
   if (!/^0x[a-fA-F0-9]{40}$/.test(id)) {
@@ -80,5 +80,8 @@ export async function sendVaultRefundTransaction(params: {
     throw new Error('Transaction reverted')
   }
 
-  return { txHash: hash }
+  const blockNumber = receipt.blockNumber
+    ? Number.parseInt(receipt.blockNumber, 16)
+    : undefined
+  return { txHash: hash, blockNumber }
 }

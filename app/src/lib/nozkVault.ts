@@ -187,7 +187,6 @@ export function clearVaultActivityCache(): void {
 
 // ---------------------------------------------------------------------------
 // localStorage persistence — instant reload without full chain re-scan.
-// Implemented in Phase 4; stubs here so Phase 1 compiles.
 // ---------------------------------------------------------------------------
 
 const PERSIST_DEBOUNCE_MS = 1000
@@ -201,21 +200,30 @@ type PersistedVaultActivity = {
   savedAt: number
 }
 
-/** localStorage key prefix. The suffix is seed-derived so data is unusable without login. */
+/**
+ * localStorage key prefix. The suffix is seed-derived so distinct wallets in
+ * the same browser don't share entries. The stored payload (counterparty
+ * addresses, tx hashes, block numbers, token indices) is plain JSON — not
+ * encrypted — and readable by anyone with localStorage access.
+ */
 const LS_VAULT_ACTIVITY_PREFIX = 'nozk:vault-activity:'
 
 function vaultActivityLsKey(masterSeed: Uint8Array): string {
-  return LS_VAULT_ACTIVITY_PREFIX + bytesToHex(keccak256(masterSeed)).slice(0, 16)
+  const seedHash = bytesToHex(keccak256(masterSeed)).slice(0, 16)
+  // Include vault address so different deployments / chains don't share cache
+  const vaultSlice = NOZK_VAULT_ADDRESS.toLowerCase().replace(/^0x/, '').slice(0, 8)
+  return `${LS_VAULT_ACTIVITY_PREFIX}${vaultSlice}:${seedHash}`
 }
 
 /** Tracks the current seed key so `debouncedPersistAllCaches` knows which LS key to write. */
 let currentSeedKey: string | null = null
-let currentMasterSeed: Uint8Array | null = null
+/** Cached suffix of the in-memory cache key for the current seed (avoids repeated keccak256). */
+let currentSeedCacheKeySuffix: string | null = null
 
 /** Called during fetch to register which seed we're operating with. */
 export function setVaultActivitySeedContext(masterSeed: Uint8Array): void {
   currentSeedKey = vaultActivityLsKey(masterSeed)
-  currentMasterSeed = masterSeed
+  currentSeedCacheKeySuffix = masterSeedCacheKey(masterSeed)
 }
 
 function persistVaultActivity(seedKey: string, rows: VaultTx[], lastBlock: number): void {
@@ -235,6 +243,17 @@ export function loadPersistedVaultActivity(masterSeed: Uint8Array): PersistedVau
     if (!raw) return null
     const data = JSON.parse(raw) as PersistedVaultActivity
     if (data?.v !== 1 || !Array.isArray(data.rows)) return null
+    // Validate lastBlock to prevent NaN propagation into eth_getLogs
+    if (typeof data.lastBlock !== 'number' || !Number.isFinite(data.lastBlock)) return null
+    // Basic row-shape sanity check
+    const looksValid = data.rows.every(
+      (r) =>
+        r &&
+        typeof r.id === 'string' &&
+        typeof r.type === 'string' &&
+        (r.tokenIndex === undefined || typeof r.tokenIndex === 'number')
+    )
+    if (!looksValid) return null
     nozkVaultActivityDebug('loaded from localStorage', { key, rowCount: data.rows.length, lastBlock: data.lastBlock })
     return data
   } catch {
@@ -261,10 +280,10 @@ function debouncedPersistAllCaches(): void {
   if (persistDebounceTimer != null) window.clearTimeout(persistDebounceTimer)
   persistDebounceTimer = window.setTimeout(() => {
     persistDebounceTimer = null
-    if (!currentSeedKey || !currentMasterSeed) return
+    if (!currentSeedKey || !currentSeedCacheKeySuffix) return
     // Find the cache entry for the current seed
     for (const [key, entry] of vaultActivityCache.entries()) {
-      if (key.endsWith(bytesToHex(keccak256(currentMasterSeed)))) {
+      if (key.endsWith(currentSeedCacheKeySuffix)) {
         persistVaultActivity(currentSeedKey, entry.rows, entry.lastBlock)
         break
       }
@@ -348,7 +367,7 @@ export function buildLocalMutatedRow(
 ): VaultTx {
   const idx = existingRow.tokenIndex ?? -1
   const bn = blockNumber ?? existingRow.blockNumber
-  const netLabel = existingRow.historySub.match(/· ([^·]+)$/)?.[1]?.trim() ?? TARGET_NETWORK_LABEL
+  const netLabel = existingRow.networkLabel ?? TARGET_NETWORK_LABEL
 
   let idPrefix: string
   let label: string
@@ -389,12 +408,13 @@ export function buildLocalMutatedRow(
     blockNumber: bn,
     historyLabel: label,
     historySub: sub,
+    networkLabel: netLabel,
   }
 }
 
 /**
- * Write-through mutation: update the row for `tokenIndex` in every
- * in-memory cache entry. Does NOT mark cache stale — the data is up-to-date.
+ * Write-through mutation: update the row for `tokenIndex` in the
+ * in-memory cache entry for the current seed. Does NOT mark cache stale.
  */
 export function mutateVaultActivityCacheRow(
   tokenIndex: number,
@@ -402,12 +422,24 @@ export function mutateVaultActivityCacheRow(
   txHash: string,
   blockNumber?: number
 ): void {
-  for (const entry of vaultActivityCache.values()) {
+  for (const [key, entry] of vaultActivityCache.entries()) {
+    // Only mutate the cache entry belonging to the current seed
+    if (currentSeedCacheKeySuffix && !key.endsWith(currentSeedCacheKeySuffix)) continue
     const idx = entry.rows.findIndex((r) => r.tokenIndex === tokenIndex)
     if (idx === -1) continue
     entry.rows[idx] = buildLocalMutatedRow(entry.rows[idx]!, newType, txHash, blockNumber)
   }
   debouncedPersistAllCaches()
+}
+
+/**
+ * Atomically update the in-memory cache row AND dispatch the React state
+ * update event. Use this instead of calling mutateVaultActivityCacheRow +
+ * publishVaultRowUpdate separately.
+ */
+export function applyVaultRowUpdate(detail: NozkVaultRowUpdateDetail): void {
+  mutateVaultActivityCacheRow(detail.tokenIndex, detail.newType, detail.txHash, detail.blockNumber)
+  publishVaultRowUpdate(detail)
 }
 
 /** Dispatch a row-update event for the hook to apply to React state. */
@@ -928,6 +960,7 @@ export async function fetchVaultRowForTokenIndex(
         historySub: `nullifier spent · block ${bn || '?'} · ${netLabel}`,
         blockNumber: bn,
         tokenIndex,
+        networkLabel: netLabel,
       }
     }
     if (nState === NULLIFIER_REVEALED) {
@@ -954,6 +987,7 @@ export async function fetchVaultRowForTokenIndex(
           : `Revealed (via state) · block ${bn || '?'} · ${netLabel}`,
         blockNumber: rBn,
         tokenIndex,
+        networkLabel: netLabel,
       }
     }
     return {
@@ -968,6 +1002,7 @@ export async function fetchVaultRowForTokenIndex(
       historySub: `MintFulfilled · ${txShort(txh)} · block ${bn || '?'} · ${netLabel}`,
       blockNumber: bn,
       tokenIndex,
+      networkLabel: netLabel,
     }
   }
 
@@ -989,6 +1024,7 @@ export async function fetchVaultRowForTokenIndex(
         historySub: `Refunded · ${txShort(txh)} · block ${rBn || '?'} · ${netLabel}`,
         blockNumber: rBn,
         tokenIndex,
+        networkLabel: netLabel,
       }
     }
   } else if (refundLog) {
@@ -1007,6 +1043,7 @@ export async function fetchVaultRowForTokenIndex(
       historySub: `Refunded · ${txShort(txh)} · block ${rBn || '?'} · ${netLabel}`,
       blockNumber: rBn,
       tokenIndex,
+      networkLabel: netLabel,
     }
   }
 
@@ -1026,6 +1063,7 @@ export async function fetchVaultRowForTokenIndex(
     historySub: `DepositLocked · ${txShort(txh)} · block ${lBn || '?'} · ${netLabel}`,
     blockNumber: lBn,
     tokenIndex,
+    networkLabel: netLabel,
   }
 }
 
@@ -1438,6 +1476,7 @@ async function fetchVaultActivityForFirstTokensImpl(
             historySub: `nullifier spent · block ${bn || '?'} · ${netLabel}`,
             blockNumber: bn,
             tokenIndex,
+            networkLabel: netLabel,
           },
         })
         continue
@@ -1466,6 +1505,7 @@ async function fetchVaultActivityForFirstTokensImpl(
               : `Revealed (via state) · block ${bn || '?'} · ${netLabel}`,
             blockNumber: bn,
             tokenIndex,
+            networkLabel: netLabel,
           },
         })
         continue
@@ -1487,6 +1527,7 @@ async function fetchVaultActivityForFirstTokensImpl(
             historySub: `MintFulfilled · ${txShort(txh)} · block ${bn || '?'} · ${netLabel}`,
             blockNumber: bn,
             tokenIndex,
+            networkLabel: netLabel,
           },
         })
         continue
@@ -1511,6 +1552,7 @@ async function fetchVaultActivityForFirstTokensImpl(
               historySub: `Refunded · ${txShort(txh)} · block ${rBn || '?'} · ${netLabel}`,
               blockNumber: rBn,
               tokenIndex,
+              networkLabel: netLabel,
             },
           })
           continue
@@ -1530,6 +1572,7 @@ async function fetchVaultActivityForFirstTokensImpl(
             historySub: `Refunded · ${txShort(txh)} · block ${rBn || '?'} · ${netLabel}`,
             blockNumber: rBn,
             tokenIndex,
+            networkLabel: netLabel,
           },
         })
         continue
@@ -1550,6 +1593,7 @@ async function fetchVaultActivityForFirstTokensImpl(
             historySub: `DepositLocked · ${txShort(txh)} · block ${bn || '?'} · ${netLabel}`,
             blockNumber: bn,
             tokenIndex,
+            networkLabel: netLabel,
           },
         })
       }
@@ -1691,14 +1735,14 @@ export async function getNextVaultTokenIndexForDeposit(
       { to: vault, data: `${DEPOSIT_PENDING_SELECTOR}${encoded}` },
       'latest',
     ])
-    const isPending = BigInt(pendingHex || '0x0') !== 0n
+    const isPending = BigInt(pendingHex && pendingHex !== '0x' ? pendingHex : '0x0') !== 0n
     let isFulfilled = false
     if (!isPending) {
       const fulfilledHex = await chainRpcCall<string>('eth_call', [
         { to: vault, data: `${DEPOSIT_FULFILLED_SELECTOR}${encoded}` },
         'latest',
       ])
-      isFulfilled = BigInt(fulfilledHex || '0x0') !== 0n
+      isFulfilled = BigInt(fulfilledHex && fulfilledHex !== '0x' ? fulfilledHex : '0x0') !== 0n
     }
     if (!isPending && !isFulfilled) {
       nozkVaultActivityDebug('next token probe picked', {

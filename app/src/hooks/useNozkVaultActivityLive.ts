@@ -1,17 +1,27 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { TARGET_NETWORK_LABEL } from '../lib/ethereum'
 import {
+  buildLocalMutatedRow,
   fetchVaultActivityForFirstTokens,
   fetchVaultRowForTokenIndex,
   NOZK_VAULT_ACTIVITY_REFRESH_EVENT,
   NOZK_VAULT_DEPOSIT_AMOUNT_LABEL,
   NOZK_VAULT_OPTIMISTIC_PENDING_EVENT,
+  NOZK_VAULT_ROW_UPDATE_EVENT,
   NOZK_VAULT_RPC_POLL_MS,
   setNozkVaultLiveActive,
   type NozkVaultOptimisticPendingDetail,
+  type NozkVaultRowUpdateDetail,
 } from '../lib/nozkVault'
 import { startNozkVaultActivityLive, getChainWsRpcUrl } from '../lib/nozkVaultLiveActivity'
 import type { VaultTx } from '../types/activity'
+
+function sortRows(a: VaultTx, b: VaultTx): number {
+  const ba = a.blockNumber ?? -1
+  const bb = b.blockNumber ?? -1
+  if (bb !== ba) return bb - ba
+  return b.id.localeCompare(a.id)
+}
 
 export function useNozkVaultActivityLive(params: {
   masterSeed: Uint8Array | undefined | null
@@ -39,7 +49,12 @@ export function useNozkVaultActivityLive(params: {
   const controllerRef = useRef<ReturnType<typeof startNozkVaultActivityLive> | null>(null)
   const lastSeedRevisionRef = useRef<number>(seedRevision)
   const optimisticByTokenRef = useRef<Map<number, VaultTx>>(new Map())
-  const prioritizeOptimisticTickRef = useRef(true)
+  const rowsRef = useRef<VaultTx[]>([])
+  const pollingRef = useRef(false)
+
+  useEffect(() => {
+    rowsRef.current = rows
+  }, [rows])
 
   const mergeWithOptimistic = (base: VaultTx[]): VaultTx[] => {
     if (optimisticByTokenRef.current.size === 0) return base
@@ -124,51 +139,58 @@ export function useNozkVaultActivityLive(params: {
 
     void initialLoad()
 
+    // Targeted polling: only probe tokens that might change externally.
+    // - Optimistic tokens: freshly deposited, awaiting on-chain confirmation
+    // - Pending tokens: awaiting MintFulfilled from the mint daemon
+    // All other transitions (Revealed, Redeemed, Refunded) are user-initiated
+    // and handled via publishVaultRowUpdate — no polling needed.
     const intervalId = window.setInterval(() => {
-      if (cancelled) return
-      const optimisticTokens = Array.from(optimisticByTokenRef.current.keys())
-      const shouldProbeOptimistic =
-        optimisticTokens.length > 0 && prioritizeOptimisticTickRef.current
+      if (cancelled || pollingRef.current) return
 
-      if (shouldProbeOptimistic) {
-        // Prioritize current optimistic token so Pending -> Deposit/Refunded appears fast.
-        const tokenIndex = optimisticTokens[0]!
-        prioritizeOptimisticTickRef.current = false
-        void (async () => {
-          try {
-            const row = await fetchVaultRowForTokenIndex(seed, tokenIndex, {
-              networkLabel,
-            })
-            if (!row || cancelled) return
-            // Promote optimistic pending to the freshest known real state for this token
-            // and keep it sticky while ordered scan catches up.
-            optimisticByTokenRef.current.set(tokenIndex, row)
-            setRows((prev) => {
-              const next = prev.filter((r) => r.tokenIndex !== tokenIndex)
-              next.unshift(row)
-              return mergeWithOptimistic(next)
-            })
-          } catch {
-            // Best effort.
-          }
-        })()
-        return
+      // Collect tokens that need probing — read from ref to avoid updater side-effects
+      const optimisticTokens = new Set(optimisticByTokenRef.current.keys())
+      const pendingTokenIndices: number[] = []
+      for (const r of rowsRef.current) {
+        if (r.type === 'Pending' && r.tokenIndex !== undefined && !optimisticTokens.has(r.tokenIndex)) {
+          pendingTokenIndices.push(r.tokenIndex)
+        }
       }
 
-      prioritizeOptimisticTickRef.current = true
+      const tokensToProbe = [...optimisticTokens, ...pendingTokenIndices]
+      if (tokensToProbe.length === 0) return // nothing to poll
+
+      pollingRef.current = true
       void (async () => {
         try {
-          const snap = await fetchVaultActivityForFirstTokens(seed, {
-            networkLabel,
-            maxBatches,
-          })
-          if (!cancelled) setRows(mergeWithOptimistic(snap))
-        } catch {
-          // Best effort: keep WS-driven state.
+          for (const tokenIndex of tokensToProbe) {
+            if (cancelled) return
+            try {
+              const row = await fetchVaultRowForTokenIndex(seed, tokenIndex, {
+                networkLabel,
+              })
+              if (cancelled) return
+              if (!row) continue
+              // If state changed from what we had, update
+              optimisticByTokenRef.current.delete(tokenIndex)
+              setRows((prev) => {
+                const existing = prev.find((r) => r.tokenIndex === tokenIndex)
+                if (existing && existing.id === row.id && existing.type === row.type) return prev // no change
+                const next = prev.filter((r) => r.tokenIndex !== tokenIndex)
+                next.push(row)
+                next.sort(sortRows)
+                return mergeWithOptimistic(next)
+              })
+            } catch {
+              // Best effort — try next token.
+            }
+          }
+        } finally {
+          pollingRef.current = false
         }
       })()
     }, NOZK_VAULT_RPC_POLL_MS)
 
+    // Full refresh listener — only used for account/seed switch (Layout.tsx)
     const onRefresh = () => {
       void (async () => {
         try {
@@ -208,6 +230,7 @@ export function useNozkVaultActivityLive(params: {
           historySub: `Submitted · awaiting mint fulfillment · ${d.networkLabel}`,
           blockNumber: Number.MAX_SAFE_INTEGER,
           tokenIndex: d.tokenIndex,
+          networkLabel: d.networkLabel,
         }
         optimisticByTokenRef.current.set(d.tokenIndex, optimistic)
         return [optimistic, ...withoutSameToken]
@@ -218,6 +241,28 @@ export function useNozkVaultActivityLive(params: {
       onOptimisticPending as EventListener
     )
 
+    // Row-update event: instant local state mutation after user actions.
+    // Side effects (controller mutation) run outside the updater to avoid
+    // double-invocation in StrictMode.
+    const onRowUpdate = (ev: Event) => {
+      const d = (ev as CustomEvent<NozkVaultRowUpdateDetail>).detail
+      if (!d || typeof d.tokenIndex !== 'number') return
+      const existing = rowsRef.current.find((r) => r.tokenIndex === d.tokenIndex)
+      if (!existing) return
+      const updated = buildLocalMutatedRow(existing, d.newType, d.txHash, d.blockNumber)
+      optimisticByTokenRef.current.delete(d.tokenIndex)
+      controllerRef.current?.mutateRow(d.tokenIndex, updated)
+      setRows((prev) => {
+        const next = prev.map((r) => (r.tokenIndex === d.tokenIndex ? updated : r))
+        next.sort(sortRows)
+        return next
+      })
+    }
+    window.addEventListener(
+      NOZK_VAULT_ROW_UPDATE_EVENT,
+      onRowUpdate as EventListener
+    )
+
     return () => {
       cancelled = true
       window.clearInterval(intervalId)
@@ -225,6 +270,10 @@ export function useNozkVaultActivityLive(params: {
       window.removeEventListener(
         NOZK_VAULT_OPTIMISTIC_PENDING_EVENT,
         onOptimisticPending as EventListener
+      )
+      window.removeEventListener(
+        NOZK_VAULT_ROW_UPDATE_EVENT,
+        onRowUpdate as EventListener
       )
       controllerRef.current?.stop()
       controllerRef.current = null

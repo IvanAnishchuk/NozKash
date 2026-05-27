@@ -155,16 +155,16 @@ const RECEIPT_POLL_MAX_ATTEMPTS = 11
 export async function waitForTransactionReceipt(
   txHash: string,
   options?: { ethereum?: EthereumProvider }
-): Promise<{ status?: string }> {
-  const poll = async (): Promise<{ status?: string } | null> => {
+): Promise<{ status?: string; blockNumber?: string }> {
+  const poll = async (): Promise<{ status?: string; blockNumber?: string } | null> => {
     if (options?.ethereum) {
       const r = await options.ethereum.request({
         method: 'eth_getTransactionReceipt',
         params: [txHash],
       })
-      return r as { status?: string } | null
+      return r as { status?: string; blockNumber?: string } | null
     }
-    return chainRpcCall<{ status?: string } | null>(
+    return chainRpcCall<{ status?: string; blockNumber?: string } | null>(
       'eth_getTransactionReceipt',
       [txHash]
     )

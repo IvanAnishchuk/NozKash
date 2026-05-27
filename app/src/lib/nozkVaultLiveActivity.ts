@@ -170,6 +170,7 @@ function buildRow(params: {
     txHash,
     dateIso,
   } = params
+  const networkLabel = netLabel
 
   const bn = blockNumber ?? 0
   const idBase = tokenIndex
@@ -191,6 +192,7 @@ function buildRow(params: {
       } · ${netLabel}`,
       blockNumber: bn,
       tokenIndex,
+      networkLabel,
     }
   }
 
@@ -211,6 +213,7 @@ function buildRow(params: {
       } · ${netLabel}`,
       blockNumber: bn,
       tokenIndex,
+      networkLabel,
     }
   }
 
@@ -231,6 +234,7 @@ function buildRow(params: {
       } · ${netLabel}`,
       blockNumber: bn,
       tokenIndex,
+      networkLabel,
     }
   }
 
@@ -251,6 +255,7 @@ function buildRow(params: {
       } · ${netLabel}`,
       blockNumber: bn,
       tokenIndex,
+      networkLabel,
     }
   }
 
@@ -269,11 +274,14 @@ function buildRow(params: {
     historySub: `nullifier spent · block ${bn || '?'} · ${netLabel}`,
     blockNumber: bn,
     tokenIndex,
+    networkLabel,
   }
 }
 
 export type NozkVaultLiveActivityController = {
   stop: () => void
+  /** Update a single row after a user-initiated action (reveal, redeem, refund). */
+  mutateRow: (tokenIndex: number, updatedRow: VaultTx) => void
 }
 
 /**
@@ -287,7 +295,7 @@ export type NozkVaultLiveActivityController = {
 export function startNozkVaultActivityLive(params: {
   masterSeed: Uint8Array
   /**
-   * Network label used in UI strings (from the app’s configured target chain).
+   * Network label used in UI strings (from the app's configured target chain).
    * Only works reliably when you're on that same chain.
    */
   networkLabel: string
@@ -669,9 +677,44 @@ export function startNozkVaultActivityLive(params: {
     }
   }
 
+  /**
+   * Directly update a single row after a user-initiated action. Keeps
+   * depositStates consistent so future WS events don't regress the state.
+   */
+  function applyMutateRow(tokenIndex: number, updatedRow: VaultTx): void {
+    tokenIndexToRow.set(tokenIndex, updatedRow)
+    // Sync depositStates so recomputeTokenRow won't overwrite
+    const depositId = tokenIndexToDepositId.get(tokenIndex)
+    if (depositId) {
+      const st = upsertDepositState(depositId)
+      const blockHex = updatedRow.blockNumber && updatedRow.blockNumber < Number.MAX_SAFE_INTEGER
+        ? '0x' + updatedRow.blockNumber.toString(16)
+        : undefined
+      if (updatedRow.type === 'Revealed') {
+        if (!st.mintFulfilled && blockHex) st.mintFulfilled = { blockHex, txHash: updatedRow.txHash }
+        st.nullifierRevealed = blockHex ? { blockHex, txHash: updatedRow.txHash } : st.nullifierRevealed
+        st.nullifierState = NULLIFIER_REVEALED
+        st.spent = false
+      } else if (updatedRow.type === 'Redeem') {
+        if (!st.mintFulfilled && blockHex) st.mintFulfilled = { blockHex, txHash: updatedRow.txHash }
+        st.nullifierState = NULLIFIER_SPENT
+        st.spent = true
+      } else if (updatedRow.type === 'Refunded' && blockHex) {
+        st.refunded = { blockHex, txHash: updatedRow.txHash }
+      } else if (updatedRow.type === 'Deposit' && blockHex) {
+        st.mintFulfilled = { blockHex, txHash: updatedRow.txHash }
+        if (st.nullifierState === undefined) st.nullifierState = NULLIFIER_UNREVEALED
+        st.spent = false
+      } else if (updatedRow.type === 'Pending' && blockHex) {
+        st.depositLocked = { blockHex, txHash: updatedRow.txHash }
+      }
+    }
+    scheduleEmit()
+  }
+
   const wsUrl = getChainWsRpcUrl()
   if (!wsUrl) {
-    // No WS configured (or provider doesn’t support WS URL derivation).
+    // No WS configured (or provider doesn't support WS URL derivation).
     nozkVaultActivityDebug(
       'nozkVault live: no WS URL configured; running HTTP-only'
     )
@@ -680,6 +723,7 @@ export function startNozkVaultActivityLive(params: {
       stop: () => {
         stopped = true
       },
+      mutateRow: applyMutateRow,
     }
   }
 
@@ -822,5 +866,6 @@ export function startNozkVaultActivityLive(params: {
       }
       ws = null
     },
+    mutateRow: applyMutateRow,
   }
 }

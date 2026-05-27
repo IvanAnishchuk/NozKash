@@ -23,4 +23,6 @@ export interface VaultTx {
   blockNumber?: number
   /** Token index when the row comes from scanned vault activity. */
   tokenIndex?: number
+  /** Network label carried on the row so local mutations don't need to parse historySub. */
+  networkLabel?: string
 }

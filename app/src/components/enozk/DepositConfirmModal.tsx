@@ -20,7 +20,6 @@ import {
   NOZK_VAULT_DEPOSIT_VALUE_WEI_HEX,
   getNextVaultTokenIndexForDeposit,
   publishOptimisticPendingDeposit,
-  requestVaultActivityRefresh,
 } from '../../lib/nozkVault'
 import {
   buildNozkVaultDepositCalldata,
@@ -218,7 +217,7 @@ export function DepositConfirmModal({ open, onClose, onToast }: Props) {
           },
           'latest',
         ])
-        depositPendingView = BigInt(pendHex) !== 0n
+        depositPendingView = BigInt(pendHex && pendHex !== '0x' ? pendHex : '0x0') !== 0n
       } catch (pendErr) {
         if (isNozkVaultDebugEnabled()) {
           console.warn('[NozkVault deposit debug] depositPending eth_call failed', pendErr)
@@ -226,7 +225,7 @@ export function DepositConfirmModal({ open, onClose, onToast }: Props) {
       }
 
       const onChainDenomWei =
-        onChainDenominationWeiHex != null
+        onChainDenominationWeiHex != null && onChainDenominationWeiHex !== '0x'
           ? BigInt(onChainDenominationWeiHex)
           : null
 
@@ -285,7 +284,6 @@ export function DepositConfirmModal({ open, onClose, onToast }: Props) {
         txHash: hash,
         networkLabel: TARGET_NETWORK_LABEL,
       })
-      requestVaultActivityRefresh()
       requestWalletBalanceRefresh()
       onClose()
       onToast(

@@ -1240,11 +1240,22 @@ export async function fetchVaultActivityForFirstTokens(
     cachedRows: existing?.rows.length ?? 0,
   })
 
+  // When incremental, wrap onProgress so intermediate results are merged
+  // with cached rows instead of replacing them (prevents flicker).
+  const implOptions = isIncremental && existing && options?.onProgress
+    ? {
+        ...options,
+        onProgress: (rows: VaultTx[]) => {
+          options.onProgress!(mergeIncrementalRows(existing.rows, rows))
+        },
+      }
+    : options
+
   const genAtStart = cacheGeneration
   inflightActivityKey = cacheKey
   inflightActivityPromise = fetchVaultActivityForFirstTokensImpl(
     masterSeed,
-    options,
+    implOptions,
     vault,
     scanFromBlock,
     incrementalParams
